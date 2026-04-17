@@ -1,0 +1,14 @@
+# Simulation output directories
+RandomDraw_*/
+job-outs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
