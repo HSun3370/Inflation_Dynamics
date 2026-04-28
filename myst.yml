@@ -1,0 +1,24 @@
+# See docs at: https://mystmd.org/guide/frontmatter
+version: 1
+project:
+  id: ad1db3c3-65ac-44e5-a7de-6b33fc29339f
+  title: Inflation Dynamics
+  description: This repository contains computational notebooks and resources related to the study of inflation dynamics in economics.
+  authors:
+    - Haoyang Sun
+  github: https://github.com/HSun3370/Inflation_Dynamics
+  toc:
+    - file: README.md
+    - file: GJR_GARCH/README.md
+  exports:
+    - format: pdf
+      template: lapreprint-typst
+      output: Inflation-Dynamics.pdf
+      kind: "Computational Notebooks"   
+      open_access: false  
+      date: null
+      articles:
+        - file: README.md
+        - file: GJR_GARCH/README.md
+site:
+  template: book-theme
