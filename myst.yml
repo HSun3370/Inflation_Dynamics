@@ -2,7 +2,7 @@
 version: 1
 project:
   id: ad1db3c3-65ac-44e5-a7de-6b33fc29339f
-  title: Inflation Dynamics
+  title: Inflation Dynamics - Computational Notebook
   description: This repository contains computational notebooks and resources related to the study of inflation dynamics in economics.
   authors:
     - Haoyang Sun
@@ -14,11 +14,16 @@ project:
     - format: pdf
       template: lapreprint-typst
       output: Inflation-Dynamics.pdf
-      kind: "Computational Notebooks"   
+      kind: "Computation Notebook"   
       open_access: false  
       date: null
       articles:
         - file: README.md
+        - file: MeanProcess/README.md
+        - file: GARCH/README.md
         - file: GJR_GARCH/README.md
+        - file: EGARCH/README.md
+        - file: SPARCH/README.md
+        - file: BEGE_GARCH/README.md 
 site:
   template: book-theme
