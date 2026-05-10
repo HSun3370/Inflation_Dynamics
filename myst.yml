@@ -19,6 +19,7 @@ project:
       date: null
       articles:
         - file: README.md
+        - file: DataSummary/README.md
         - file: MeanProcess/README.md
         - file: GARCH/README.md
         - file: GJR_GARCH/README.md

@@ -1,18 +1,4 @@
-
-
-```{raw:typst}
-#set page(margin: auto)
-```
-
 # Inflation Summary Statistics
-
-
-```{figure} cpi_inflation.png
-:name: fig:cpi_inflation 
-Realized inflation and profesional forcast over quarter and month frequency. 
-```
-
-
 
 ## Quarterly Sheet
 
@@ -59,22 +45,3 @@ Realized inflation and profesional forcast over quarter and month frequency.
 | AC(2)         |      0.4159 |                 0.9811 |            0.2108 |
 | AC(4)         |      0.3663 |                 0.9636 |            0.1182 |
 | AC(12)        |      0.1853 |                 0.8932 |            0.0007 |
-
-
-## The Number of Observations
-
-To compare different models using log likelihood, we need to control the number of observations the same for all models. One thing that needs attention is that for same data set, the model with one lag has one more observation than the model with two lags. 
-
-Freedom-adjusted measure, e.g AIC and BIC, does not have this concern. 
-
-
-It is crucial to unify how to treat the lag variable, which could lead to different sample size and thus lead the likelihood function un-comparable.
-
- 
- 
-**In the 2023 version, I did a mistake removing two more observations in garch1 when cleaning the data. This is remaining mistery for haoyang that how many observations should include.**
-
-
-
-
-
