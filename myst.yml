@@ -21,10 +21,7 @@ project:
         - file: README.md
         - file: DataSummary/README.md
         - file: MeanProcess/README.md
-        - file: GARCH/README.md
-        - file: GJR_GARCH/README.md
-        - file: EGARCH/README.md
-        - file: SPARCH/README.md
+        - file: GARCH/README.md 
         - file: BEGE_GARCH/README.md 
 site:
   template: book-theme

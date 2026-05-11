@@ -20,8 +20,8 @@ So far we have covered estimation of
 
 State variable definitions:
 1. $\pi_t$: inflation.
-2. $\mathcal{F}_{t-1}$ : filtration at time t.
-3. $SPF_t$: professional forecast observed in $\mathcal{F}_{t-1}$.
+2. $\mathcal{F}_{t-1}$ : filtration at time $t-1$.
+3. $SPF_{t-1}$: professional forecast on $\pi_t$ inflation measured by $\mathcal{F}_{t-1}$.
 4. $\hat{\pi}_t$: expected inflation  $E [\pi_t |\mathcal{F}_{t-1}]$.
 5. $u_t$: inflation innovation (residual), defined as $u_t := \pi_t - \hat{\pi}_t$.
 6. $u_t^+$ : postive residual, defined as $u_t^+ := u_t \cdot \mathbf{1}(u_t >0)$

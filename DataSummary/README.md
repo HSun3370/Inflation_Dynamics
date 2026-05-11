@@ -5,49 +5,33 @@
 ```
 
 # Inflation Summary Statistics
-
+I start with simple statistical summary by plotting inflation and professional forecast over time. 
 
 ```{figure} cpi_inflation_quarterly.png
 :name: fig:cpi_inflation_quarterly
-Quarterly Realized inflation and profesional forcast. 
+Quarterly inflation $\pi_t$ and profesional forcast $SPF_{t-1}$. 
 ```
 Notice that inflation was recorded from 1947 but profesional forecast started from 1969.
 ```{table} Inflation statistics
 :align: center
 
-|               |   Inflation |   Forecasted inflation |   Inflation shock |
-|:--------------|------------:|-----------------------:|------------------:|
-| Date Start    |      1947Q2 |                 1969Q1 |            1969Q1 |
-| Date End      |      2022Q4 |                 2022Q4 |            2022Q4 |
-| #Observations |         303 |                    216 |               216 |
+|               |   Inflation |   Forecasted inflation | 
+|:--------------|------------:|-----------------------:|
+| Date Start    |      1947Q2 |                 1969Q1 |
+| Date End      |      2022Q4 |                 2022Q4 |
+| #Observations |         303 |                    216 |
 ```
 
-## The Number of Observations
+## Effective Sample
 
-To make log-likelihood values comparable across specifications, I use a common effective sample for all mean models and all volatility models.
+To make log-likelihood values comparable across specifications, I use an effective sample for all mean models and all volatility models.
+ 
+In ARX models, lagged regressors (for example, $SPF_{t-1}$) are not observed at the very beginning of the raw sample. Therefore, I start the estimation sample at the first date where both current forecast inflation ($SPF_t$), and one-lag forecast inflation ($SPF_{t-1}$)  are available.
+For the quarterly data, forecast inflation ($SPF_t$) is available from **1969Q1** to **2022Q4** (216 observations), requiring one lag ($SPF_{t-1}$) shifts the usable start to **1969Q2**. So the trimmed estimation window is **1969Q2--2022Q4**, with **215 observations**.
+This same trimmed sample is then used for all mean specifications, so the residual series has the same length across models.
+ 
 
-### Mean Process: Handling Unobserved Lags in AR/ARX
-
-In ARX models, lagged regressors (for example, $SPF_{t-1}$) are not observed at the very beginning of the raw sample.  
-Therefore, I start the estimation sample at the first date where both:
-
-1. current forecast inflation ($SPF_t$), and
-2. one-lag forecast inflation ($SPF_{t-1}$)
-
-are available.
-
-For the quarterly data used here:
-
-- forecast inflation ($SPF_t$) is available from **1969Q1** to **2022Q4** (216 observations),
-- requiring one lag ($SPF_{t-1}$) shifts the usable start to **1969Q2**,
-- so the trimmed estimation window is **1969Q2--2022Q4**, with **215 observations**.
-
-This same trimmed sample is then used for all mean specifications (constant, ARX(1,1), ARX(2,1), etc.), so the residual series has the same length across models.
-
-### Volatility Process: Handling Unobserved Initial $\sigma_t^2$
-
-For GARCH-type recursion, the first few conditional variances are unobserved (for example, $\sigma_0^2$, $\sigma_{-1}^2$).  
-I initialize these pre-sample variances using the model-implied unconditional variance:
+For GARCH-type recursion, the first few conditional variances are unobserved (for example, $\sigma_0^2$, $\sigma_{-1}^2$, $u_0^2$, $u_{-1}^2$ ).  I initialize these pre-sample variances using the model-implied unconditional variance, for example in GARCH model:
 
 $$
 \bar{\sigma}^2 = \frac{\omega}{1-\sum_i \alpha_i - \sum_j \beta_j},
@@ -56,10 +40,12 @@ $$
 and set
 
 $$
-\sigma_0^2 = \sigma_{-1}^2 = \cdots = \bar{\sigma}^2.
+u_0^2 = u_{-1}^2 = \cdots = \sigma_0^2 = \sigma_{-1}^2 = \cdots = \bar{\sigma}^2.
 $$
 
-Then I run the volatility recursion forward using the observed residuals from the common mean-model sample.
+
+## Effective Sample Summary Statistics
+I report the summary statistics for trimmed effect sample. Skewness and Kurtosis are adjusted by sample size.
 
 ```{table} Inflation statistics
 :align: center
