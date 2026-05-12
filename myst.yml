@@ -9,7 +9,10 @@ project:
   github: https://github.com/HSun3370/Inflation_Dynamics
   toc:
     - file: README.md
-    - file: GJR_GARCH/README.md
+    - file: DataSummary/README.md
+    - file: MeanProcess/README.md
+    - file: GARCH/README.md
+    - file: BEGE_GARCH/README.md
   exports:
     - format: pdf
       template: lapreprint-typst
