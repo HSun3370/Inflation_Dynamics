@@ -62,6 +62,28 @@ $$
 \mathbb{E}|z_t| \;=\; \sum_{m=1}^{2} p_m \left[\,\mu_m \left(2\Phi(\mu_m/\sigma_m) - 1\right) \;+\; 2\sigma_m\,\varphi(\mu_m/\sigma_m)\right].
 $$
 
+
+
+**EGARCH$(p,q)$:**
+$$
+\ln\sigma_{t}^{2} \;=\; \omega \;+\; \sum_{i=1}^{p}\alpha_{i}\!\left(|z_{t-i}| - \sqrt{\tfrac{2}{\pi}}\right) \;+\; \sum_{j=1}^{p}\gamma_{j}\, z_{t-j} \;+\; \sum_{k=1}^{q}\beta_{k}\,\ln\sigma_{t-k}^{2},
+$$
+where $z_t = u_t / \sigma_t$ is the standardized residual. The term $\alpha_i$ captures the magnitude effect (response to the size of shocks) while $\gamma_j$ captures the sign / leverage effect. Modeling $\ln\sigma_t^2$ guarantees positivity of $\sigma_t^2$ without sign restrictions on $(\alpha_i, \gamma_j, \beta_k)$, and the recursion is covariance-stationary in $\ln\sigma_t^2$ whenever
+$$
+\sum_{k=1}^{q}\beta_{k} \;<\; 1.
+$$
+
+**Remark on the centering constant.** The constant $\sqrt{2/\pi}$ equals $\mathbb{E}|z_t|$ when $z_t \sim \mathcal{N}(0,1)$, so under a Gaussian innovation the term $|z_{t-i}| - \sqrt{2/\pi}$ has zero conditional mean and $\omega$ admits the clean interpretation
+$$
+\mathbb{E}[\ln\sigma_t^2] \;=\; \frac{\omega}{1 - \sum_{k=1}^{q}\beta_k}.
+$$
+Following the convention of the `arch` Python package, we retain $\sqrt{2/\pi}$ as a fixed constant in the recursion even when the innovation distribution is Student's $t$ or a mixture of normals. Under those distributions, $\mathbb{E}|z_t| \neq \sqrt{2/\pi}$, so the centered term $|z_{t-i}| - \sqrt{2/\pi}$ no longer has zero mean and $\omega$ loses the unconditional-mean interpretation above. This choice is observationally innocuous: replacing $\sqrt{2/\pi}$ with the distribution-specific constant $c_D = \mathbb{E}_D|z_t|$ yields an equivalent model whose fitted $\hat\alpha_i, \hat\gamma_j, \hat\beta_k$ are unchanged, with only the intercept shifted by
+$$
+\omega \;=\; \omega^{*} \;+\; \left(\sqrt{\tfrac{2}{\pi}} - c_D\right)\sum_{i=1}^{p}\alpha_{i}.
+$$
+The likelihood, the fitted $\sigma_t^2$ path, and all forecasts are identical under the two parameterizations.
+
+
 ## Log-Likelihood Specifications
 
 For each candidate distribution we give (i) the standardized density of $z_t$, (ii) the conditional density of $u_t | \mathcal{F}_{t-1}$ obtained via the change of variables $u_t = \sigma_t z_t$ (which contributes a Jacobian factor $1/\sigma_t$), (iii) the per-observation log-likelihood $\ell_t(\theta)$, and (iv) the sample log-likelihood
