@@ -49,7 +49,7 @@ I report the summary statistics for trimmed effect sample. Skewness and Kurtosis
 
 ```{table} Inflation statistics
 :align: center
-|               |   Inflation |    SPF |   SPF_shock |
+|               |   Inflation ($\pi$) |    $SPF$ |  $\pi - SPF$ |
 |:--------------|------------:|-------:|------------:|
 | Date Start    |      1969Q2 | 1969Q2 |      1969Q2 |
 | Date End      |      2022Q4 | 2022Q4 |      2022Q4 |
