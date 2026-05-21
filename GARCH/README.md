@@ -7,7 +7,7 @@
 This section presents three GARCH-type volatility models — GARCH, GJR-GARCH, and EGARCH — each combined with one of three conditional distributions for residuals: normal, Student's $t$, and a finite mixture of normals.
 
 Let $\{u_t\}_{t=1}^{T}$ denote the residual process, and let $\mathcal{F}_{t-1}$ denote the information set available at time $t-1$. We assume
-$$xw
+$$
 u_t = \sigma_t \, z_t, \qquad z_t | \mathcal{F}_{t-1} \stackrel{\text{i.i.d.}}{\sim} D(0,1),
 $$
 where $\sigma_t^2 = \operatorname{Var}(u_t | \mathcal{F}_{t-1})$ is the conditional variance and $D(0,1)$ is a standardized distribution (normal, Student's $t$, or mixture of normals) with zero mean and unit variance. Throughout, $z_t = u_t / \sigma_t$ denotes the standardized residual and $\theta$ denotes the full parameter vector (mean process, volatility process parameters together with any distributional parameters).
@@ -232,4 +232,12 @@ where $z_t = \frac{u_t}{\sigma_t}$
 | Skew $t$       | FC       | (1,1)   | 370.4242 | FC          | (1,1)      | 369.6649                         |
 | GED            | FC       | (1,1)   | 371.8489 | FC          | (1,1)      | 370.9644                         |
 | Mix of Normal  | FC       | (1,1)   | 373.7106 | FC          | (1,1)      | 371.0689                         |
+
+
+
+
+
+
+
+
 

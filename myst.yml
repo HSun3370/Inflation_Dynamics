@@ -25,6 +25,7 @@ project:
         - file: DataSummary/README.md
         - file: MeanProcess/README.md
         - file: GARCH/README.md 
+        - file: GARCH/results_garch_distributions/garch_family_best_models.md
         - file: BEGE_GARCH/README.md 
 site:
   template: book-theme

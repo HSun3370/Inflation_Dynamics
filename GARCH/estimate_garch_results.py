@@ -58,7 +58,21 @@ DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "results_garch_distributions"
 ORDERS = ((1, 1), (1, 2), (2, 1), (2, 2))
 DISTRIBUTIONS = ("normal", "studentst", "mix_normal")
 VOL_FAMILIES = ("GARCH", "GJR-GARCH", "EGARCH")
-COMMON_HOLD_BACK = 2
+COMMON_HOLD_BACK = 0
+
+DISTRIBUTION_LABEL = {
+    "normal": "Normal",
+    "studentst": "$t$",
+    "mix_normal": "Mix of Normal",
+}
+DISTRIBUTION_ORDER = ["normal", "studentst", "mix_normal"]
+
+MEAN_LABEL = {
+    "Constant_anchor": "FC",
+    "ARX_1_1": "(1,1)",
+    "ARX_2_1": "(2,1)",
+    "ARX_2_2": "(2,2)",
+}
 
 
 # ============================================================
@@ -271,25 +285,25 @@ def build_mean_specs() -> list[MeanSpec]:
             name="ARX_1_1",
             y_col="Inflation",
             y_transform="identity",
-            mean="ARX",
-            lags=1,
-            x_cols=["SPF"],
+            mean="LS",
+            lags=0,
+            x_cols=["Inflation_lag_1", "SPF"],
         ),
         MeanSpec(
             name="ARX_2_1",
             y_col="Inflation",
             y_transform="identity",
-            mean="ARX",
-            lags=[1, 2],
-            x_cols=["SPF"],
+            mean="LS",
+            lags=0,
+            x_cols=["Inflation_lag_1", "Inflation_lag_2", "SPF"],
         ),
         MeanSpec(
             name="ARX_2_2",
             y_col="Inflation",
             y_transform="identity",
-            mean="ARX",
-            lags=[1, 2],
-            x_cols=["SPF", "SPF_lag_1"],
+            mean="LS",
+            lags=0,
+            x_cols=["Inflation_lag_1", "Inflation_lag_2", "SPF", "SPF_lag_1"],
         ),
     ]
 
@@ -520,6 +534,27 @@ def fit_with_iterative_initialization(
 # ============================================================
 # 9) Output row builders
 # ============================================================
+def residual_diagnostics(result: Any) -> dict[str, float]:
+    resid = pd.Series(np.asarray(result.resid, dtype=float)).dropna()
+    std_resid = pd.Series(np.asarray(result.std_resid, dtype=float)).dropna()
+
+    out = {
+        "resid_skewness": np.nan,
+        "resid_excess_kurtosis": np.nan,
+        "std_resid_skewness": np.nan,
+        "std_resid_excess_kurtosis": np.nan,
+    }
+    if len(resid) > 3:
+        out["resid_skewness"] = float(stats.skew(resid, bias=False))
+        out["resid_excess_kurtosis"] = float(stats.kurtosis(resid, fisher=True, bias=False))
+    if len(std_resid) > 3:
+        out["std_resid_skewness"] = float(stats.skew(std_resid, bias=False))
+        out["std_resid_excess_kurtosis"] = float(
+            stats.kurtosis(std_resid, fisher=True, bias=False)
+        )
+    return out
+
+
 def summary_row(
     model_id: str,
     distribution: str,
@@ -533,20 +568,27 @@ def summary_row(
     backcast_iterations: int,
     backcast_converged: bool,
 ) -> dict[str, Any]:
+    diag = residual_diagnostics(result)
+    stable_flag = bool(np.isfinite(persistence) and persistence < 1.0)
     return {
         "model_id": model_id,
         "distribution": distribution,
+        "distribution_label": DISTRIBUTION_LABEL[distribution],
         "mean_spec": mean_spec.name,
+        "mean_label": MEAN_LABEL[mean_spec.name],
         "vol_family": vol_spec.family,
         "vol_spec": vol_spec.label,
+        "vol_order": f"({vol_spec.p},{vol_spec.q})",
         "p": vol_spec.p,
         "o": vol_spec.o,
         "q": vol_spec.q,
         "nobs": int(result.nobs),
+        "num_parameters": int(len(result.params)),
         "loglikelihood": float(result.loglikelihood),
         "aic": float(result.aic),
         "bic": float(result.bic),
         "persistence_proxy": persistence,
+        "stable_by_proxy": stable_flag,
         "implied_initial_variance": unc_var,
         "implied_initial_variance_status": unc_status,
         "initial_variance_backcast_used": backcast,
@@ -554,6 +596,8 @@ def summary_row(
         "backcast_converged": bool(backcast_converged),
         "optimizer_success": bool(result.optimization_result.success),
         "convergence_flag": int(result.convergence_flag),
+        "covariance_type": "robust",
+        **diag,
     }
 
 
@@ -576,25 +620,243 @@ def parameter_rows(model_id: str, result: Any) -> list[dict[str, Any]]:
 # ============================================================
 # 10) Markdown best-model reporting
 # ============================================================
+def _format_value(x: float, digits: int = 4) -> str:
+    if not np.isfinite(x):
+        return "NA"
+    return f"{x:.{digits}f}"
+
+
+def _candidate_pool(summary_df: pd.DataFrame, criterion: str) -> pd.DataFrame:
+    pool = summary_df[
+        (summary_df["optimizer_success"] == True)
+        & np.isfinite(summary_df[criterion])
+        & (summary_df["stable_by_proxy"] == True)
+    ].copy()
+    if pool.empty:
+        pool = summary_df[
+            (summary_df["optimizer_success"] == True) & np.isfinite(summary_df[criterion])
+        ].copy()
+    if pool.empty:
+        pool = summary_df[np.isfinite(summary_df[criterion])].copy()
+    return pool
+
+
+def _best_row(df: pd.DataFrame, criterion: str) -> pd.Series | None:
+    if df.empty:
+        return None
+    return df.loc[df[criterion].idxmin()]
+
+
+def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
+    pool = _candidate_pool(summary_df, criterion)
+    fams = ["GARCH", "GJR-GARCH", "EGARCH"]
+    best_rows: dict[tuple[str, str], pd.Series | None] = {}
+    values: list[float] = []
+
+    for dist in DISTRIBUTION_ORDER:
+        for fam in fams:
+            sub = pool[(pool["distribution"] == dist) & (pool["vol_family"] == fam)]
+            b = _best_row(sub, criterion)
+            best_rows[(dist, fam)] = b
+            if b is not None:
+                values.append(float(b[criterion]))
+
+    global_min = min(values) if values else np.nan
+
+    if criterion == "aic":
+        title = "**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**"
+        c_g = "GARCH AIC"
+        c_gjr = "GJR AIC"
+        c_eg = "EGARCH AIC"
+    else:
+        title = "**Table 3: Model selection by BIC: GARCH vs GJR vs EGARCH**"
+        c_g = "GARCH BIC"
+        c_gjr = "GJR BIC"
+        c_eg = "EGARCH BIC"
+
+    lines: list[str] = []
+    lines.append(title)
+    lines.append("")
+    lines.append(
+        f"| Distribution | GARCH Mean | GARCH Vol | {c_g} | GJR Mean | GJR Vol | {c_gjr} | EGARCH Mean | EGARCH Vol | {c_eg} |"
+    )
+    lines.append("|---|---|---|---:|---|---|---:|---|---|---:|")
+
+    for dist in DISTRIBUTION_ORDER:
+        gar = best_rows[(dist, "GARCH")]
+        gjr = best_rows[(dist, "GJR-GARCH")]
+        ega = best_rows[(dist, "EGARCH")]
+
+        def crit_fmt(row: pd.Series | None) -> str:
+            if row is None:
+                return "NA"
+            val = float(row[criterion])
+            txt = _format_value(val, 4)
+            if np.isfinite(global_min) and abs(val - global_min) <= 1e-10:
+                return f"<span style=\"color:red\">{txt}</span>"
+            return txt
+
+        gar_mean = gar["mean_label"] if gar is not None else "NA"
+        gar_vol = gar["vol_order"] if gar is not None else "NA"
+        gjr_mean = gjr["mean_label"] if gjr is not None else "NA"
+        gjr_vol = gjr["vol_order"] if gjr is not None else "NA"
+        ega_mean = ega["mean_label"] if ega is not None else "NA"
+        ega_vol = ega["vol_order"] if ega is not None else "NA"
+
+        lines.append(
+            "| "
+            + f"{DISTRIBUTION_LABEL[dist]} | {gar_mean} | {gar_vol} | {crit_fmt(gar)} | "
+            + f"{gjr_mean} | {gjr_vol} | {crit_fmt(gjr)} | "
+            + f"{ega_mean} | {ega_vol} | {crit_fmt(ega)} |"
+        )
+    return "\n".join(lines)
+
+
+def _param_lookup(psub: pd.DataFrame, name: str) -> tuple[float, float]:
+    row = psub[psub["parameter"] == name]
+    if row.empty:
+        return np.nan, np.nan
+    r = row.iloc[0]
+    return float(r["coef"]), float(r["std_err"])
+
+
+def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
+    m = best_row["mean_spec"]
+    if m == "Constant_anchor":
+        return (
+            "$$\n"
+            "\\hat{\\pi}_{t+1} = SPF_t + \\mu_{t+1}\n"
+            "$$\n"
+            "\nNo mean-process coefficients are estimated in this anchored specification."
+        )
+
+    def s(v: float) -> str:
+        return f"{v:+.4f}"
+
+    c, sc = _param_lookup(psub, "Const")
+    i1, si1 = _param_lookup(psub, "Inflation_lag_1")
+    spf, sspf = _param_lookup(psub, "SPF")
+
+    if m == "ARX_1_1":
+        eq = (
+            "$$\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(spf)}\\,SPF_t + \\mu_{{t+1}}\n"
+            "$$"
+        )
+        se = f"Robust SE: `Const` ({sc:.4f}), `Inflation_lag_1` ({si1:.4f}), `SPF` ({sspf:.4f})."
+        return eq + "\n\n" + se
+
+    i2, si2 = _param_lookup(psub, "Inflation_lag_2")
+    if m == "ARX_2_1":
+        eq = (
+            "$$\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} {s(spf)}\\,SPF_t + \\mu_{{t+1}}\n"
+            "$$"
+        )
+        se = (
+            f"Robust SE: `Const` ({sc:.4f}), `Inflation_lag_1` ({si1:.4f}), "
+            f"`Inflation_lag_2` ({si2:.4f}), `SPF` ({sspf:.4f})."
+        )
+        return eq + "\n\n" + se
+
+    spf1, sspf1 = _param_lookup(psub, "SPF_lag_1")
+    eq = (
+        "$$\n"
+        f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} "
+        f"{s(spf)}\\,SPF_t {s(spf1)}\\,SPF_{{t-1}} + \\mu_{{t+1}}\n"
+        "$$"
+    )
+    se = (
+        f"Robust SE: `Const` ({sc:.4f}), `Inflation_lag_1` ({si1:.4f}), "
+        f"`Inflation_lag_2` ({si2:.4f}), `SPF` ({sspf:.4f}), `SPF_lag_1` ({sspf1:.4f})."
+    )
+    return eq + "\n\n" + se
+
+
+def _volatility_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
+    fam = best_row["vol_family"]
+    p = int(best_row["p"])
+    q = int(best_row["q"])
+    o = int(best_row["o"])
+    omega, _ = _param_lookup(psub, "omega")
+
+    def gp(name: str, i: int) -> float:
+        v, _ = _param_lookup(psub, f"{name}[{i}]")
+        return v
+
+    if fam == "GARCH":
+        parts = [f"{omega:.4f}"]
+        for i in range(1, p + 1):
+            a = gp("alpha", i)
+            if np.isfinite(a):
+                parts.append(f"{a:+.4f}\\,u_{{t-{i}}}^2")
+        for k in range(1, q + 1):
+            b = gp("beta", k)
+            if np.isfinite(b):
+                parts.append(f"{b:+.4f}\\,\\sigma_{{t-{k}}}^2")
+        rhs = " ".join(parts)
+        return "$$\n" + f"\\hat{{\\sigma}}_t^2 = {rhs}\n" + "$$"
+
+    if fam == "GJR-GARCH":
+        # Match README notation using positive/negative decompositions:
+        # arch package form alpha*u^2 + gamma*u^2 I(u<0)
+        # equivalent to alpha*(u^+)^2 + (alpha+gamma)*(u^-)^2
+        parts = [f"{omega:.4f}"]
+        for i in range(1, p + 1):
+            a = gp("alpha", i)
+            g = gp("gamma", i) if i <= o else 0.0
+            if np.isfinite(a):
+                parts.append(f"{a:+.4f}\\,(u_{{t-{i}}}^+)^2")
+            if np.isfinite(a) and np.isfinite(g):
+                parts.append(f"{(a + g):+.4f}\\,(u_{{t-{i}}}^-)^2")
+        for k in range(1, q + 1):
+            b = gp("beta", k)
+            if np.isfinite(b):
+                parts.append(f"{b:+.4f}\\,\\sigma_{{t-{k}}}^2")
+        rhs = " ".join(parts)
+        return (
+            "$$\n"
+            + f"\\hat{{\\sigma}}_t^2 = {rhs}\n"
+            + "$$\n\n"
+            + "Reported in README notation. (`arch` estimates the equivalent indicator form.)"
+        )
+
+    # EGARCH (arch convention uses sqrt(2/pi) centering)
+    parts = [f"{omega:.4f}"]
+    for i in range(1, p + 1):
+        a = gp("alpha", i)
+        if np.isfinite(a):
+            parts.append(f"{a:+.4f}\\,(|z_{{t-{i}}}|-\\sqrt{{2/\\pi}})")
+    for j in range(1, o + 1):
+        g = gp("gamma", j)
+        if np.isfinite(g):
+            parts.append(f"{g:+.4f}\\,z_{{t-{j}}}")
+    for k in range(1, q + 1):
+        b = gp("beta", k)
+        if np.isfinite(b):
+            parts.append(f"{b:+.4f}\\,\\ln\\sigma_{{t-{k}}}^2")
+    rhs = " ".join(parts)
+    return "$$\n" + f"\\ln \\hat{{\\sigma}}_t^2 = {rhs}\n" + "$$"
+
+
 def _model_detail_markdown(best_row: pd.Series, param_df: pd.DataFrame) -> str:
     mid = best_row["model_id"]
-    psub = param_df[param_df["model_id"] == mid].copy()
-    psub = psub.sort_values("parameter")
+    psub = param_df[param_df["model_id"] == mid].copy().sort_values("parameter")
 
     lines: list[str] = []
     lines.append(f"- Model ID: `{mid}`")
-    lines.append(f"- Distribution: `{best_row['distribution']}`")
-    lines.append(f"- Mean process: `{best_row['mean_spec']}`")
-    lines.append(f"- Volatility: `{best_row['vol_spec']}`")
-    lines.append(f"- nobs: `{int(best_row['nobs'])}`")
-    lines.append(f"- Log-likelihood: `{best_row['loglikelihood']:.6f}`")
-    lines.append(f"- AIC: `{best_row['aic']:.6f}`")
-    lines.append(f"- BIC: `{best_row['bic']:.6f}`")
-    lines.append(f"- Persistence proxy: `{best_row['persistence_proxy']}`")
-    lines.append(f"- Implied initial variance: `{best_row['implied_initial_variance']}`")
-    lines.append(f"- Variance status: `{best_row['implied_initial_variance_status']}`")
-    lines.append(f"- Optimizer success: `{best_row['optimizer_success']}`")
-    lines.append(f"- Convergence flag: `{int(best_row['convergence_flag'])}`")
+    lines.append(f"- Distribution: `{best_row['distribution_label']}`")
+    lines.append(f"- Mean process: `{best_row['mean_label']}` ({best_row['mean_spec']})")
+    lines.append(f"- Volatility process: `{best_row['vol_spec']}`")
+    lines.append("")
+    lines.append(_mean_equation_markdown(best_row, psub))
+    lines.append("")
+    lines.append(_volatility_equation_markdown(best_row, psub))
+    lines.append("")
+    lines.append(f"- Number of observations: **{int(best_row['nobs'])}**")
+    lines.append(f"- Log-likelihood: **{best_row['loglikelihood']:.6f}**")
+    lines.append(f"- AIC: **{best_row['aic']:.6f}**, BIC: **{best_row['bic']:.6f}**")
+    lines.append(f"- Optimizer success: **{bool(best_row['optimizer_success'])}**")
     lines.append("")
     lines.append("| Parameter | Coef | Std Err | t-value | p-value |")
     lines.append("|---|---:|---:|---:|---:|")
@@ -606,34 +868,47 @@ def _model_detail_markdown(best_row: pd.Series, param_df: pd.DataFrame) -> str:
 
 
 def build_markdown_report(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> str:
-    ok = summary_df[summary_df["optimizer_success"] == True].copy()
-    if ok.empty:
-        ok = summary_df.copy()
-
-    best_aic = ok.loc[ok["aic"].idxmin()]
-    best_bic = ok.loc[ok["bic"].idxmin()]
-
     lines: list[str] = []
-    lines.append("# Best Model Report")
+    lines.append("# Model Selection Report")
     lines.append("")
-    lines.append("Selection uses all estimated models. Prefer optimizer-successful models when available.")
+    lines.append(build_family_panel_table(summary_df, "aic"))
     lines.append("")
-
-    lines.append("## Best by AIC")
-    lines.append(_model_detail_markdown(best_aic, param_df))
+    lines.append(build_family_panel_table(summary_df, "bic"))
     lines.append("")
 
-    lines.append("## Best by BIC")
-    lines.append(_model_detail_markdown(best_bic, param_df))
+    lines.append("## Best Models by Criterion and Volatility Family")
+    lines.append("")
+    lines.append(
+        "For each criterion and each volatility family, the selected model is the best "
+        "across mean-process choices, orders, and distributions using stable & successful fits."
+    )
     lines.append("")
 
-    lines.append("## Notes on Initialization")
-    lines.append("- `GARCH`: uses exact unconditional variance `omega / (1 - sum(alpha) - sum(beta))` when stationary.")
-    lines.append("- `GJR-GARCH`: uses `omega / (1 - sum(alpha) - 0.5*sum(gamma) - sum(beta))` under symmetric innovations.")
-    lines.append("- `EGARCH`: uses proxy `exp(omega / (1 - sum(beta)))` from log-variance recursion.")
-    lines.append("- In `arch`, `backcast` sets recursion start; it is not automatically replaced by model-implied unconditional variance during optimization.")
-    lines.append("")
+    for criterion in ["aic", "bic"]:
+        pool = _candidate_pool(summary_df, criterion)
+        lines.append(f"### {criterion.upper()}")
+        lines.append("")
+        for family in VOL_FAMILIES:
+            sub = pool[pool["vol_family"] == family]
+            best = _best_row(sub, criterion)
+            if best is None:
+                lines.append(f"#### {family}")
+                lines.append("No successful model.")
+                lines.append("")
+                continue
+            lines.append(f"#### {family}")
+            lines.append(_model_detail_markdown(best, param_df))
+            lines.append("")
 
+    lines.append("## EGARCH and Initialization Notes")
+    lines.append("")
+    lines.append("- Effective sample is fixed at 215 observations for all models (`hold_back=0` with explicit lag regressors in the mean equation).")
+    lines.append("- In `arch`, EGARCH uses the package's centered term `|z|-sqrt(2/pi)` in the recursion for all distributions.")
+    lines.append("- Under non-Gaussian errors (e.g., Student's t or mixture), this is an intercept reparameterization; fitted dynamics and likelihood are still valid.")
+    lines.append("- The recursion start (`backcast`) is updated iteratively during estimation in this script: fit -> implied initial variance from current parameters -> refit.")
+    lines.append("- Stability is monitored using a persistence proxy (`<1`):")
+    lines.append("  GARCH uses `sum(alpha)+sum(beta)`, GJR uses `sum(alpha)+0.5*sum(gamma)+sum(beta)`, EGARCH uses `sum(beta)`.")
+    lines.append("")
     return "\n".join(lines)
 
 
