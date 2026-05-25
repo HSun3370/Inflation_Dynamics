@@ -5,8 +5,11 @@ from __future__ import annotations
 import numpy as np
 import statsmodels.base.wrapper as wrap
 
-from scipy.special import gammaln
+from scipy.special import loggamma
 from statsmodels.tsa.regime_switching import markov_regression
+
+NU_LOWER = 2.05
+NU_UPPER = 200.0
 
 
 class MarkovRegression_t(markov_regression.MarkovRegression):
@@ -50,8 +53,9 @@ class MarkovRegression_t(markov_regression.MarkovRegression):
     def _conditional_loglikelihoods(self, params):
         resid = self._resid(params)
 
-        variance = np.asarray(params[self.parameters["variance"]].squeeze(), dtype=np.float64)
-        nu = np.asarray(params[self.parameters["nu"]].squeeze(), dtype=np.float64)
+        # Keep the native dtype so complex-step derivatives are not truncated.
+        variance = np.asarray(params[self.parameters["variance"]].squeeze())
+        nu = np.asarray(params[self.parameters["nu"]].squeeze())
 
         if self.switching_variance:
             variance = np.reshape(variance, (self.k_regimes, 1, 1))
@@ -60,8 +64,8 @@ class MarkovRegression_t(markov_regression.MarkovRegression):
 
         # Standardized Student's t log-likelihood with variance parameterization
         conditional_loglikelihoods = (
-            gammaln((nu + 1.0) / 2.0)
-            - gammaln(nu / 2.0)
+            loggamma((nu + 1.0) / 2.0)
+            - loggamma(nu / 2.0)
             - 0.5 * np.log(np.pi * (nu - 2.0))
             - 0.5 * np.log(variance)
             - ((nu + 1.0) / 2.0)
@@ -101,12 +105,18 @@ class MarkovRegression_t(markov_regression.MarkovRegression):
 
     def transform_params(self, unconstrained):
         constrained = super().transform_params(unconstrained)
-        constrained[self.parameters["nu"]] = 2.05 + np.exp(unconstrained[self.parameters["nu"]])
+        # Bounded map for numerical stability: NU_LOWER < nu < NU_UPPER.
+        nu_u = unconstrained[self.parameters["nu"]]
+        constrained[self.parameters["nu"]] = NU_LOWER + (NU_UPPER - NU_LOWER) / (1.0 + np.exp(-nu_u))
         return constrained
 
     def untransform_params(self, constrained):
         unconstrained = super().untransform_params(constrained)
-        unconstrained[self.parameters["nu"]] = np.log(constrained[self.parameters["nu"]] - 2.05)
+        nu_c = constrained[self.parameters["nu"]]
+        eps = 1e-10
+        nu_c = np.clip(nu_c, NU_LOWER + eps, NU_UPPER - eps)
+        ratio = (nu_c - NU_LOWER) / (NU_UPPER - nu_c)
+        unconstrained[self.parameters["nu"]] = np.log(ratio)
         return unconstrained
 
     @property

@@ -204,43 +204,43 @@ def _stable_seed(text: str) -> int:
     return int(digest[:8], 16)
 
 
-def _fit_with_retries(model: Any, seed_base: int) -> tuple[Any, str, int]:
+def _fit_with_retries(model: Any, seed_base: int) -> tuple[Any, str, int, int]:
+    # Deterministic multi-start schedule. We keep every successful fit and
+    # pick the highest-llf converged candidate to reduce local-optimum noise.
     attempts = [
         (
-            "baseline_bfgs",
-            {"method": "bfgs", "maxiter": 300, "em_iter": 10, "search_reps": 0, "search_iter": 5},
+            "safe_bfgs",
+            {"method": "bfgs", "maxiter": 500, "em_iter": 20, "search_reps": 0, "search_iter": 5, "search_scale": 1.0},
+            1,
+            None,
+        ),
+        (
+            "safe_lbfgs",
+            {"method": "lbfgs", "maxiter": 700, "em_iter": 20, "search_reps": 0, "search_iter": 5, "search_scale": 1.0},
             1,
             None,
         ),
         (
             "search_bfgs",
-            {"method": "bfgs", "maxiter": 800, "em_iter": 20, "search_reps": 40, "search_iter": 20, "search_scale": 1.0},
+            {"method": "bfgs", "maxiter": 1200, "em_iter": 35, "search_reps": 30, "search_iter": 20, "search_scale": 1.2},
             2,
             None,
         ),
         (
             "search_lbfgs",
-            {"method": "lbfgs", "maxiter": 1500, "em_iter": 30, "search_reps": 80, "search_iter": 25, "search_scale": 1.5},
+            {"method": "lbfgs", "maxiter": 1800, "em_iter": 45, "search_reps": 60, "search_iter": 25, "search_scale": 1.35},
             2,
             None,
         ),
         (
-            "perturbed_bfgs",
-            {"method": "bfgs", "maxiter": 1200, "em_iter": 20, "search_reps": 20, "search_iter": 15, "search_scale": 1.0},
-            3,
-            0.15,
-        ),
-        (
             "perturbed_lbfgs",
-            {"method": "lbfgs", "maxiter": 1800, "em_iter": 20, "search_reps": 20, "search_iter": 15, "search_scale": 1.0},
-            3,
-            0.25,
+            {"method": "lbfgs", "maxiter": 2200, "em_iter": 30, "search_reps": 20, "search_iter": 15, "search_scale": 1.0},
+            2,
+            0.20,
         ),
     ]
 
-    best_any = None
-    best_any_llf = -np.inf
-    best_any_tag = "none"
+    successful: list[tuple[float, bool, str, Any]] = []
     n_attempts = 0
 
     for attempt_name, fit_kwargs, reps, perturb_scale in attempts:
@@ -263,18 +263,63 @@ def _fit_with_retries(model: Any, seed_base: int) -> tuple[Any, str, int]:
                 continue
 
             llf = float(res.llf)
+            if not np.isfinite(llf):
+                continue
             tag = f"{attempt_name}#{rep+1}"
-            if llf > best_any_llf:
-                best_any = res
-                best_any_llf = llf
-                best_any_tag = tag
+            successful.append((llf, _is_converged(res), tag, res))
 
-            if _is_converged(res):
-                return res, tag, n_attempts
-
-    if best_any is None:
+    if not successful:
         raise RuntimeError("All optimization attempts failed.")
-    return best_any, best_any_tag, n_attempts
+
+    converged_candidates = [item for item in successful if item[1]]
+    n_converged = len(converged_candidates)
+    if converged_candidates:
+        # Select the highest log-likelihood among converged fits.
+        converged_candidates.sort(key=lambda x: x[0], reverse=True)
+        best_llf, _, best_tag, best_res = converged_candidates[0]
+
+        # Final polish from best converged point.
+        try:
+            np.random.seed(seed_base + 909091)
+            polished = model.fit(
+                start_params=np.asarray(best_res.params, dtype=float),
+                transformed=True,
+                method="lbfgs",
+                maxiter=3000,
+                em_iter=0,
+                search_reps=0,
+                disp=False,
+            )
+            p_llf = float(polished.llf)
+            if np.isfinite(p_llf) and _is_converged(polished) and p_llf >= best_llf - 1e-8:
+                return polished, f"{best_tag}|polish_lbfgs", n_attempts + 1, n_converged
+        except Exception:
+            pass
+        return best_res, best_tag, n_attempts, n_converged
+
+    # If nothing converged, do conservative retries before giving up.
+    for j in range(4):
+        n_attempts += 1
+        seed = seed_base + 50000 + 97 * j
+        np.random.seed(seed)
+        try:
+            rescue = model.fit(
+                method="bfgs",
+                maxiter=800,
+                em_iter=25,
+                search_reps=0,
+                search_iter=5,
+                disp=False,
+            )
+            if _is_converged(rescue) and np.isfinite(float(rescue.llf)):
+                return rescue, f"rescue_bfgs#{j+1}", n_attempts, 1
+        except Exception:
+            continue
+
+    # Final fallback: return best available even if non-converged.
+    successful.sort(key=lambda x: x[0], reverse=True)
+    best_llf, _, best_tag, best_res = successful[0]
+    return best_res, f"{best_tag}|nonconv_fallback", n_attempts, n_converged
 
 
 def _display_param_name(
@@ -342,7 +387,9 @@ def fit_one(
         f"ar{format_bool(switch.switching_ar)}_"
         f"spf{format_bool(switch.switching_spf)}"
     )
-    result, fit_strategy, fit_attempts = _fit_with_retries(model, seed_base=_stable_seed(model_label))
+    result, fit_strategy, fit_attempts, fit_converged_candidates = _fit_with_retries(
+        model, seed_base=_stable_seed(model_label)
+    )
     retvals = getattr(result, "mle_retvals", {})
 
     summary_row: dict[str, Any] = {
@@ -370,6 +417,7 @@ def fit_one(
         "warnflag": _safe_get(retvals, "warnflag"),
         "fit_strategy": fit_strategy,
         "fit_attempts": fit_attempts,
+        "fit_converged_candidates": fit_converged_candidates,
     }
 
     parameter_rows: list[dict[str, Any]] = []

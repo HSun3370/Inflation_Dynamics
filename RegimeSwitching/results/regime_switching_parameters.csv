@@ -1,440 +1,440 @@
 model_label,mean_process,error_distribution,k_regimes,parameter,parameter_raw,parameter_type,estimate
-"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.1296480616831335
-"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.0758255109401855
-"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,Inflation_lag_1,x1,mean_process,0.2678611507271063
-"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,SPF,x2,mean_process,0.6998734797120965
-"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,const,const,mean_process,0.09680194639557196
-"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9366953502383174
-"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.1514936434423877
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.12949097084708747
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.009962274091251
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.12106546467369096
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.342371939430677
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,SPF,x2[1],mean_process,0.7124506783007403
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,const[0],const[0],mean_process,0.18098900330157683
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,const[1],const[1],mean_process,0.17385224312594885
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9364587303812909
-"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.15173484408382015
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.12958712317482282
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.0053550798969548
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.10713303367802765
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.3734778211921272
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,SPF[0],x2[0],mean_process,0.7301741788264993
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,SPF[1],x2[1],mean_process,0.6492080538908813
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,const[0],const[0],mean_process,0.17868654577109336
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,const[1],const[1],mean_process,0.19650483983111292
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9364005186394064
-"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.15168003362858024
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,sigma2[0],sigma2[0],distribution,0.11270895857630737
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,sigma2[1],sigma2[1],distribution,0.6725204528917956
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,sigma2[2],sigma2[2],distribution,8.0963831765416
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,Inflation_lag_1,x1,mean_process,0.2913301147359942
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,SPF,x2,mean_process,0.6921509319594362
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,const,const,mean_process,0.09147035821109456
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.9153368435431319
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[0->1],p[0->1],transition_probability,0.08466306309675353
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[1->0],p[1->0],transition_probability,0.14157179803476622
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.8292093000977063
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[2->0],p[2->0],transition_probability,5.3166119931500694e-11
-"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[2->1],p[2->1],transition_probability,0.999999998407521
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,sigma2[0],sigma2[0],distribution,0.016974389343261984
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,sigma2[1],sigma2[1],distribution,0.15139090339999342
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,sigma2[2],sigma2[2],distribution,1.1119110596408934
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,Inflation_lag_1[0],x1[0],mean_process,-0.5056478033141357
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,Inflation_lag_1[1],x1[1],mean_process,0.5213120657387005
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,Inflation_lag_1[2],x1[2],mean_process,0.20563725298021732
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,SPF,x2[2],mean_process,0.7619025489492204
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,const[0],const[0],mean_process,0.5536565900176349
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,const[1],const[1],mean_process,-0.08215011322547039
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,const[2],const[2],mean_process,0.1671678417675302
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.6569182968586937
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[0->1],p[0->1],transition_probability,0.34307964086977194
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[1->0],p[1->0],transition_probability,0.08322248498520116
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.8314946067506703
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[2->0],p[2->0],transition_probability,0.1215145610733717
-"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[2->1],p[2->1],transition_probability,0.07822941374148155
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,nu[0],nu[0],distribution,4.509605056753941
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,nu[1],nu[1],distribution,5.282178193841558
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.07369298484352348
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.5875572775847694
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,Inflation_lag_1,x1,mean_process,0.2957359407203845
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,SPF,x2,mean_process,0.7046374174721481
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,const,const,mean_process,0.05420939295777445
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.8822816693770336
-"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.06545820893057623
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,nu[0],nu[0],distribution,4.665903890894562
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,nu[1],nu[1],distribution,4.826629265093301
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.057859341666496096
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.5025526800615128
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.25511282191628293
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.35354970931063223
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,SPF,x2[1],mean_process,0.7272011002116956
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,const[0],const[0],mean_process,0.3429523651693214
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,const[1],const[1],mean_process,0.1409982474001942
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.8375366119582661
-"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.08979896699239857
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,nu[0],nu[0],distribution,5.038448510931877
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,nu[1],nu[1],distribution,5.232827302426708
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.12003016835662764
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.4029708633322004
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.06092897601311057
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.5466364836620121
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,SPF[0],x2[0],mean_process,0.41751015137357533
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,SPF[1],x2[1],mean_process,0.47574891987663487
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,const[0],const[0],mean_process,0.43480174848940084
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,const[1],const[1],mean_process,0.17292266255599364
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.9047999985704921
-"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.10656741062256928
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,nu[0],nu[0],distribution,5.289043646628881
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,nu[1],nu[1],distribution,6.057447615909364
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,nu[2],nu[2],distribution,6.596336301184339
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.06486115867329316
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.23439984404797662
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.8052257846058234
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,Inflation_lag_1,x1,mean_process,0.2706123426814623
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,SPF,x2,mean_process,0.7107983873267774
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,const,const,mean_process,0.06937385998336663
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[0->0],p[0->0],transition_probability,0.832516970381289
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[0->1],p[0->1],transition_probability,0.06409465298504947
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[1->0],p[1->0],transition_probability,0.105413441962863
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.8945863652447247
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[2->0],p[2->0],transition_probability,1.5769050817023827e-08
-"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.0706540700739355
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,nu[0],nu[0],distribution,4.748100255924304
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,nu[1],nu[1],distribution,5.453444371116968
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,nu[2],nu[2],distribution,6.217636172723339
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.05665399863615455
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.4062346543612036
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.4789723342238721
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,Inflation_lag_1[0],x1[0],mean_process,-0.1363495044404789
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,Inflation_lag_1[1],x1[1],mean_process,0.01829042718528254
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,Inflation_lag_1[2],x1[2],mean_process,0.5725414021797868
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,SPF,x2[2],mean_process,0.7398522383913212
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,const[0],const[0],mean_process,0.23870460001124388
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,const[1],const[1],mean_process,0.32443873045192645
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,const[2],const[2],mean_process,0.001585176008444386
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[0->0],p[0->0],transition_probability,0.9023459398111231
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[0->1],p[0->1],transition_probability,8.254465809808263e-07
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[1->0],p[1->0],transition_probability,0.042978727814890066
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.9356756245251344
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[2->0],p[2->0],transition_probability,0.046866270792688625
-"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.10031446356402779
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.12458481691506518
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.0232749520753324
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,Inflation_lag_1,x1,mean_process,0.25321193685996013
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,Inflation_lag_2,x2,mean_process,0.116785346965954
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,SPF,x3,mean_process,0.6054811002646305
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,const,const,mean_process,0.0835371860335493
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9367725946658144
-"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.13890524985706013
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.10034928538976243
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,sigma2[1],sigma2[1],distribution,0.8473405359517804
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.06172923385445676
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.315398866580347
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,-0.058052825700359474
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.07933994563772584
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,SPF,x3[1],mean_process,0.7418469402766256
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,const[0],const[0],mean_process,0.23561984230274421
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,const[1],const[1],mean_process,0.04509364340603053
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9000023649666542
-"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.16531918611788482
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.09683358265565019
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,sigma2[1],sigma2[1],distribution,0.8184379530277338
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.03957557920958639
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.3833172329981882
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,-0.0839573811036576
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.189973843155765
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,SPF[0],x3[0],mean_process,0.8198136496315068
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,SPF[1],x3[1],mean_process,0.43403420920393504
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,const[0],const[0],mean_process,0.21272470805158633
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,const[1],const[1],mean_process,0.11521369091352898
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.8958669085470159
-"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.1659006286596307
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,sigma2[0],sigma2[0],distribution,0.09433844164986024
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,sigma2[1],sigma2[1],distribution,0.588136457443106
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,sigma2[2],sigma2[2],distribution,10.095082004709171
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,Inflation_lag_1,x1,mean_process,0.26258787422082513
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,Inflation_lag_2,x2,mean_process,0.17845342033038253
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,SPF,x3,mean_process,0.5286201097114261
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,const,const,mean_process,0.09101215011135569
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.9066518626932841
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[0->1],p[0->1],transition_probability,0.09334813039389527
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[1->0],p[1->0],transition_probability,0.1159790311024672
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.862980648533696
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[2->0],p[2->0],transition_probability,2.245646362804737e-09
-"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[2->1],p[2->1],transition_probability,0.9999999777808812
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,sigma2[0],sigma2[0],distribution,0.02151617674632667
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,sigma2[1],sigma2[1],distribution,0.18691195255983506
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,sigma2[2],sigma2[2],distribution,1.2159334576879568
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_1[0],x1[0],mean_process,-0.4685191114617652
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_1[1],x1[1],mean_process,0.26389245622580415
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_1[2],x1[2],mean_process,0.22998140383413684
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_2[0],x2[0],mean_process,-0.15349297918810578
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_2[1],x2[1],mean_process,0.2760478079906294
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_2[2],x2[2],mean_process,-0.21841885763807498
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,SPF,x3[2],mean_process,0.851380983774548
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,const[0],const[0],mean_process,0.5880590125378329
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,const[1],const[1],mean_process,-0.1560017446021433
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,const[2],const[2],mean_process,0.337041106033186
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.7656084932958949
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[0->1],p[0->1],transition_probability,0.23439147603101437
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[1->0],p[1->0],transition_probability,0.039900992529122915
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.9079048571498097
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[2->0],p[2->0],transition_probability,0.17617245564452313
-"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[2->1],p[2->1],transition_probability,2.8384542323022643e-12
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,nu[0],nu[0],distribution,5.281820768101232
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,nu[1],nu[1],distribution,5.642386659702229
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.07249817885954798
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.6139023891967405
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,Inflation_lag_1,x1,mean_process,0.27947989767916065
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,Inflation_lag_2,x2,mean_process,0.17832690467025658
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,SPF,x3,mean_process,0.5284712428672697
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,const,const,mean_process,0.056426693461024836
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.8901132931992455
-"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.07122757853663182
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,nu[0],nu[0],distribution,5.1913096911825996
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,nu[1],nu[1],distribution,5.842512906999575
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.0929073389912226
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.538744330881533
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,0.0244694609933543
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.2380836114494056
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,-0.08952087716969699
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,0.3902475439069057
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,SPF,x3[1],mean_process,0.5797665306093867
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,const[0],const[0],mean_process,0.365900402293812
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,const[1],const[1],mean_process,-0.001405278457556546
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.801317376386398
-"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.19212402803824308
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,nu[0],nu[0],distribution,4.588126379311227
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,nu[1],nu[1],distribution,5.503383483748657
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.8034102187046078
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.20287889527548414
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.01784469769882098
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.38982887723511717
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,-0.1466311858075271
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,0.4245970744531535
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,SPF[0],x3[0],mean_process,0.8741796827101376
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,SPF[1],x3[1],mean_process,0.36273084555975793
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,const[0],const[0],mean_process,0.2566606281155341
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,const[1],const[1],mean_process,-0.05876536924935336
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.7522613071706279
-"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.10364337097301782
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,nu[0],nu[0],distribution,4.685224225354743
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,nu[1],nu[1],distribution,5.500734052022667
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,nu[2],nu[2],distribution,5.666820131056206
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.06005131339306492
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.24621830621446805
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.7677912253195798
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,Inflation_lag_1,x1,mean_process,0.2479039302246308
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,Inflation_lag_2,x2,mean_process,0.1886523335386406
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,SPF,x3,mean_process,0.539389252932039
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,const,const,mean_process,0.058425289707900376
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[0->0],p[0->0],transition_probability,0.8393461239796897
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[0->1],p[0->1],transition_probability,0.07532515502743478
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[1->0],p[1->0],transition_probability,0.09655016944395747
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.903444882312402
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[2->0],p[2->0],transition_probability,1.3299169829214596e-10
-"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.04875406760298731
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,nu[0],nu[0],distribution,5.394722058225657
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,nu[1],nu[1],distribution,6.222970797083536
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,nu[2],nu[2],distribution,6.802212929601392
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.04278656933863756
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.41929872866360507
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.34538578476550524
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_1[0],x1[0],mean_process,-0.46436269005458125
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_1[1],x1[1],mean_process,0.09950833042991462
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_1[2],x1[2],mean_process,0.3047320999811104
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_2[0],x2[0],mean_process,-0.16967088004080505
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_2[1],x2[1],mean_process,-0.10880732683514806
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_2[2],x2[2],mean_process,0.3320748160727732
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,SPF,x3[2],mean_process,0.8099857224498922
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,const[0],const[0],mean_process,0.6139052963932498
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,const[1],const[1],mean_process,0.2414683705291027
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,const[2],const[2],mean_process,-0.14849792081069307
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[0->0],p[0->0],transition_probability,0.8502378475132192
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[0->1],p[0->1],transition_probability,1.0384825264529725e-08
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[1->0],p[1->0],transition_probability,0.1043686207007844
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.8159556059505412
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[2->0],p[2->0],transition_probability,2.2838194486288638e-07
-"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.1678578622466509
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,sigma2[0],sigma2[0],distribution,0.12640740660951214
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,sigma2[1],sigma2[1],distribution,1.0383512725026975
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,Inflation_lag_1,x1,mean_process,0.25797883150929724
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,Inflation_lag_2,x2,mean_process,0.11911937295331089
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,SPF,x3,mean_process,0.38243425619940835
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,SPF_lag_1,x4,mean_process,0.21648343919654647
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,const,const,mean_process,0.08132881347929416
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,p[0->0],p[0->0],transition_probability,0.9385806624067436
-"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,p[1->0],p[1->0],transition_probability,0.13926132091543125
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,sigma2[0],sigma2[0],distribution,0.13554474065958652
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,sigma2[1],sigma2[1],distribution,1.0388982505388744
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.1682956604388707
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.3251623631709217
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,0.08481184280792417
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.05088378453549467
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,SPF,x3[1],mean_process,0.3545798067095949
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,SPF_lag_1,x4[1],mean_process,0.2598440312101664
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,const[0],const[0],mean_process,0.14628526498732466
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,const[1],const[1],mean_process,0.25004737211444544
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,p[0->0],p[0->0],transition_probability,0.9482535366015136
-"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,p[1->0],p[1->0],transition_probability,0.13065116928793338
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,sigma2[0],sigma2[0],distribution,0.09994593288317356
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,sigma2[1],sigma2[1],distribution,0.8311725981899861
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.041920385155581955
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.42442080793571224
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,-0.07443962912524678
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.20139054170383813
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF[0],x3[0],mean_process,0.6925389748595833
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF[1],x3[1],mean_process,-0.0791876812507488
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF_lag_1[0],x4[0],mean_process,0.1263392307170449
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF_lag_1[1],x4[1],mean_process,0.4615239337240751
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,const[0],const[0],mean_process,0.2060046016684846
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,const[1],const[1],mean_process,0.101387222626561
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,p[0->0],p[0->0],transition_probability,0.9001489597717844
-"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,p[1->0],p[1->0],transition_probability,0.16680604985030217
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,sigma2[0],sigma2[0],distribution,0.09656989693319441
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,sigma2[1],sigma2[1],distribution,0.5904358067601547
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,sigma2[2],sigma2[2],distribution,10.06897915760505
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,Inflation_lag_1,x1,mean_process,0.2670745144953794
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,Inflation_lag_2,x2,mean_process,0.18009295140821982
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,SPF,x3,mean_process,0.37477595817940007
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,SPF_lag_1,x4,mean_process,0.15408847907346176
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,const,const,mean_process,0.08567819312186663
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[0->0],p[0->0],transition_probability,0.9087634826398557
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[0->1],p[0->1],transition_probability,0.09123651736014189
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[1->0],p[1->0],transition_probability,0.11627200611258921
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[1->1],p[1->1],transition_probability,0.862303292790935
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[2->0],p[2->0],transition_probability,2.153701294004894e-21
-"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[2->1],p[2->1],transition_probability,1.0
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,sigma2[0],sigma2[0],distribution,0.021947137008290114
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,sigma2[1],sigma2[1],distribution,0.18654678560973473
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,sigma2[2],sigma2[2],distribution,1.219108662407345
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_1[0],x1[0],mean_process,-0.4676984011346457
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_1[1],x1[1],mean_process,0.2677006827538042
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_1[2],x1[2],mean_process,0.2333573214768493
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_2[0],x2[0],mean_process,-0.14892788228248355
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_2[1],x2[1],mean_process,0.2777766818151934
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_2[2],x2[2],mean_process,-0.21726384254915918
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,SPF,x3[2],mean_process,0.7767045413231042
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,SPF_lag_1,x4[2],mean_process,0.07037340008171142
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,const[0],const[0],mean_process,0.5856349457347345
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,const[1],const[1],mean_process,-0.15674154654044972
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,const[2],const[2],mean_process,0.3319626462530877
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[0->0],p[0->0],transition_probability,0.7648120741383625
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[0->1],p[0->1],transition_probability,0.2351879166584619
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[1->0],p[1->0],transition_probability,0.04076881462466014
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[1->1],p[1->1],transition_probability,0.9068306515519726
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[2->0],p[2->0],transition_probability,0.17819376713029259
-"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[2->1],p[2->1],transition_probability,3.276591451094531e-12
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,nu[0],nu[0],distribution,5.278339978220912
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,nu[1],nu[1],distribution,6.0358620899821975
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,sigma2[0],sigma2[0],distribution,0.07432581460452437
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,sigma2[1],sigma2[1],distribution,0.6242788958708476
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,Inflation_lag_1,x1,mean_process,0.2939848398441439
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,Inflation_lag_2,x2,mean_process,0.2071754302577538
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,SPF,x3,mean_process,0.1728662981741106
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,SPF_lag_1,x4,mean_process,0.3335397035370032
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,const,const,mean_process,0.03865614212003328
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,p[0->0],p[0->0],transition_probability,0.9051260962851791
-"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,p[1->0],p[1->0],transition_probability,0.06357981228681694
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,nu[0],nu[0],distribution,4.610334342756324
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,nu[1],nu[1],distribution,5.418139390939103
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,sigma2[0],sigma2[0],distribution,0.13641826062866627
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,sigma2[1],sigma2[1],distribution,0.4779088532086515
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,0.025602195421537386
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.19860729436023972
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,-0.09042610578140016
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,0.4682355875472762
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,SPF,x3[1],mean_process,0.7268401604399922
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,SPF_lag_1,x4[1],mean_process,-0.16280736029625
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,const[0],const[0],mean_process,0.3819028763914485
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,const[1],const[1],mean_process,-0.0039953862435707305
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,p[0->0],p[0->0],transition_probability,0.8240924095579474
-"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,p[1->0],p[1->0],transition_probability,0.21585134836147427
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,nu[0],nu[0],distribution,4.896395067279483
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,nu[1],nu[1],distribution,5.347255499482316
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,sigma2[0],sigma2[0],distribution,0.7973307435361566
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,sigma2[1],sigma2[1],distribution,0.20472991998051196
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.0019664696321188566
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.39889815262371486
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,-0.12051944595071251
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,0.4233287771756259
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF[0],x3[0],mean_process,0.3058449305344779
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF[1],x3[1],mean_process,0.1442419249413021
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF_lag_1[0],x4[0],mean_process,0.5295163395325164
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF_lag_1[1],x4[1],mean_process,0.21287004147451885
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,const[0],const[0],mean_process,0.23557997070590075
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,const[1],const[1],mean_process,-0.06156335911742247
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,p[0->0],p[0->0],transition_probability,0.7495078651529425
-"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,p[1->0],p[1->0],transition_probability,0.10131470195439575
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,nu[0],nu[0],distribution,5.07390270249638
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,nu[1],nu[1],distribution,5.475425644012071
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,nu[2],nu[2],distribution,5.9738078501021885
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,sigma2[0],sigma2[0],distribution,0.062330174556765164
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,sigma2[1],sigma2[1],distribution,0.24186610614867649
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,sigma2[2],sigma2[2],distribution,0.7835450568549127
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,Inflation_lag_1,x1,mean_process,0.2593684382158527
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,Inflation_lag_2,x2,mean_process,0.19901886737369107
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,SPF,x3,mean_process,0.22535281923036596
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,SPF_lag_1,x4,mean_process,0.3079068649514795
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,const,const,mean_process,0.041880936921937534
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[0->0],p[0->0],transition_probability,0.8968589785465808
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[0->1],p[0->1],transition_probability,0.03247114583687437
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[1->0],p[1->0],transition_probability,0.05996292773006715
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[1->1],p[1->1],transition_probability,0.9268822714260883
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[2->0],p[2->0],transition_probability,1.4090839269027074e-08
-"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[2->1],p[2->1],transition_probability,0.05573864024815395
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,nu[0],nu[0],distribution,4.873779073167979
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,nu[1],nu[1],distribution,5.787639976051944
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,nu[2],nu[2],distribution,6.6507909073522775
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,sigma2[0],sigma2[0],distribution,0.049387758148253434
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,sigma2[1],sigma2[1],distribution,0.5627897664707426
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,sigma2[2],sigma2[2],distribution,0.2254990547399597
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_1[0],x1[0],mean_process,-0.4659006468547769
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_1[1],x1[1],mean_process,0.12706096122464336
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_1[2],x1[2],mean_process,0.38559470417329317
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_2[0],x2[0],mean_process,-0.12601937690653975
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_2[1],x2[1],mean_process,-0.03535625059968059
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_2[2],x2[2],mean_process,0.28050382910561256
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,SPF,x3[2],mean_process,0.5160840963860623
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,SPF_lag_1,x4[2],mean_process,0.19833688128500623
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,const[0],const[0],mean_process,0.6633911369295086
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,const[1],const[1],mean_process,0.16870993304067572
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,const[2],const[2],mean_process,-0.1266425752626851
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[0->0],p[0->0],transition_probability,0.8073882804780961
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[0->1],p[0->1],transition_probability,1.1014962946228391e-08
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[1->0],p[1->0],transition_probability,0.2361799043996068
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[1->1],p[1->1],transition_probability,0.7638163598775847
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[2->0],p[2->0],transition_probability,1.2539407562285278e-10
-"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[2->1],p[2->1],transition_probability,0.10788067523540988
-Constant_normal_r2_arN_spfN,Constant,Normal,2,sigma2[0],sigma2[0],distribution,0.1486348372653733
-Constant_normal_r2_arN_spfN,Constant,Normal,2,sigma2[1],sigma2[1],distribution,1.3238635221847663
-Constant_normal_r2_arN_spfN,Constant,Normal,2,p[0->0],p[0->0],transition_probability,0.9470017780042755
-Constant_normal_r2_arN_spfN,Constant,Normal,2,p[1->0],p[1->0],transition_probability,0.14060763538084747
-Constant_normal_r3_arN_spfN,Constant,Normal,3,sigma2[0],sigma2[0],distribution,0.043396517000469974
-Constant_normal_r3_arN_spfN,Constant,Normal,3,sigma2[1],sigma2[1],distribution,0.21254940991395635
-Constant_normal_r3_arN_spfN,Constant,Normal,3,sigma2[2],sigma2[2],distribution,1.4004611169787662
-Constant_normal_r3_arN_spfN,Constant,Normal,3,p[0->0],p[0->0],transition_probability,0.8893604232840256
-Constant_normal_r3_arN_spfN,Constant,Normal,3,p[0->1],p[0->1],transition_probability,0.03939459915580348
-Constant_normal_r3_arN_spfN,Constant,Normal,3,p[1->0],p[1->0],transition_probability,0.04491226782996832
-Constant_normal_r3_arN_spfN,Constant,Normal,3,p[1->1],p[1->1],transition_probability,0.9219203771499852
-Constant_normal_r3_arN_spfN,Constant,Normal,3,p[2->0],p[2->0],transition_probability,4.332611807167901e-08
-Constant_normal_r3_arN_spfN,Constant,Normal,3,p[2->1],p[2->1],transition_probability,0.13274183591126126
-Constant_student_t_r2_arN_spfN,Constant,Student t,2,nu[0],nu[0],distribution,5.466679697767111
-Constant_student_t_r2_arN_spfN,Constant,Student t,2,nu[1],nu[1],distribution,5.618489809843467
-Constant_student_t_r2_arN_spfN,Constant,Student t,2,sigma2[0],sigma2[0],distribution,0.06852048969583172
-Constant_student_t_r2_arN_spfN,Constant,Student t,2,sigma2[1],sigma2[1],distribution,0.7468489443852862
-Constant_student_t_r2_arN_spfN,Constant,Student t,2,p[0->0],p[0->0],transition_probability,0.8816799133709874
-Constant_student_t_r2_arN_spfN,Constant,Student t,2,p[1->0],p[1->0],transition_probability,0.07637033171477549
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,nu[0],nu[0],distribution,5.107013258269504
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,nu[1],nu[1],distribution,6.069823863102588
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,nu[2],nu[2],distribution,6.817339740974705
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,sigma2[0],sigma2[0],distribution,0.05770879044778518
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,sigma2[1],sigma2[1],distribution,0.25705142555478167
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,sigma2[2],sigma2[2],distribution,0.9435748184202252
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[0->0],p[0->0],transition_probability,0.8838873943577387
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[0->1],p[0->1],transition_probability,0.023998852260805136
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[1->0],p[1->0],transition_probability,0.05874285585020355
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[1->1],p[1->1],transition_probability,0.9278868215000919
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[2->0],p[2->0],transition_probability,2.2354754406473207e-06
-Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[2->1],p[2->1],transition_probability,0.08182245832943379
+"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.12964792897983915
+"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.0758268006592049
+"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,Inflation_lag_1,x1,mean_process,0.2678607027061449
+"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,SPF,x2,mean_process,0.6998774786756093
+"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,const,const,mean_process,0.09679868268332263
+"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.93669271481986
+"ARX(1,1)_normal_r2_arN_spfN","ARX(1,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.1514890380408508
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.12949145893161465
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.0099687853046355
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.12106262334810358
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.34237153420897337
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,SPF,x2[1],mean_process,0.7124561019926267
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,const[0],const[0],mean_process,0.1809858157792168
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,const[1],const[1],mean_process,0.17385727930368028
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9364561609214349
+"ARX(1,1)_normal_r2_arY_spfN","ARX(1,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.15173671850084247
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.12958524833143042
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.0053658558798297
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.10711640367835935
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.37349057573122335
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,SPF[0],x2[0],mean_process,0.7301906445260222
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,SPF[1],x2[1],mean_process,0.6491880818365093
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,const[0],const[0],mean_process,0.17868978851619183
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,const[1],const[1],mean_process,0.19650696207676088
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9363987323057414
+"ARX(1,1)_normal_r2_arY_spfY","ARX(1,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.15169004470991104
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,sigma2[0],sigma2[0],distribution,0.11270638707441577
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,sigma2[1],sigma2[1],distribution,8.089324432487743
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,sigma2[2],sigma2[2],distribution,0.6724825888574898
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,Inflation_lag_1,x1,mean_process,0.2913385960396471
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,SPF,x2,mean_process,0.6921471585862828
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,const,const,mean_process,0.09146480929159681
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.9153324800025222
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[0->1],p[0->1],transition_probability,1.0889242254014038e-05
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[1->0],p[1->0],transition_probability,8.589386545044821e-09
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.0003973011086767012
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[2->0],p[2->0],transition_probability,0.14157467339657293
+"ARX(1,1)_normal_r3_arN_spfN","ARX(1,1)",Normal,3,p[2->1],p[2->1],transition_probability,0.0292164084100921
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,sigma2[0],sigma2[0],distribution,0.016971954884826355
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,sigma2[1],sigma2[1],distribution,0.1513940427326258
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,sigma2[2],sigma2[2],distribution,1.111942496992386
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,Inflation_lag_1[0],x1[0],mean_process,-0.5056467596395958
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,Inflation_lag_1[1],x1[1],mean_process,0.521303446389101
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,Inflation_lag_1[2],x1[2],mean_process,0.20566795994016013
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,SPF,x2[2],mean_process,0.7618809271364962
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,const[0],const[0],mean_process,0.5536693878108535
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,const[1],const[1],mean_process,-0.08214006101541861
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,const[2],const[2],mean_process,0.1671953305155724
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.6568592019911939
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[0->1],p[0->1],transition_probability,0.34313977558099695
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[1->0],p[1->0],transition_probability,0.08325175536723894
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.8314936419264309
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[2->0],p[2->0],transition_probability,0.12150336060425514
+"ARX(1,1)_normal_r3_arY_spfN","ARX(1,1)",Normal,3,p[2->1],p[2->1],transition_probability,0.07821954264168632
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,nu[0],nu[0],distribution,8.602487410214284
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,nu[1],nu[1],distribution,13.197819181548606
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.9320138201077348
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.13210018123037154
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,Inflation_lag_1,x1,mean_process,0.28065568215103764
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,SPF,x2,mean_process,0.7021789979904597
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,const,const,mean_process,0.08795237278227062
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.8769167047777697
+"ARX(1,1)_student_t_r2_arN_spfN","ARX(1,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.061738670167766956
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,nu[0],nu[0],distribution,2.2877860098405653
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,nu[1],nu[1],distribution,199.99020085440006
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.5342307397617049
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.33401805477202506
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.01735465705855129
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.624485215105171
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,SPF,x2[1],mean_process,0.3292168141684269
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,const[0],const[0],mean_process,0.46894473177806345
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,const[1],const[1],mean_process,0.2484289304531517
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.9486828655341584
+"ARX(1,1)_student_t_r2_arY_spfN","ARX(1,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.07857267144231904
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,nu[0],nu[0],distribution,2.2654050387955027
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,nu[1],nu[1],distribution,199.99483362952319
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.565371223409663
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.33300995203016265
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.01525076545218425
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.6139804830950782
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,SPF[0],x2[0],mean_process,0.3159527756644338
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,SPF[1],x2[1],mean_process,0.35436273431343807
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,const[0],const[0],mean_process,0.47629085428927503
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,const[1],const[1],mean_process,0.23286976742413684
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.9476330880209266
+"ARX(1,1)_student_t_r2_arY_spfY","ARX(1,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.07840718511692964
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,nu[0],nu[0],distribution,200.0
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,nu[1],nu[1],distribution,200.0
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,nu[2],nu[2],distribution,8.982408804770069
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.047764756701426256
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.20066159187105756
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.9912101399634845
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,Inflation_lag_1,x1,mean_process,0.24534000114883883
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,SPF,x2,mean_process,0.7186329585049882
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,const,const,mean_process,0.07737001535200394
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[0->0],p[0->0],transition_probability,0.8145104619764746
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[0->1],p[0->1],transition_probability,0.07100411216390955
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[1->0],p[1->0],transition_probability,0.10908733924603464
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.8909126607539577
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[2->0],p[2->0],transition_probability,3.782212876283694e-10
+"ARX(1,1)_student_t_r3_arN_spfN","ARX(1,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.09236363756527202
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,nu[0],nu[0],distribution,199.99974498845106
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,nu[1],nu[1],distribution,3.940099411541674
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,nu[2],nu[2],distribution,17.295668329627425
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.00036348617145424137
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.5223692583642182
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.03803101562421049
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,Inflation_lag_1[0],x1[0],mean_process,-0.329335043880099
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,Inflation_lag_1[1],x1[1],mean_process,0.3359205691981868
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,Inflation_lag_1[2],x1[2],mean_process,-0.3558132059296344
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,SPF,x2[2],mean_process,0.9033992900593653
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,const[0],const[0],mean_process,0.5876967314112412
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,const[1],const[1],mean_process,0.04041600920679463
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,const[2],const[2],mean_process,0.2554190452707855
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[0->0],p[0->0],transition_probability,4.772979435650142e-12
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[0->1],p[0->1],transition_probability,0.49245691678809866
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[1->0],p[1->0],transition_probability,0.10792790554533027
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.8224037744216046
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[2->0],p[2->0],transition_probability,1.5281857768492218e-16
+"ARX(1,1)_student_t_r3_arY_spfN","ARX(1,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.22670770491074274
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.12458633287481277
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,sigma2[1],sigma2[1],distribution,1.0232808748967592
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,Inflation_lag_1,x1,mean_process,0.2532118603625206
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,Inflation_lag_2,x2,mean_process,0.11678480748091591
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,SPF,x3,mean_process,0.6054789124663214
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,const,const,mean_process,0.0835387842383787
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9367764390780624
+"ARX(2,1)_normal_r2_arN_spfN","ARX(2,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.13890294310122542
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.10035066552075908
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,sigma2[1],sigma2[1],distribution,0.8473545802469091
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.061730449723343496
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.31539876858227284
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,-0.058051055442411584
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.07934316701370904
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,SPF,x3[1],mean_process,0.7418465989880598
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,const[0],const[0],mean_process,0.23561910867061445
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,const[1],const[1],mean_process,0.04509060486812528
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.9000041264138985
+"ARX(2,1)_normal_r2_arY_spfN","ARX(2,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.16532990151785198
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,sigma2[0],sigma2[0],distribution,0.09683357943499826
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,sigma2[1],sigma2[1],distribution,0.8184327921852185
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.03957243813235847
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.3833424235861126
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,-0.0839579602029061
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.18996171762730202
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,SPF[0],x3[0],mean_process,0.8198185855009374
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,SPF[1],x3[1],mean_process,0.433995698039618
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,const[0],const[0],mean_process,0.21272285800570218
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,const[1],const[1],mean_process,0.11523831701387961
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,p[0->0],p[0->0],transition_probability,0.8958697971381601
+"ARX(2,1)_normal_r2_arY_spfY","ARX(2,1)",Normal,2,p[1->0],p[1->0],transition_probability,0.1659003617607947
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,sigma2[0],sigma2[0],distribution,0.09433894396506395
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,sigma2[1],sigma2[1],distribution,0.5881349784284934
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,sigma2[2],sigma2[2],distribution,10.09476754182637
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,Inflation_lag_1,x1,mean_process,0.2625875454428293
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,Inflation_lag_2,x2,mean_process,0.1784549700575828
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,SPF,x3,mean_process,0.5286153645514166
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,const,const,mean_process,0.09101517385775361
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.9066506004811523
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[0->1],p[0->1],transition_probability,0.09334875541422079
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[1->0],p[1->0],transition_probability,0.11597790700182614
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.8629803691840854
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[2->0],p[2->0],transition_probability,1.5814882069055754e-07
+"ARX(2,1)_normal_r3_arN_spfN","ARX(2,1)",Normal,3,p[2->1],p[2->1],transition_probability,0.9999975557557879
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,sigma2[0],sigma2[0],distribution,1.4659068357678684
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,sigma2[1],sigma2[1],distribution,0.06401389289136043
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,sigma2[2],sigma2[2],distribution,0.2263601506219802
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_1[0],x1[0],mean_process,-0.27250180171269806
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_1[1],x1[1],mean_process,0.024402050875864764
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_1[2],x1[2],mean_process,0.2711727624164718
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_2[0],x2[0],mean_process,-0.6596716605757666
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_2[1],x2[1],mean_process,-0.08394354984132602
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,Inflation_lag_2[2],x2[2],mean_process,0.4540705616132912
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,SPF,x3[2],mean_process,0.5282613883575903
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,const[0],const[0],mean_process,0.7540966327312592
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,const[1],const[1],mean_process,0.41765983600436757
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,const[2],const[2],mean_process,-0.046155630689948796
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[0->0],p[0->0],transition_probability,0.5513023799101432
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[0->1],p[0->1],transition_probability,0.4486973313393055
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[1->0],p[1->0],transition_probability,0.07488470472039446
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[1->1],p[1->1],transition_probability,0.6900083108630306
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[2->0],p[2->0],transition_probability,9.291806413737623e-21
+"ARX(2,1)_normal_r3_arY_spfN","ARX(2,1)",Normal,3,p[2->1],p[2->1],transition_probability,0.19586676015261437
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,nu[0],nu[0],distribution,9.089377504078225
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,nu[1],nu[1],distribution,7.467290481271322
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.13139147504345197
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.8550133728709731
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,Inflation_lag_1,x1,mean_process,0.25409446070846065
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,Inflation_lag_2,x2,mean_process,0.1660881955323632
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,SPF,x3,mean_process,0.5640264218154649
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,const,const,mean_process,0.07484429690102831
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.9481314373622665
+"ARX(2,1)_student_t_r2_arN_spfN","ARX(2,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.09090652803106977
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,nu[0],nu[0],distribution,82.2991410589295
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,nu[1],nu[1],distribution,2.2053652280473663
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.2189947943170845
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.7249802136069663
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,0.31464104706732193
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.001879285791662582
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,0.4473591928537785
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,-0.050414990040710886
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,SPF,x3[1],mean_process,0.4512310939631317
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,const[0],const[0],mean_process,-0.01826597059433613
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,const[1],const[1],mean_process,0.4349789038075048
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.8050606626928996
+"ARX(2,1)_student_t_r2_arY_spfN","ARX(2,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.1821133347279462
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,nu[0],nu[0],distribution,2.365462483649645
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,nu[1],nu[1],distribution,186.3860649357711
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,sigma2[0],sigma2[0],distribution,0.4935601443179254
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,sigma2[1],sigma2[1],distribution,0.2085825637617729
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.0072102623761117505
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.3478429912241273
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,-0.10681948894286161
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,0.5269882210586126
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,SPF[0],x3[0],mean_process,0.6734293043590318
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,SPF[1],x3[1],mean_process,0.26157888111460237
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,const[0],const[0],mean_process,0.33303698856081165
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,const[1],const[1],mean_process,0.034601275416291724
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,p[0->0],p[0->0],transition_probability,0.830660174205093
+"ARX(2,1)_student_t_r2_arY_spfY","ARX(2,1)",Student t,2,p[1->0],p[1->0],transition_probability,0.2076781196739169
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,nu[0],nu[0],distribution,6.490551731740708
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,nu[1],nu[1],distribution,7.58883046930815
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,nu[2],nu[2],distribution,31.080823037659965
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.005208294107430326
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.9105928334562295
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.1611384457818396
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,Inflation_lag_1,x1,mean_process,0.22013975852151552
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,Inflation_lag_2,x2,mean_process,0.23094280624035743
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,SPF,x3,mean_process,0.42846710754997125
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,const,const,mean_process,0.12171481015641163
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[0->0],p[0->0],transition_probability,0.5816761491588633
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[0->1],p[0->1],transition_probability,2.695587390238273e-07
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[1->0],p[1->0],transition_probability,3.2135348532446824e-08
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.9234200172012412
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[2->0],p[2->0],transition_probability,0.06674540706411876
+"ARX(2,1)_student_t_r3_arN_spfN","ARX(2,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.04755129092371381
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,nu[0],nu[0],distribution,183.070804898749
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,nu[1],nu[1],distribution,2.39743713456064
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,nu[2],nu[2],distribution,104.3262737025636
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,sigma2[0],sigma2[0],distribution,0.01180584760187721
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,sigma2[1],sigma2[1],distribution,0.61297309600058
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,sigma2[2],sigma2[2],distribution,0.2087894490677935
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_1[0],x1[0],mean_process,-0.5429199697139692
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_1[1],x1[1],mean_process,0.04929816221523201
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_1[2],x1[2],mean_process,0.2687197486819386
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_2[0],x2[0],mean_process,-0.23805655559254013
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_2[1],x2[1],mean_process,-0.0989448936131494
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,Inflation_lag_2[2],x2[2],mean_process,0.4482806684871503
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,SPF,x3[2],mean_process,0.5749507464743329
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,const[0],const[0],mean_process,0.8727692529936316
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,const[1],const[1],mean_process,0.3817957803845275
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,const[2],const[2],mean_process,-0.06706254521797662
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[0->0],p[0->0],transition_probability,0.8327984740003314
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[0->1],p[0->1],transition_probability,0.16551179741348693
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[1->0],p[1->0],transition_probability,0.048044691363779264
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[1->1],p[1->1],transition_probability,0.6467786900701413
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[2->0],p[2->0],transition_probability,0.00015004605094093222
+"ARX(2,1)_student_t_r3_arY_spfN","ARX(2,1)",Student t,3,p[2->1],p[2->1],transition_probability,0.2460695670369391
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,sigma2[0],sigma2[0],distribution,0.12640831648676476
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,sigma2[1],sigma2[1],distribution,1.0383680754869014
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,Inflation_lag_1,x1,mean_process,0.25798032220015943
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,Inflation_lag_2,x2,mean_process,0.11910798827181802
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,SPF,x3,mean_process,0.38243267095818656
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,SPF_lag_1,x4,mean_process,0.21649626302250125
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,const,const,mean_process,0.08132866058172054
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,p[0->0],p[0->0],transition_probability,0.9385789707017277
+"ARX(2,2)_normal_r2_arN_spfN","ARX(2,2)",Normal,2,p[1->0],p[1->0],transition_probability,0.13926702052727385
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,sigma2[0],sigma2[0],distribution,0.13554696601429855
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,sigma2[1],sigma2[1],distribution,1.0389339481919557
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.16827239133114666
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.3251564259906508
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,0.08480992696237237
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.05087937680796684
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,SPF,x3[1],mean_process,0.3545676704900013
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,SPF_lag_1,x4[1],mean_process,0.25987064845921753
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,const[0],const[0],mean_process,0.1462962596161284
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,const[1],const[1],mean_process,0.25006208154078163
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,p[0->0],p[0->0],transition_probability,0.9482504968406049
+"ARX(2,2)_normal_r2_arY_spfN","ARX(2,2)",Normal,2,p[1->0],p[1->0],transition_probability,0.1306646407414861
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,sigma2[0],sigma2[0],distribution,0.09994467221833818
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,sigma2[1],sigma2[1],distribution,0.8311785488785297
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_1[0],x1[0],mean_process,0.04192480742527991
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_1[1],x1[1],mean_process,0.4243242965906262
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_2[0],x2[0],mean_process,-0.07444102573711098
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,Inflation_lag_2[1],x2[1],mean_process,0.20135604364461157
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF[0],x3[0],mean_process,0.692519450250573
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF[1],x3[1],mean_process,-0.07852004336712584
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF_lag_1[0],x4[0],mean_process,0.1263564212811212
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,SPF_lag_1[1],x4[1],mean_process,0.4610135832195521
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,const[0],const[0],mean_process,0.20600162640887043
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,const[1],const[1],mean_process,0.10140594186010206
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,p[0->0],p[0->0],transition_probability,0.9001473927056763
+"ARX(2,2)_normal_r2_arY_spfY","ARX(2,2)",Normal,2,p[1->0],p[1->0],transition_probability,0.16680111029188938
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,sigma2[0],sigma2[0],distribution,0.09656925375358581
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,sigma2[1],sigma2[1],distribution,0.5904379599250145
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,sigma2[2],sigma2[2],distribution,10.066521534322353
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,Inflation_lag_1,x1,mean_process,0.26707071473248134
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,Inflation_lag_2,x2,mean_process,0.1800944069020168
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,SPF,x3,mean_process,0.3747834111687794
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,SPF_lag_1,x4,mean_process,0.1540815949783338
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,const,const,mean_process,0.08567967448200706
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[0->0],p[0->0],transition_probability,0.9087626017433996
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[0->1],p[0->1],transition_probability,0.0912367686303185
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[1->0],p[1->0],transition_probability,0.11627444795506005
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[1->1],p[1->1],transition_probability,0.8622975682487738
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[2->0],p[2->0],transition_probability,9.314442313873385e-08
+"ARX(2,2)_normal_r3_arN_spfN","ARX(2,2)",Normal,3,p[2->1],p[2->1],transition_probability,0.9999963593035301
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,sigma2[0],sigma2[0],distribution,0.02194711491378725
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,sigma2[1],sigma2[1],distribution,0.18654654759740244
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,sigma2[2],sigma2[2],distribution,1.2191061697413295
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_1[0],x1[0],mean_process,-0.46769805138863463
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_1[1],x1[1],mean_process,0.2677001580047299
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_1[2],x1[2],mean_process,0.23335778334710316
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_2[0],x2[0],mean_process,-0.14892826300102857
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_2[1],x2[1],mean_process,0.27777590748494674
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,Inflation_lag_2[2],x2[2],mean_process,-0.21727263238846764
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,SPF,x3[2],mean_process,0.7767000541860952
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,SPF_lag_1,x4[2],mean_process,0.07038033086211272
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,const[0],const[0],mean_process,0.5856332286419601
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,const[1],const[1],mean_process,-0.15674279460151297
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,const[2],const[2],mean_process,0.33198241832991005
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[0->0],p[0->0],transition_probability,0.7648126474616126
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[0->1],p[0->1],transition_probability,0.23518734748075248
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[1->0],p[1->0],transition_probability,0.04076856268271734
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[1->1],p[1->1],transition_probability,0.9068317214060015
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[2->0],p[2->0],transition_probability,0.17819224602393718
+"ARX(2,2)_normal_r3_arY_spfN","ARX(2,2)",Normal,3,p[2->1],p[2->1],transition_probability,2.8536661468260025e-13
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,nu[0],nu[0],distribution,7.475174318508003
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,nu[1],nu[1],distribution,9.453902893941805
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,sigma2[0],sigma2[0],distribution,0.858565841792653
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,sigma2[1],sigma2[1],distribution,0.13181875200161836
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,Inflation_lag_1,x1,mean_process,0.260768061818861
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,Inflation_lag_2,x2,mean_process,0.1678067031233944
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,SPF,x3,mean_process,0.3679405401150838
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,SPF_lag_1,x4,mean_process,0.19551855386940198
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,const,const,mean_process,0.06829857054096056
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,p[0->0],p[0->0],transition_probability,0.908514491069421
+"ARX(2,2)_student_t_r2_arN_spfN","ARX(2,2)",Student t,2,p[1->0],p[1->0],transition_probability,0.05147180075616609
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,nu[0],nu[0],distribution,2.21064948853609
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,nu[1],nu[1],distribution,89.86018645422722
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,sigma2[0],sigma2[0],distribution,0.7098900444756083
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,sigma2[1],sigma2[1],distribution,0.2194359111394164
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,0.001997227312096361
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.3112569566614986
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,-0.051753599242125095
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,0.44789916017429443
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,SPF,x3[1],mean_process,0.48378425846265344
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,SPF_lag_1,x4[1],mean_process,-0.028074940871296847
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,const[0],const[0],mean_process,0.43440804370209507
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,const[1],const[1],mean_process,-0.01915993785653929
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,p[0->0],p[0->0],transition_probability,0.8188803874659097
+"ARX(2,2)_student_t_r2_arY_spfN","ARX(2,2)",Student t,2,p[1->0],p[1->0],transition_probability,0.1954158976375345
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,nu[0],nu[0],distribution,2.0500050059981523
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,nu[1],nu[1],distribution,25.641410250611386
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,sigma2[0],sigma2[0],distribution,2.2243280993895587
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,sigma2[1],sigma2[1],distribution,0.22318255119650182
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_1[0],x1[0],mean_process,-0.02038421061641879
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_1[1],x1[1],mean_process,0.41066984148716534
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_2[0],x2[0],mean_process,-0.14737277282654812
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,Inflation_lag_2[1],x2[1],mean_process,0.5069969711226268
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF[0],x3[0],mean_process,1.4373552092239505
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF[1],x3[1],mean_process,-0.5474313176006251
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF_lag_1[0],x4[0],mean_process,-0.7094563570243098
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,SPF_lag_1[1],x4[1],mean_process,0.7893272703780153
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,const[0],const[0],mean_process,0.36421799048252657
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,const[1],const[1],mean_process,-0.012832697532722828
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,p[0->0],p[0->0],transition_probability,0.7801131991853607
+"ARX(2,2)_student_t_r2_arY_spfY","ARX(2,2)",Student t,2,p[1->0],p[1->0],transition_probability,0.21854443163846968
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,nu[0],nu[0],distribution,136.88451731405934
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,nu[1],nu[1],distribution,115.53567617428892
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,nu[2],nu[2],distribution,7.925652266964525
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,sigma2[0],sigma2[0],distribution,0.04169896892274545
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,sigma2[1],sigma2[1],distribution,0.18801759562957626
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,sigma2[2],sigma2[2],distribution,0.9425503302859342
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,Inflation_lag_1,x1,mean_process,0.24451585120902045
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,Inflation_lag_2,x2,mean_process,0.17266627483154862
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,SPF,x3,mean_process,0.22539611129153245
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,SPF_lag_1,x4,mean_process,0.3345732431036538
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,const,const,mean_process,0.04931874677279467
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[0->0],p[0->0],transition_probability,0.8747808362375831
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[0->1],p[0->1],transition_probability,0.05114869664606688
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[1->0],p[1->0],transition_probability,0.051014389541136435
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[1->1],p[1->1],transition_probability,0.9241388292044377
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[2->0],p[2->0],transition_probability,1.1514783112016108e-05
+"ARX(2,2)_student_t_r3_arN_spfN","ARX(2,2)",Student t,3,p[2->1],p[2->1],transition_probability,0.08110377974046862
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,nu[0],nu[0],distribution,199.999999998973
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,nu[1],nu[1],distribution,199.99865454336634
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,nu[2],nu[2],distribution,3.641303994279194
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,sigma2[0],sigma2[0],distribution,0.01826311959277627
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,sigma2[1],sigma2[1],distribution,0.011336609726899788
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,sigma2[2],sigma2[2],distribution,0.42520655226681325
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_1[0],x1[0],mean_process,-0.41972193936877744
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_1[1],x1[1],mean_process,0.7984798331178352
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_1[2],x1[2],mean_process,0.1144578775498921
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_2[0],x2[0],mean_process,-0.15215319633875746
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_2[1],x2[1],mean_process,-0.6119678430092544
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,Inflation_lag_2[2],x2[2],mean_process,0.27191419873229566
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,SPF,x3[2],mean_process,0.869835309727838
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,SPF_lag_1,x4[2],mean_process,0.06005291325359065
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,const[0],const[0],mean_process,0.47669071995238876
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,const[1],const[1],mean_process,-0.28939406322803757
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,const[2],const[2],mean_process,-0.009196581077620143
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[0->0],p[0->0],transition_probability,0.7359768368308346
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[0->1],p[0->1],transition_probability,0.2640231455050677
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[1->0],p[1->0],transition_probability,0.12539816846412535
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[1->1],p[1->1],transition_probability,2.8004074060868644e-06
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[2->0],p[2->0],transition_probability,0.0695840105946558
+"ARX(2,2)_student_t_r3_arY_spfN","ARX(2,2)",Student t,3,p[2->1],p[2->1],transition_probability,0.0928491825725147
+Constant_normal_r2_arN_spfN,Constant,Normal,2,sigma2[0],sigma2[0],distribution,0.14863545060461442
+Constant_normal_r2_arN_spfN,Constant,Normal,2,sigma2[1],sigma2[1],distribution,1.3238631860331727
+Constant_normal_r2_arN_spfN,Constant,Normal,2,p[0->0],p[0->0],transition_probability,0.9470018217168754
+Constant_normal_r2_arN_spfN,Constant,Normal,2,p[1->0],p[1->0],transition_probability,0.14060394395363443
+Constant_normal_r3_arN_spfN,Constant,Normal,3,sigma2[0],sigma2[0],distribution,0.043395694407693204
+Constant_normal_r3_arN_spfN,Constant,Normal,3,sigma2[1],sigma2[1],distribution,0.21254977329772956
+Constant_normal_r3_arN_spfN,Constant,Normal,3,sigma2[2],sigma2[2],distribution,1.4004590147149885
+Constant_normal_r3_arN_spfN,Constant,Normal,3,p[0->0],p[0->0],transition_probability,0.8893699265748374
+Constant_normal_r3_arN_spfN,Constant,Normal,3,p[0->1],p[0->1],transition_probability,0.039390558726067136
+Constant_normal_r3_arN_spfN,Constant,Normal,3,p[1->0],p[1->0],transition_probability,0.04490715908411393
+Constant_normal_r3_arN_spfN,Constant,Normal,3,p[1->1],p[1->1],transition_probability,0.9219265314715658
+Constant_normal_r3_arN_spfN,Constant,Normal,3,p[2->0],p[2->0],transition_probability,3.9993913262339766e-07
+Constant_normal_r3_arN_spfN,Constant,Normal,3,p[2->1],p[2->1],transition_probability,0.1327279261149888
+Constant_student_t_r2_arN_spfN,Constant,Student t,2,nu[0],nu[0],distribution,9.624231548418885
+Constant_student_t_r2_arN_spfN,Constant,Student t,2,nu[1],nu[1],distribution,12.865269591227854
+Constant_student_t_r2_arN_spfN,Constant,Student t,2,sigma2[0],sigma2[0],distribution,0.14691435120241006
+Constant_student_t_r2_arN_spfN,Constant,Student t,2,sigma2[1],sigma2[1],distribution,1.1854730335499617
+Constant_student_t_r2_arN_spfN,Constant,Student t,2,p[0->0],p[0->0],transition_probability,0.9468306600028795
+Constant_student_t_r2_arN_spfN,Constant,Student t,2,p[1->0],p[1->0],transition_probability,0.11595872808245446
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,nu[0],nu[0],distribution,199.9739159190066
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,nu[1],nu[1],distribution,199.99994649668696
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,nu[2],nu[2],distribution,15.501904283201167
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,sigma2[0],sigma2[0],distribution,0.04349433358382156
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,sigma2[1],sigma2[1],distribution,0.21153618409581007
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,sigma2[2],sigma2[2],distribution,1.3324530927632434
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[0->0],p[0->0],transition_probability,0.8872157046788273
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[0->1],p[0->1],transition_probability,0.036119653767867126
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[1->0],p[1->0],transition_probability,0.04768126051487505
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[1->1],p[1->1],transition_probability,0.9212183880766782
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[2->0],p[2->0],transition_probability,3.0387059403303913e-08
+Constant_student_t_r3_arN_spfN,Constant,Student t,3,p[2->1],p[2->1],transition_probability,0.12388741574816586

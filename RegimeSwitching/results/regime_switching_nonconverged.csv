@@ -1,1 +1,1 @@
-model_label,mean_process,has_intercept,intercept_switches_by_regime,endog,exog_cols,error_distribution,k_regimes,switching_ar,switching_spf,switching_distribution,switching_nu,sample_start,sample_end,nobs,llf,aic,bic,hqic,converged,iterations,warnflag,fit_strategy,fit_attempts
+model_label,mean_process,has_intercept,intercept_switches_by_regime,endog,exog_cols,error_distribution,k_regimes,switching_ar,switching_spf,switching_distribution,switching_nu,sample_start,sample_end,nobs,llf,aic,bic,hqic,converged,iterations,warnflag,fit_strategy,fit_attempts,fit_converged_candidates
