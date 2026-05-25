@@ -184,4 +184,39 @@ According to the emails, I have set the constraints below.
 
 #  Result Summary
 
-Overall, most of the estimations with random initial values converge. I randomly sampled $100{,}000$ starting values for the constant BEGE model, and sampled $10{,}000$ for symmetric BEGE because it is more time consuming. I report the best estimation below.
+I loaded the locally saved BEGE random-search outputs from the ignored `RandomDraw_*/*/summary_draws.csv` folders and converted them into compact result artifacts under `BEGE_GARCH/results/`. The raw random-draw folders and job logs remain ignored because they are large scratch outputs; the tracked files retain the final comparison tables and the selected parameter vectors.
+
+The result loader is `BEGE_GARCH/collect_bege_results.py`. It records the source folder, mean specification, estimating script, number of local estimates, best raw AIC/BIC values, and best values after applying the documented BEGE checks. The generated tracked files are:
+
+- `BEGE_GARCH/results/bege_model_comparison.csv`
+- `BEGE_GARCH/results/bege_best_parameters.csv`
+- `BEGE_GARCH/results/bege_best_models.md`
+
+## Sample and Comparability Note
+
+The existing BEGE estimation scripts load `Aggregate_CPI_inflation.pkl`. That file currently contains **210 observations**, from **1970Q3** to **2022Q4**. This differs from the project-wide comparable likelihood sample documented in `DataSummary/README.md`, which is **1969Q2--2022Q4** with **215 observations**. Therefore, the BEGE results reported here should be treated as imported local BEGE runs. They should not be compared one-for-one with the GARCH and regime-switching likelihoods until the BEGE estimations are rerun on the canonical 215-observation effective sample.
+
+## Constraint-Screened Local Results
+
+For the dynamic BEGE specifications, I screen the local estimates using the documented persistence restrictions, the variance reference bound, and the shape-path cap $\max\{p_t,n_t\}<200$. The table below reports the best AIC estimate among rows passing those checks for the current local result families. The complete audit table, including archival folders and raw best rows that fail checks, is in `BEGE_GARCH/results/bege_model_comparison.csv`.
+
+| Model family | Mean | Source folder | Passing / total | LogLik | AIC | BIC |
+|---|---|---|---:|---:|---:|---:|
+| Constant BEGE | ARX(1,1) | `RandomDraw_Constant` | 50000 / 50000 | 1770.014 | -3526.028 | -3502.599 |
+| Constant BEGE | ARX(2,2) | `RandomDraw_Constant` | 50000 / 50000 | 1297.510 | -2577.019 | -2546.895 |
+| Constant BEGE | ARX(2,1) | `RandomDraw_Constant` | 50000 / 50000 | 372.678 | -729.355 | -702.578 |
+| Inflation/Deflation BEGE-GARCH | ARX(1,1) | `RandomDraw_ID` | 1999 / 2000 | -14.515 | 51.029 | 87.848 |
+| Bad/Good BEGE-GARCH | ARX(1,1) | `RandomDraw_BG_GARCH` | 1946 / 2000 | -29.540 | 81.080 | 117.898 |
+| Bad/Good BEGE-GARCH | Constant | `RandomDraw_BG_GARCH` | 1222 / 2000 | -37.420 | 90.839 | 117.616 |
+| Inflation/Deflation BEGE-GARCH | Constant | `RandomDraw_ID` | 1931 / 2000 | -84.888 | 185.776 | 212.553 |
+| Constant BEGE | Constant | `RandomDraw_Constant` | 50000 / 50000 | -131.798 | 271.595 | 284.984 |
+| Full BEGE-GJR | Constant | `RandomDraw_GJR_Oct` | 6723 / 10000 | -163.370 | 346.739 | 380.210 |
+| Shared-GJR BEGE | ARX(1,1) | `RandomDraw_Symmetric_Oct` | 2000 / 2000 | -166.330 | 352.660 | 386.131 |
+| Full BEGE-GJR | ARX(1,1) | `RandomDraw_GJR_Oct` | 8286 / 10000 | -163.633 | 353.266 | 396.778 |
+| Shared-GJR BEGE | Constant | `RandomDraw_Symmetric_Oct` | 2000 / 2000 | -171.051 | 356.102 | 379.531 |
+
+The ARX(2,2) entry appears because it exists in the local constant-BEGE output. For new BEGE runs, the project default remains to skip ARX(2,2) unless explicitly requested, consistent with `MeanProcess/README.md`.
+
+## Tracked Estimation Code
+
+The Python estimators used to generate the BEGE local runs are already tracked in this repository: `BEGE_GARCH.py`, `BEGE_density.py`, `BEGE_constant.py`, `BEGE_symmetric1.py`, `BEGE_symmetric2.py`, `BG_GJR1.py`, `BG_GJR2.py`, `ID_GJR1.py`, `ID_GJR2.py`, `BEGE_GJR1.py`, and `BEGE_GJR2.py`. The new result loader keeps the mapping from result folder to estimating script in the generated CSV files.

@@ -30,5 +30,6 @@ project:
         - file: RegimeSwitching/results/regime_switching_results.md
         - file: RegimeSwitching/results/regime_switching_best_model.md
         - file: BEGE_GARCH/README.md 
+        - file: BEGE_GARCH/results/bege_garch_results.md
 site:
   template: book-theme
