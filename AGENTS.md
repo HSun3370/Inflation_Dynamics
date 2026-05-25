@@ -69,3 +69,10 @@ When changing any model setting:
 - Update all affected docs and code paths in the same change.
 - Briefly state which canonical setting was applied or intentionally changed.
 - Avoid silent drift in parameter bounds, sample windows, or initialization conventions.
+
+## Markdown Output For Jupyter Book
+- For generated report markdown files intended for Jupyter Book inclusion, always add this block at the very top of the file:
+  ```{raw:typst}
+  #set page(margin: auto)
+  ```
+- If a script writes markdown outputs, enforce this preamble in the script so regenerated files stay consistent automatically.
