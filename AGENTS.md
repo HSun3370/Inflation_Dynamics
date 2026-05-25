@@ -12,7 +12,7 @@ Before making or reviewing any model-related change, read these files first:
 - `DataSummary/README.md`
 - `MeanProcess/README.md`
 - `GARCH/README.md`
-- `RS_GARCH/README.md`
+- `RegimeSwitching/README.md`
 - `BEGE_GARCH/README.md`
 
 If one of these files is empty or incomplete, do not invent missing model settings. Keep existing code behavior unchanged for that component and note the gap.
