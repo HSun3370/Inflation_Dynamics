@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from BEGE_GARCH import BG_GARCH
+from BEGE_GARCH.BEGE_GARCH import BEGE_FullGJR_MLE
 
 import os
   
@@ -20,18 +20,17 @@ seed = args.id
 sample_data = pd.read_pickle('/project/lhansen/Capital_NN_variant/BEGE_GARCH/Aggregate_CPI_inflation.pkl')
 
 # Base directory to store results
-base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/RandomDraw_BG_GARCH"
+base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/RandomDraw_Full_Dec"
 # Ensure the base directory exists
 os.makedirs(base_dir, exist_ok=True)
 
  
- 
 spec = {
-        "mean_type": "ARX(1,1)",
-        "Y": sample_data["Inflation"],
-        "X": sample_data["Forecasted inflation"],
-        "folder_name":"ARX11"
-    }
+        "mean_type": "constant",
+        "Y": sample_data["Inflation shock"],
+        "X": None, 
+        "folder_name":"constant"
+    } 
 
 
 # for spec in model_specs:
@@ -62,7 +61,7 @@ else:
 # Loop through iterations
 for i in range(start_iter, 51):  # or 501
     try:
-        res = BG_GARCH(
+        res = BEGE_FullGJR_MLE(
             Y=spec["Y"],
             X=spec["X"],
             mean_type=mean_type,

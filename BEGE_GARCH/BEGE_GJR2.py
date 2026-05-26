@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from BEGE_GARCH import BEGE_AsymSharedGJR_MLE
+from BEGE_GARCH.BEGE_GARCH import BEGE_FullGJR_MLE
 
 import os
   
@@ -20,7 +20,7 @@ seed = args.id
 sample_data = pd.read_pickle('/project/lhansen/Capital_NN_variant/BEGE_GARCH/Aggregate_CPI_inflation.pkl')
 
 # Base directory to store results
-base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/RandomDraw_Symmetric_New"
+base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/RandomDraw_Full_Dec"
 # Ensure the base directory exists
 os.makedirs(base_dir, exist_ok=True)
 
@@ -85,19 +85,26 @@ else:
     print("Starting fresh run")
 
 # Loop through iterations
-for i in range(start_iter, 101):  # change 51 to 501 if you want 500 draws
-    res = BEGE_AsymSharedGJR_MLE(
-        Y=spec["Y"],
-        X=spec["X"],
-        mean_type=mean_type,
-        n_starts=50,
-        maxiter=500,
-        tol=1e-8,
-        random_state=i + seed * 10000,
-    )
+for i in range(start_iter, 51):  # or 501
+    try:
+        res = BEGE_FullGJR_MLE(
+            Y=spec["Y"],
+            X=spec["X"],
+            mean_type=mean_type,
+            n_starts=50,
+            maxiter=500,
+            tol=1e-8,
+            random_state=i + seed * 10000,
+        )
 
-    container.append(res)
-    pd.to_pickle(container, out_file)  # overwrite with latest list
+        container.append(res)
+        pd.to_pickle(container, out_file)  # overwrite with latest list
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] "
-          f"Saved iteration {i}/20 to {out_file} (total {len(container)} results)")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] "
+              f"Saved iteration {i}/50 to {out_file} (total {len(container)} results)")
+
+    except Exception as e:
+        # Print error message but keep looping
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] "
+              f"Error at iteration {i}: {e}. Skipping to next iteration.")
+        continue

@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from BEGE_GARCH import BG_GARCH
+from BEGE_GARCH.BEGE_GARCH import BG_GARCH
 
 import os
   

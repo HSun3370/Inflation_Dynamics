@@ -3,8 +3,8 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from BEGE_GARCH import *
-from BEGE_density import *
+from BEGE_GARCH.BEGE_GARCH import *
+from BEGE_GARCH.BEGE_density import *
 import numpy as np
 from numpy.random import default_rng
 from scipy.stats import gamma as _gamma

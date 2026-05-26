@@ -16,7 +16,7 @@ from itertools import product
 from arch import arch_model
 from arch.univariate import ARX
 from scipy.integrate import quad
-from BEGE_density import *
+from BEGE_GARCH.BEGE_density import *
 from joblib import Parallel, delayed
 
 #mean model

@@ -3,8 +3,8 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from BEGE_GARCH import *
-from BEGE_density import *
+from BEGE_GARCH.BEGE_GARCH import *
+from BEGE_GARCH.BEGE_density import *
 import numpy as np
 from numpy.random import default_rng
 from scipy.stats import gamma as _gamma
@@ -20,7 +20,20 @@ parser.add_argument("--id", type=int, default=1)
 args = parser.parse_args()  # <<< after all arguments are added
 seed = args.id  
 
-  
+ 
+# =========================================================
+# 0) TRUE PARAMS (With-Justin)
+# =========================================================
+# True parameters (example close to your shared set, but fully separate)
+vol_true_full = dict(
+    p0=1.10,  n0=0.55,
+    rho_p=0.40,  rho_n=0.35,
+    phi_p_plus=0.26,  phi_p_minus=0.10,
+    phi_n_plus=0.22,  phi_n_minus=0.08,
+    sigp=0.22,  sign=0.95
+)
+
+
 def simulate_bege_full(
     T,
     mean_type='constant',
@@ -514,97 +527,20 @@ def run_full_bege_nearstart_experiment(
 
     return {'Y': Y, 'X': X, 'fit': fit, 'eval_true': eval_true}
 
- 
- 
- 
- 
- 
- 
- 
- 
-# Load data
-sample_data = pd.read_pickle('/project/lhansen/Capital_NN_variant/BEGE_GARCH/Aggregate_CPI_inflation.pkl')
-Y = sample_data['Inflation shock'].to_numpy() if hasattr(sample_data['Inflation shock'], 'to_numpy') else np.asarray(sample_data['Inflation shock'])
-X = None
-mean_type = 'constant'
 
 
-# Base directory to store results
-base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/Anchor"
-# Ensure the base directory exists
-os.makedirs(base_dir, exist_ok=True)
- 
-
-# for spec in model_specs:
- 
-foldername= "constant"
-# Use the mean_type as the subfolder name
-out_dir = os.path.join(base_dir, foldername)
-os.makedirs(out_dir, exist_ok=True)
-
- 
-# ==============================================================
-# Robust incremental saving: all results go into ONE pkl file
-# ==============================================================
-
-out_file = os.path.join(out_dir, f"draw_{seed}.pkl")
-
-# If the file already exists, resume from where you left off
-if os.path.exists(out_file):
-    container = pd.read_pickle(out_file)
-    start_iter = len(container) + 1
-    print(f"Resuming from iteration {start_iter} (already have {len(container)} results)")
-else:
-    container = []
-    start_iter = 1
-    print("Starting fresh run")
-
-
-
-# === Anchor (your candidate) ===
-# Order: [p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigma_p, sigma_n]
-anchor = np.array([
-    0.904377808, 0.336032844,
-    0.481065237, 0.143825951,
-    0.920859013, 0.207961914,
-    0.569922229, 0.085702431,
-    0.201562748, 0.447615960
-], dtype=float)
-
-# === Bounds (wide) and overflow cap ===
-p0n0_bounds = (1e-3, 10.0)
-rho_bounds  = (1e-5, 0.999)
-phi_bounds  = (1e-5, 1.5)
-sigma_bounds= (1e-5, 2.0)
-cap_pn      = 300.0
-
-# Loop through iterations
-for i in range(start_iter, 21):  # change 51 to 501 if you want 500 draws
-    # res = BEGE_FullGJR_MLE(
-    #     Y=spec["Y"],
-    #     X=spec["X"],
-    #     mean_type=mean_type,
-    #     n_starts=50,
-    #     maxiter=500,
-    #     tol=1e-8,
-    #     random_state=i + seed * 10000,
-    # )
-    # === Run anchored near-start estimation (multi-start near the candidate) ===
-    res = BEGE_FullGJR_MLE_nearstarts(
-        Y=Y, X=X, mean_type=mean_type,
-        center_params=anchor,          # <- anchor around which starts are generated
-        # jitter_frac=jitter_frac,    # <- mild perturbations (per-parameter)
-        n_starts=50,                # number of local starts near anchor
-        random_state=i + seed * 100000,
-        sigma_bounds=sigma_bounds,
-        p0n0_bounds=p0n0_bounds,
-        rho_bounds=rho_bounds,
-        phi_bounds=phi_bounds,
-        cap_pn=cap_pn,
-        print_summary=True
-    )
-    container.append(res)
-    pd.to_pickle(container, out_file)  # overwrite with latest list
-
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] "
-          f"Saved iteration {i}/20 to {out_file} (total {len(container)} results)")
+# --- Run the near-start experiment around the new truth (constant mean) ---
+out = run_full_bege_nearstart_experiment(
+    T=300,                    # make larger if you want
+    mean_type='constant',
+    mean_params_true={},       # constant mean
+    vol_params_true=vol_true_full,
+    # near-starts centered at the numbers above (mildly shocked)
+    jitter_rel=0.05,           # ±5% around center (scaled by |center|)
+    jitter_abs=1e-3,           # protects very small centers
+    n_starts=500,               # more starts -> more robust local search
+    # optimizer controls
+    maxiter=800, tol=1e-8, random_state=42,
+    # evaluation cap for p_t, n_t overflow (no stability checks)
+    cap_pn_eval=500.0
+)

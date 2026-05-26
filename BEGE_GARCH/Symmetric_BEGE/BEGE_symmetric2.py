@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from BEGE_GARCH import BEGE_AsymSharedGJR_MLE
+from BEGE_GARCH.BEGE_GARCH import BEGE_AsymSharedGJR_MLE
 
 import os
   
@@ -13,14 +13,14 @@ parser.add_argument("--id", type=int, default=1)
 args = parser.parse_args()  # <<< after all arguments are added
 seed = args.id  
 
+ 
 
-
-
+ 
 # Load data
 sample_data = pd.read_pickle('/project/lhansen/Capital_NN_variant/BEGE_GARCH/Aggregate_CPI_inflation.pkl')
 
 # Base directory to store results
-base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/RandomDraw_Symmetric"
+base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/RandomDraw_Symmetric_New"
 # Ensure the base directory exists
 os.makedirs(base_dir, exist_ok=True)
 
@@ -53,10 +53,10 @@ os.makedirs(base_dir, exist_ok=True)
 # ]
  
 spec = {
-        "mean_type": "ARX(2,2)",
+        "mean_type": "ARX(1,1)",
         "Y": sample_data["Inflation"],
         "X": sample_data["Forecasted inflation"],
-        "folder_name":"ARX22"
+        "folder_name":"ARX11"
     }
 
 
@@ -85,7 +85,7 @@ else:
     print("Starting fresh run")
 
 # Loop through iterations
-for i in range(start_iter, 21):  # change 51 to 501 if you want 500 draws
+for i in range(start_iter, 101):  # change 51 to 501 if you want 500 draws
     res = BEGE_AsymSharedGJR_MLE(
         Y=spec["Y"],
         X=spec["X"],
