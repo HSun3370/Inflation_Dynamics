@@ -1,58 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
+OUTPUT_DIR="${SCRIPT_DIR}/output"
+ACTION_NAME="BEGE_Constant_RandomSearch"
+PY_SCRIPT="${SCRIPT_DIR}/BEGE_constant.py"
 
 idarray=($(seq 1 100))
 
-hmc_python_name="BEGE_constant.py"
-
-
-
 for id in "${idarray[@]}"; do
-   
-                            count=0
-                                        
-                            action_name="BEGE_Constant_RandomSearch"
+    mkdir -p "${OUTPUT_DIR}/job-outs/${ACTION_NAME}/id_${id}/"
+    mkdir -p "${OUTPUT_DIR}/bash/${ACTION_NAME}/id_${id}/"
 
-                            dataname="${action_name}"
+    run_script="${OUTPUT_DIR}/bash/${ACTION_NAME}/id_${id}/run.sh"
 
-                            mkdir -p ./job-outs/${action_name}/id_${id}/
-
-                            if [ -f ./bash/${action_name}/id_${id}/run.sh ]; then
-                                rm ./bash/${action_name}/id_${id}/run.sh
-                            fi
-
-                            mkdir -p ./bash/${action_name}/id_${id}/
-
-                            touch ./bash/${action_name}/id_${id}/run.sh
-
-                            tee -a ./bash/${action_name}/id_${id}/run.sh <<EOF
+    cat > "${run_script}" <<EOF
 #!/bin/bash
 
 #SBATCH --account=pi-lhansen
 #SBATCH --job-name=id_${id}
-#SBATCH --output=./job-outs/${action_name}/id_${id}/run.out
-#SBATCH --error=./job-outs/${action_name}/id_${id}/run.err
+#SBATCH --output=${OUTPUT_DIR}/job-outs/${ACTION_NAME}/id_${id}/run.out
+#SBATCH --error=${OUTPUT_DIR}/job-outs/${ACTION_NAME}/id_${id}/run.err
 #SBATCH --time=1-11:00:00
 #SBATCH --partition=caslake
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=10G
 
-module load python/anaconda-2022.05  
+module load python/anaconda-2022.05
 source ~/myenv/bin/activate
 
-echo "\$SLURM_JOB_NAME"
+cd ${PROJECT_ROOT}
 
+echo "\$SLURM_JOB_NAME"
 echo "Program starts \$(date)"
 start_time=\$(date +%s)
 
-python3 -u /project/lhansen/Capital_NN_variant/BEGE_GARCH/$hmc_python_name --id ${id} 
+python3 -u "${PY_SCRIPT}" --id ${id}
+
 echo "Program ends \$(date)"
 end_time=\$(date +%s)
 elapsed=\$((end_time - start_time))
-
-eval "echo Elapsed time: \$(date -ud "@\$elapsed" +'\$((%s/3600/24)) days %H hr %M min %S sec')"
-
+eval "echo Elapsed time: \$(date -ud @\$elapsed +'\$((%s/3600/24)) days %H hr %M min %S sec')"
 EOF
-    count=$(($count + 1))
-    sbatch ./bash/${action_name}/id_${id}/run.sh
 
+    sbatch "${run_script}"
 done

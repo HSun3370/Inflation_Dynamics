@@ -1,6 +1,7 @@
 # Simulation output directories
 RandomDraw_*/
 job-outs/
+BEGE_GARCH/Constant_BEGE/output/
 
 # Python
 __pycache__/
