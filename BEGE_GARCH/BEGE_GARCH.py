@@ -1180,8 +1180,8 @@ def BEGE_AsymSharedGJR_MLE(
 
     MODS:
       • Stability guard: 1 - rho - max(phin/2, phip/2) > floor_eps
-      • Penalty: if any p_t or n_t exceeds CAP_PN (90.0), return a large objective value
-        so the optimizer avoids that region (no truncation is applied).
+      • No p_t/n_t upper cap is applied by default. Nonfinite recursive
+        shape values still receive a large objective penalty.
       • Sampling: sample all params from bounds except phip/2 and phin/2.
         Sample beta_p := phip/2 ~ U[0, 1 - rho - floor_eps], beta_n similarly,
         then set phip = 2*beta_p, phin = 2*beta_n.
@@ -1193,8 +1193,8 @@ def BEGE_AsymSharedGJR_MLE(
     from scipy.optimize import minimize
     from statsmodels.tools.numdiff import approx_hess
 
-    CAP_PN = 500.0          # threshold for p_t and n_t
-    BIG_PENALTY = 1e12     # objective penalty when recursion exceeds CAP_PN
+    CAP_PN = None           # optional threshold for p_t and n_t; None disables the cap
+    BIG_PENALTY = 1e12     # objective penalty when recursion is invalid
     BIG_VEC_PENALTY = 1e6  # per-observation penalty vector
 
     rng = np.random.default_rng(random_state)
@@ -1287,9 +1287,9 @@ def BEGE_AsymSharedGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho), float(phip), float(phin)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho), float(phip), float(phin)), float(sign))
 
-        # If any element exceeds CAP_PN, penalize (no truncation)
-        if (np.any(pseries > CAP_PN) or np.any(nseries > CAP_PN) or
-            not np.all(np.isfinite(pseries)) or not np.all(np.isfinite(nseries))):
+        exceeds_cap = CAP_PN is not None and (np.any(pseries > CAP_PN) or np.any(nseries > CAP_PN))
+        if (exceeds_cap or not np.all(np.isfinite(pseries)) or
+            not np.all(np.isfinite(nseries))):
             return BIG_PENALTY
 
         ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -1312,9 +1312,9 @@ def BEGE_AsymSharedGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho), float(phip), float(phin)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho), float(phip), float(phin)), float(sign))
 
-        # If any element exceeds CAP_PN, penalize (no truncation)
-        if (np.any(pseries > CAP_PN) or np.any(nseries > CAP_PN) or
-            not np.all(np.isfinite(pseries)) or not np.all(np.isfinite(nseries))):
+        exceeds_cap = CAP_PN is not None and (np.any(pseries > CAP_PN) or np.any(nseries > CAP_PN))
+        if (exceeds_cap or not np.all(np.isfinite(pseries)) or
+            not np.all(np.isfinite(nseries))):
             return np.full(N_obs, BIG_VEC_PENALTY)
 
         v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -1558,7 +1558,7 @@ def BEGE_FullGJR_MLE(
     # use_stability_penalty=True, # ignored (no stability checks)
     print_summary=True,
     # ---- hard penalty controls ----
-    cap_pn=200.0,                # if any p_t or n_t > cap_pn, DO NOT call BEGE_log_density
+    cap_pn=None,                # optional cap; None means no p_t/n_t upper cap
     big_penalty=1e12,           # scalar objective penalty
     big_vec_penalty=1e6         # per-observation penalty (vector version)
 ):
@@ -1571,7 +1571,8 @@ def BEGE_FullGJR_MLE(
 
     Behavior in this version:
       • No stability checks (use_stability_penalty is ignored).
-      • Hard rule: if max(p_t, n_t) > cap_pn at any time, we DO NOT evaluate BEGE_log_density.
+      • No p_t/n_t upper cap is applied by default. If cap_pn is provided, values
+        above that cap receive the hard penalty.
         We return a large penalty (scalar in _negloglik, per-time vector in _ind_negloglik_vec).
       • Random starts are sampled independently from bounds (no stability filtering).
 
@@ -1708,9 +1709,8 @@ def BEGE_FullGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
-        # Hard rule: if any p_t or n_t exceeds cap or nonfinite -> big penalty
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return float(big_penalty)
 
         ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -1728,8 +1728,8 @@ def BEGE_FullGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -2025,7 +2025,7 @@ def BG_GARCH(
     phi_bounds=(1e-5, 1.5),
     floor_eps=1e-6,
     print_summary=True,
-    cap_pn=200.0,
+    cap_pn=None,
     big_penalty=1e12,
     big_vec_penalty=1e6
 ):
@@ -2046,7 +2046,7 @@ def BG_GARCH(
     Y = np.asarray(Y, dtype=float)
     N_obs = int(Y.shape[0])
 
-    if X is not None:
+    if X is not None and not isinstance(X, (dict, pd.DataFrame)):
         n = min(len(Y), len(X))
         Y = Y[:n]
         X = np.asarray(X, dtype=float)[:n]
@@ -2063,30 +2063,30 @@ def BG_GARCH(
             bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
-                (0.0720 - 2*0.086, 0.0720 + 2*0.086),
-                (0.2881 - 2*0.073, 0.2881 + 2*0.073),
-                (0.7508 - 2*0.125, 0.7508 + 2*0.125),
+                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
+                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
+                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
-                (0.0792 - 2*0.087, 0.0792 + 2*0.087),
-                (0.2793 - 2*0.073, 0.2793 + 2*0.073),
-                (0.0728 - 2*0.080, 0.0728 + 2*0.080),
-                (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
+                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
+                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
+                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
-                (0.0761 - 2*0.087, 0.0761 + 2*0.087),
-                (0.2880 - 2*0.076, 0.2880 + 2*0.076),
-                (0.0799 - 2*0.082, 0.0799 + 2*0.082),
-                (0.4720 - 2*0.459, 0.4720 + 2*0.459),
-                (0.1793 - 2*0.399, 0.1793 + 2*0.399),
+                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
+                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
+                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
+                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
+                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
             ]
         else:
             raise ValueError("Invalid mean_type")
@@ -2150,8 +2150,8 @@ def BG_GARCH(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
 
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return float(big_penalty)
 
         ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -2168,8 +2168,8 @@ def BG_GARCH(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
 
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -2359,7 +2359,7 @@ def ID_GARCH(
     phi_bounds=(1e-5, 1.5),
     floor_eps=1e-6,
     print_summary=True,
-    cap_pn=200.0,
+    cap_pn=None,
     big_penalty=1e12,
     big_vec_penalty=1e6
 ):
@@ -2486,8 +2486,8 @@ def ID_GARCH(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), 0.0), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), 0.0, float(phi_n_minus)), float(sign))
 
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return float(big_penalty)
 
         ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -2504,8 +2504,8 @@ def ID_GARCH(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), 0.0), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), 0.0, float(phi_n_minus)), float(sign))
 
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))

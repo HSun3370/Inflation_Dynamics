@@ -2,6 +2,12 @@
 RandomDraw_*/
 job-outs/
 BEGE_GARCH/Constant_BEGE/output/
+BEGE_GARCH/BadGood_BEGE/output/
+BEGE_GARCH/InflationDeflation_BEGE/output/
+BEGE_GARCH/Symmetric_BEGE/output/
+BEGE_GARCH/Full_BEGE/output/
+
+
 
 # Python
 __pycache__/

@@ -6,30 +6,153 @@ PROJECT_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
 OUTPUT_DIR="${SCRIPT_DIR}/output"
 ACTION_NAME="BEGE_Constant_RandomSearch"
 PY_SCRIPT="${SCRIPT_DIR}/BEGE_constant.py"
+COLLECT_SCRIPT="${SCRIPT_DIR}/collect_constant_results.py"
 
-idarray=($(seq 1 100))
+START_ID="${START_ID:-1}"
+END_ID="${END_ID:-50}"
+N_DRAWS="${N_DRAWS:-100}"
+N_STARTS="${N_STARTS:-20}"
+MAXITER="${MAXITER:-1500}"
+TOL="${TOL:-1e-8}"
+INCLUDE_ARX22="${INCLUDE_ARX22:-1}"
+SUBMIT_COLLECTOR="${SUBMIT_COLLECTOR:-1}"
+COLLECT_DEPENDENCY_TYPE="${COLLECT_DEPENDENCY_TYPE:-afterany}"
 
-for id in "${idarray[@]}"; do
-    mkdir -p "${OUTPUT_DIR}/job-outs/${ACTION_NAME}/id_${id}/"
-    mkdir -p "${OUTPUT_DIR}/bash/${ACTION_NAME}/id_${id}/"
+SBATCH_ACCOUNT="${SBATCH_ACCOUNT:-pi-lhansen}"
+SBATCH_PARTITION="${SBATCH_PARTITION:-caslake}"
+SBATCH_TIME="${SBATCH_TIME:-1-11:00:00}"
+SBATCH_CPUS="${SBATCH_CPUS:-2}"
+SBATCH_MEM="${SBATCH_MEM:-10G}"
+COLLECT_TIME="${COLLECT_TIME:-02:00:00}"
+COLLECT_MEM="${COLLECT_MEM:-4G}"
 
-    run_script="${OUTPUT_DIR}/bash/${ACTION_NAME}/id_${id}/run.sh"
+usage() {
+    cat <<USAGE
+Usage:
+  bash ${0} submit    Submit seed jobs and a dependent collector job.
+  bash ${0} collect   Merge existing raw CSV files and write markdown now.
 
-    cat > "${run_script}" <<EOF
+Environment overrides:
+  START_ID=${START_ID} END_ID=${END_ID}
+  N_DRAWS=${N_DRAWS} N_STARTS=${N_STARTS} MAXITER=${MAXITER} TOL=${TOL}
+  INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 reports all four mean processes
+  SUBMIT_COLLECTOR=${SUBMIT_COLLECTOR}
+USAGE
+}
+
+python_setup_block() {
+    cat <<'EOF'
+if command -v module >/dev/null 2>&1; then
+    module load python/anaconda-2022.05
+fi
+if [ -f "${HOME}/myenv/bin/activate" ]; then
+    source "${HOME}/myenv/bin/activate"
+fi
+EOF
+}
+
+elapsed_block() {
+    cat <<'EOF'
+end_time=$(date +%s)
+elapsed=$((end_time - start_time))
+printf 'Elapsed time: %d days %02d hr %02d min %02d sec\n' \
+    $((elapsed / 86400)) \
+    $(((elapsed % 86400) / 3600)) \
+    $(((elapsed % 3600) / 60)) \
+    $((elapsed % 60))
+EOF
+}
+
+build_python_args() {
+    local args
+    args="--id PLACEHOLDER_ID --n-draws ${N_DRAWS} --n-starts ${N_STARTS} --maxiter ${MAXITER} --tol ${TOL}"
+    if [ "${INCLUDE_ARX22}" = "1" ]; then
+        args="${args} --include-arx22"
+    fi
+    printf '%s\n' "${args}"
+}
+
+run_collect_now() {
+    mkdir -p "${SCRIPT_DIR}/results"
+    cd "${PROJECT_ROOT}"
+    python3 -u "${COLLECT_SCRIPT}"
+}
+
+submit_collector() {
+    local dependency="$1"
+    local collector_script="${OUTPUT_DIR}/bash/${ACTION_NAME}/collect_results.sh"
+
+    mkdir -p "$(dirname "${collector_script}")" "${OUTPUT_DIR}/job-outs/${ACTION_NAME}/collect/"
+
+    cat > "${collector_script}" <<EOF
 #!/bin/bash
+#SBATCH --account=${SBATCH_ACCOUNT}
+#SBATCH --job-name=${ACTION_NAME}_collect
+#SBATCH --output=${OUTPUT_DIR}/job-outs/${ACTION_NAME}/collect/run.out
+#SBATCH --error=${OUTPUT_DIR}/job-outs/${ACTION_NAME}/collect/run.err
+#SBATCH --time=${COLLECT_TIME}
+#SBATCH --partition=${SBATCH_PARTITION}
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=${COLLECT_MEM}
+#SBATCH --dependency=${COLLECT_DEPENDENCY_TYPE}:${dependency}
 
-#SBATCH --account=pi-lhansen
+set -euo pipefail
+
+$(python_setup_block)
+
+cd ${PROJECT_ROOT}
+
+echo "\$SLURM_JOB_NAME"
+echo "Collector starts \$(date)"
+start_time=\$(date +%s)
+
+python3 -u "${COLLECT_SCRIPT}"
+
+echo "Collector ends \$(date)"
+$(elapsed_block)
+EOF
+
+    local collector_job_id
+    collector_job_id=$(sbatch --parsable "${collector_script}")
+    echo "Submitted collector job: ${collector_job_id%%;*}"
+}
+
+submit_jobs() {
+    if [ "${START_ID}" -gt "${END_ID}" ]; then
+        echo "START_ID must be <= END_ID." >&2
+        exit 1
+    fi
+
+    mkdir -p "${OUTPUT_DIR}/bash/${ACTION_NAME}" "${OUTPUT_DIR}/job-outs/${ACTION_NAME}"
+
+    local id
+    local job_ids=()
+    local python_args_template
+    python_args_template=$(build_python_args)
+
+    for id in $(seq "${START_ID}" "${END_ID}"); do
+        mkdir -p "${OUTPUT_DIR}/job-outs/${ACTION_NAME}/id_${id}/"
+        mkdir -p "${OUTPUT_DIR}/bash/${ACTION_NAME}/id_${id}/"
+
+        local run_script="${OUTPUT_DIR}/bash/${ACTION_NAME}/id_${id}/run.sh"
+        local python_args="${python_args_template/PLACEHOLDER_ID/${id}}"
+
+        cat > "${run_script}" <<EOF
+#!/bin/bash
+#SBATCH --account=${SBATCH_ACCOUNT}
 #SBATCH --job-name=id_${id}
 #SBATCH --output=${OUTPUT_DIR}/job-outs/${ACTION_NAME}/id_${id}/run.out
 #SBATCH --error=${OUTPUT_DIR}/job-outs/${ACTION_NAME}/id_${id}/run.err
-#SBATCH --time=1-11:00:00
-#SBATCH --partition=caslake
+#SBATCH --time=${SBATCH_TIME}
+#SBATCH --partition=${SBATCH_PARTITION}
 #SBATCH --nodes=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=10G
+#SBATCH --cpus-per-task=${SBATCH_CPUS}
+#SBATCH --mem=${SBATCH_MEM}
 
-module load python/anaconda-2022.05
-source ~/myenv/bin/activate
+set -euo pipefail
+
+$(python_setup_block)
 
 cd ${PROJECT_ROOT}
 
@@ -37,13 +160,41 @@ echo "\$SLURM_JOB_NAME"
 echo "Program starts \$(date)"
 start_time=\$(date +%s)
 
-python3 -u "${PY_SCRIPT}" --id ${id}
+python3 -u "${PY_SCRIPT}" ${python_args}
 
 echo "Program ends \$(date)"
-end_time=\$(date +%s)
-elapsed=\$((end_time - start_time))
-eval "echo Elapsed time: \$(date -ud @\$elapsed +'\$((%s/3600/24)) days %H hr %M min %S sec')"
+$(elapsed_block)
 EOF
 
-    sbatch "${run_script}"
-done
+        local job_id_raw
+        local job_id
+        job_id_raw=$(sbatch --parsable "${run_script}")
+        job_id="${job_id_raw%%;*}"
+        job_ids+=("${job_id}")
+        echo "Submitted seed id ${id}: ${job_id}"
+    done
+
+    if [ "${SUBMIT_COLLECTOR}" = "1" ] && [ "${#job_ids[@]}" -gt 0 ]; then
+        local dependency
+        dependency=$(IFS=:; echo "${job_ids[*]}")
+        submit_collector "${dependency}"
+    fi
+}
+
+ACTION="${1:-submit}"
+
+case "${ACTION}" in
+    submit)
+        submit_jobs
+        ;;
+    collect)
+        run_collect_now
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 1
+        ;;
+esac

@@ -8,19 +8,47 @@ import pandas as pd
 
 MEAN_TYPES = ["constant", "ARX(1,1)", "ARX(2,1)", "ARX(2,2)"]
 REPORT_DROP_COLUMNS = {"message"}
-SHAPE_SUM_INTEGER_TOL = 1e-8
 PARAMETER_NAMES = {
-    "constant": ["shape_p", "shape_n", "sigma_p", "sigma_n"],
-    "ARX(1,1)": ["c", "rho_1", "phi_1", "shape_p", "shape_n", "sigma_p", "sigma_n"],
-    "ARX(2,1)": ["c", "rho_1", "rho_2", "phi_1", "shape_p", "shape_n", "sigma_p", "sigma_n"],
+    "constant": ["p0", "n0", "rho_p", "rho_n", "phi_p", "phi_n", "sigma_p", "sigma_n"],
+    "ARX(1,1)": [
+        "c",
+        "rho_1",
+        "phi_1",
+        "p0",
+        "n0",
+        "rho_p",
+        "rho_n",
+        "phi_p",
+        "phi_n",
+        "sigma_p",
+        "sigma_n",
+    ],
+    "ARX(2,1)": [
+        "c",
+        "rho_1",
+        "rho_2",
+        "phi_1",
+        "p0",
+        "n0",
+        "rho_p",
+        "rho_n",
+        "phi_p",
+        "phi_n",
+        "sigma_p",
+        "sigma_n",
+    ],
     "ARX(2,2)": [
         "c",
         "rho_1",
         "rho_2",
         "phi_1",
         "phi_2",
-        "shape_p",
-        "shape_n",
+        "p0",
+        "n0",
+        "rho_p",
+        "rho_n",
+        "phi_p",
+        "phi_n",
         "sigma_p",
         "sigma_n",
     ],
@@ -39,16 +67,14 @@ def format_int(val: float) -> str:
     return str(int(val))
 
 
-def numerical_artifact_mask(df: pd.DataFrame) -> pd.Series:
-    required = {"param_shape_p", "param_shape_n"}
-    if not required.issubset(df.columns) or "loglik" not in df.columns:
+def success_mask(df: pd.DataFrame) -> pd.Series:
+    if "success" not in df.columns:
         return pd.Series(False, index=df.index)
 
-    shape_sum = df["param_shape_p"] + df["param_shape_n"]
-    nearest_integer = shape_sum.round()
-    near_integer = (shape_sum - nearest_integer).abs() <= SHAPE_SUM_INTEGER_TOL
-    reported_positive_loglik = df["loglik"] > 0
-    return shape_sum.notna() & (nearest_integer >= 1) & near_integer & reported_positive_loglik
+    values = df["success"]
+    if pd.api.types.is_bool_dtype(values):
+        return values.fillna(False)
+    return values.astype(str).str.lower().isin(["true", "1", "yes"])
 
 
 def _analysis_rows(df: pd.DataFrame, metric: str) -> pd.DataFrame:
@@ -65,21 +91,7 @@ def _analysis_rows(df: pd.DataFrame, metric: str) -> pd.DataFrame:
         if not successful.empty:
             valid = successful
 
-    artifacts = numerical_artifact_mask(valid)
-    if artifacts.any():
-        valid = valid.loc[~artifacts].copy()
-
     return valid
-
-
-def success_mask(df: pd.DataFrame) -> pd.Series:
-    if "success" not in df.columns:
-        return pd.Series(False, index=df.index)
-
-    values = df["success"]
-    if pd.api.types.is_bool_dtype(values):
-        return values.fillna(False)
-    return values.astype(str).str.lower().isin(["true", "1", "yes"])
 
 
 def best_by_mean(df: pd.DataFrame) -> list[pd.Series]:
@@ -142,17 +154,16 @@ def append_parameter_tables(lines: list[str], rows: list[pd.Series]) -> None:
 
 
 def write_markdown_summary(df: pd.DataFrame, summary_path: Path) -> None:
-    best_loglik_by_mean = best_by_mean(df)
+    best_rows = best_by_mean(df)
     observed_means = set(df.get("mean_type", pd.Series(dtype=str)).dropna().unique())
     missing_means = [mean_type for mean_type in MEAN_TYPES if mean_type not in observed_means]
-    selection_artifacts = success_mask(df) & numerical_artifact_mask(df)
 
     lines = [
         "```{raw:typst}",
         "#set page(margin: auto)",
         "```",
         "",
-        "# Constant BEGE Best Model Summary",
+        "# BadGood BEGE Best Model Summary",
         "",
         f"Generated: `{datetime.now().isoformat(timespec='seconds')}`",
         f"Total estimations: `{len(df)}`",
@@ -170,25 +181,8 @@ def write_markdown_summary(df: pd.DataFrame, summary_path: Path) -> None:
             ]
         )
 
-    if selection_artifacts.any():
-        excluded = df.loc[selection_artifacts].sort_values("loglik", ascending=False)
-        top = excluded.iloc[0]
-        lines.extend(
-            [
-                "```{warning}",
-                f"Excluded {len(excluded)} successful estimate(s) from best-model selection because "
-                "`shape_p + shape_n` is numerically an integer, a known unstable point for the "
-                "SciPy hyperu BEGE-density evaluation. Top excluded row: "
-                f"`{top['mean_type']}`, seed `{format_int(top.get('seed'))}`, "
-                f"draw `{format_int(top.get('draw'))}`, reported LogLik "
-                f"`{format_value(top.get('loglik'))}`.",
-                "```",
-                "",
-            ]
-        )
-
-    append_best_table(lines, "Best by Mean Type (Log-Likelihood)", best_loglik_by_mean)
-    append_parameter_tables(lines, best_loglik_by_mean)
+    append_best_table(lines, "Best by Mean Type (Log-Likelihood)", best_rows)
+    append_parameter_tables(lines, best_rows)
 
     summary_path.write_text("\n".join(lines), encoding="utf-8")
 

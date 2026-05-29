@@ -20,4 +20,5 @@ According to the emails, I have set the constraints below.
 
 - $\rho_p + \frac{\phi_p^+}{2} < 1$ and $\rho_n + \frac{\phi_n^-}{2} < 1$.
 - $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$.
-- $\max\{p_t, n_t\} < 200$
+
+The old hard cap $\max\{p_t, n_t\} < 200$ is no longer imposed by default. The stabilized BEGE density is evaluated directly as long as the recursive shape series are finite.

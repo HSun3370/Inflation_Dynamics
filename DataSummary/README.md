@@ -12,7 +12,7 @@ I start with simple statistical summary by plotting inflation and professional f
 Quarterly inflation $\pi_t$ and profesional forcast $SPF_{t-1}$. 
 ```
 Notice that inflation was recorded from 1947 but profesional forecast started from 1969.
-```{table} Inflation statistics
+```{table} Quaterly Inflation Statistics
 :align: center
 
 |               |   Inflation |   Forecasted inflation | 
