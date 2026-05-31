@@ -22,11 +22,10 @@ I have set the constraints below.
 - $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$.
 
 The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start
-optimization by default. The stabilized BEGE density is evaluated directly as
-long as the recursive shape series are finite. For reported best-model
-selection, however, `collect_bg_results.py` applies the canonical
-$\max\{p_t, n_t\} < 200$ screen and writes the row-level outcome to
-`results/selection_diagnostics.csv`.
+optimization or reported best-model selection by default. The stabilized BEGE
+density is evaluated directly as long as the recursive shape series are finite;
+large shape states use the saddlepoint density backend. The collector writes
+the maximum shape path as a diagnostic in `results/selection_diagnostics.csv`.
 
 ## Estimation Workflow
 
@@ -44,7 +43,9 @@ Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keep
 `collect_bg_results.py` merges the raw seed files and writes:
 
 - `results/all_estimations.csv`, without standard-error columns or optimizer messages.
-- `results/best_model.md`, with the best log-likelihood model for each mean process and standard errors for the reported parameter estimates.
+- `results/selection_diagnostics.csv`, with stored and corrected likelihood criteria plus selection diagnostics.
+- `results/best_aic_with_se.csv`, with standard errors for the corrected best AIC fit in each eligible mean process.
+- `results/best_model.md`, with the corrected best AIC/BIC models and reported parameter standard errors.
 
 When `START_ID` and `END_ID` are set, the collector only merges `draw_###.csv` files in that seed range. This prevents older seed files from entering a new smaller resubmission.
 

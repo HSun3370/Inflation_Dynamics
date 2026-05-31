@@ -53,6 +53,7 @@ mp.mp.dps = 25
 
 HYPERU_TINY = np.finfo(np.float64).tiny
 HYPERU_MPMATH_MAXTERMS = 1000
+SADDLEPOINT_SHAPE_THRESHOLD = 180.0
 
 
 def _log_hyperu_large_z_approximation(a, b, z):
@@ -188,9 +189,108 @@ def log_hyperu_helper(a, b, z, hyperu_method='scipy_approx'):
             )
 
     return float(out) if scalar_output else out
-            
 
-def BEGE_log_density(x, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
+
+def _bege_normal_log_density(x, p, n, sigma_p, sigma_n):
+    variance = p * sigma_p * sigma_p + n * sigma_n * sigma_n
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        return -0.5 * (np.log(2.0 * np.pi * variance) + (x * x) / variance)
+
+
+def _bege_saddlepoint_log_density(x, p, n, sigma_p, sigma_n):
+    """
+    Saddlepoint log density for
+        X = sigma_p * (Gamma(p, 1) - p) - sigma_n * (Gamma(n, 1) - n).
+
+    The closed-form BEGE density is fragile when the recursive shapes are
+    large because it evaluates a confluent hypergeometric U term with large,
+    nearly cancelling log components. The cumulant-generating function is
+    simple and gives a stable high-shape approximation.
+    """
+    x, p, n, sigma_p, sigma_n = np.broadcast_arrays(x, p, n, sigma_p, sigma_n)
+    out = np.full(x.shape, np.nan, dtype=np.float64)
+
+    valid = (
+        np.isfinite(x)
+        & np.isfinite(p)
+        & np.isfinite(n)
+        & np.isfinite(sigma_p)
+        & np.isfinite(sigma_n)
+        & (p > 0)
+        & (n > 0)
+        & (sigma_p > 0)
+        & (sigma_n > 0)
+    )
+    if not np.any(valid):
+        return out
+
+    xv = x[valid]
+    pv = p[valid]
+    nv = n[valid]
+    spv = sigma_p[valid]
+    snv = sigma_n[valid]
+
+    lo = -1.0 / snv
+    hi = 1.0 / spv
+    eps = np.sqrt(np.finfo(np.float64).eps)
+    lower = lo + eps * np.maximum(1.0, np.abs(lo))
+    upper = hi - eps * np.maximum(1.0, np.abs(hi))
+
+    variance = pv * spv * spv + nv * snv * snv
+    t = np.clip(xv / np.maximum(variance, HYPERU_TINY), lower, upper)
+    bracket_lo = lower.copy()
+    bracket_hi = upper.copy()
+
+    converged = np.zeros_like(xv, dtype=bool)
+    for _ in range(80):
+        denom_p = 1.0 - spv * t
+        denom_n = 1.0 + snv * t
+        kp = pv * spv / denom_p - nv * snv / denom_n - pv * spv + nv * snv
+        kpp = pv * spv * spv / (denom_p * denom_p) + nv * snv * snv / (denom_n * denom_n)
+        diff = kp - xv
+
+        converged_now = np.abs(diff) <= 1e-10 * (1.0 + np.abs(xv))
+        converged |= converged_now
+        if np.all(converged):
+            break
+
+        move_right = diff < 0.0
+        bracket_lo = np.where(move_right, t, bracket_lo)
+        bracket_hi = np.where(move_right, bracket_hi, t)
+
+        newton = t - diff / kpp
+        midpoint = 0.5 * (bracket_lo + bracket_hi)
+        use_midpoint = (~np.isfinite(newton)) | (newton <= bracket_lo) | (newton >= bracket_hi)
+        t = np.where(converged, t, np.where(use_midpoint, midpoint, newton))
+        t = np.clip(t, lower, upper)
+
+    denom_p = 1.0 - spv * t
+    denom_n = 1.0 + snv * t
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        k_val = (
+            -pv * np.log1p(-spv * t)
+            - nv * np.log1p(snv * t)
+            - pv * spv * t
+            + nv * snv * t
+        )
+        kpp = pv * spv * spv / (denom_p * denom_p) + nv * snv * snv / (denom_n * denom_n)
+        saddle = k_val - t * xv - 0.5 * np.log(2.0 * np.pi * kpp)
+
+    normal = _bege_normal_log_density(xv, pv, nv, spv, snv)
+    saddle = np.where(np.isfinite(saddle), saddle, normal)
+    out[valid] = saddle
+    return out
+
+
+def BEGE_log_density(
+    x,
+    p,
+    n,
+    sigma_p,
+    sigma_n,
+    hyperu_method='scipy_approx',
+    saddlepoint_shape_threshold=SADDLEPOINT_SHAPE_THRESHOLD,
+):
     """
     Compute the BEGE log density for a vector of parameters.
 
@@ -232,6 +332,11 @@ def BEGE_log_density(x, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
         & (sigma_p > 0)
         & (sigma_n > 0)
     )
+    if saddlepoint_shape_threshold is None or hyperu_method == 'mpmath':
+        use_saddlepoint = np.zeros_like(valid, dtype=bool)
+    else:
+        use_saddlepoint = valid & (np.maximum(p, n) >= float(saddlepoint_shape_threshold))
+    exact_valid = valid & ~use_saddlepoint
 
     k_omega_p = p
     k_omega_n = n
@@ -251,9 +356,9 @@ def BEGE_log_density(x, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
     
     # Masks
     branch_gap = omega_p_underscore - x - omega_n_underscore
-    cond1 = valid & (branch_gap > 0)
-    cond2 = valid & (branch_gap < 0)
-    cond3 = valid & (branch_gap == 0)
+    cond1 = exact_valid & (branch_gap > 0)
+    cond2 = exact_valid & (branch_gap < 0)
+    cond3 = exact_valid & (branch_gap == 0)
 
     # Initialize result arrays
     A_4 = np.zeros_like(x, dtype=np.float64)
@@ -298,6 +403,14 @@ def BEGE_log_density(x, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
             - (branch_shape[finite_branch] - 1) * np.log(theta_tilde[finite_branch])
         )
     result[singular_branch] = np.inf
+    if np.any(use_saddlepoint):
+        result[use_saddlepoint] = _bege_saddlepoint_log_density(
+            x[use_saddlepoint],
+            p[use_saddlepoint],
+            n[use_saddlepoint],
+            sigma_p[use_saddlepoint],
+            sigma_n[use_saddlepoint],
+        )
     result[~valid] = np.nan
     
     return result

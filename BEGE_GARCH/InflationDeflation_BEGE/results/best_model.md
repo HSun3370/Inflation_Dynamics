@@ -4,48 +4,50 @@
 
 # Inflation/Deflation BEGE-GJR Best Model Summary
 
-Generated: `2026-05-31T10:14:48`
-Total saved estimations: `702`
+Generated: `2026-05-31T16:27:33`
+Total estimations: `702`
 Converged estimations: `73`
-Eligible estimations for best-model selection: `5`
+Eligible estimations for best-model selection: `7`
 
-SEs are skipped during Slurm estimation jobs and computed only for the eligible best AIC fit in each mean process.
+Saved likelihoods are recomputed from the stored parameter paths before ranking. Large recursive shape states are evaluated by the BEGE saddlepoint density backend; `max(p_t, n_t)` is reported as a diagnostic, not as an exclusion rule.
 
-Selection screen: finite AIC/BIC/log-likelihood, successful optimizer status, and `max(p_t, n_t) < 200`.
+Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, finite positive shape paths, positive conditional variance paths, and documented parameter/stability/unconditional-variance constraints.
 
 ## Global Best by AIC
 
 - Mean type: `constant`
-- Seed / draw: `4` / `1`
-- AIC: `399.916891`
-- BIC: `426.881995`
-- LogLik: `-191.958446`
-- Max shape: `5.709619`
+- Seed / draw: `54` / `2`
+- AIC: `446.798303`
+- BIC: `473.763407`
+- LogLik: `-215.399151`
+- Max shape: `62.877897`
 
 ## Global Best by BIC
 
 - Mean type: `constant`
-- Seed / draw: `4` / `1`
-- AIC: `399.916891`
-- BIC: `426.881995`
-- LogLik: `-191.958446`
-- Max shape: `5.709619`
+- Seed / draw: `54` / `2`
+- AIC: `446.798303`
+- BIC: `473.763407`
+- LogLik: `-215.399151`
+- Max shape: `62.877897`
 
 ## Eligible Best by Mean Type (AIC)
 
 | Mean Type | Seed | Draw | AIC | BIC | LogLik | Max Shape | Min Sigma |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| constant | 4 | 1 | 399.916891 | 426.881995 | -191.958446 | 5.709619 | 0.720500 |
-| ARX(2,2) | 55 | 1 | 558.093343 | 601.911637 | -266.046671 | 43.635811 | 0.004287 |
+| constant | 54 | 2 | 446.798303 | 473.763407 | -215.399151 | 62.877897 | 0.213622 |
+| ARX(1,1) | 92 | 2 | 510.492518 | 547.569537 | -244.246259 | 19369.989267 | 0.009492 |
+| ARX(2,2) | 55 | 1 | 553.766438 | 597.584732 | -263.883219 | 43.635811 | 0.004287 |
 
 ## Eligible Best by Mean Type (BIC)
 
 | Mean Type | Seed | Draw | AIC | BIC | LogLik | Max Shape | Min Sigma |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| constant | 4 | 1 | 399.916891 | 426.881995 | -191.958446 | 5.709619 | 0.720500 |
-| ARX(2,2) | 55 | 1 | 558.093343 | 601.911637 | -266.046671 | 43.635811 | 0.004287 |
+| constant | 54 | 2 | 446.798303 | 473.763407 | -215.399151 | 62.877897 | 0.213622 |
+| ARX(1,1) | 92 | 2 | 510.492518 | 547.569537 | -244.246259 | 19369.989267 | 0.009492 |
+| ARX(2,2) | 55 | 1 | 553.766438 | 597.584732 | -263.883219 | 43.635811 | 0.004287 |
 
-## Parameter Estimates From Eligible Best AIC Fits
+## Parameter Estimates From Best AIC Fits
 
 ### constant
 
@@ -53,14 +55,32 @@ SE status: `computed`
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| p0 | 0.480263 | 0.402930 |
-| n0 | 0.328460 | 0.650853 |
-| rho_p | 0.232389 | 1.707181 |
-| rho_n | 0.001467 | 2.422704 |
-| phi_p_plus | 0.532692 | 0.398849 |
-| phi_n_minus | 0.347119 | 2.431084 |
-| sigma_p | 0.816125 | 1.450743 |
-| sigma_n | 0.720500 | 0.509619 |
+| p0 | 8.506759 | 1.583037 |
+| n0 | 0.005000 | 0.005161 |
+| rho_p | 0.000010 | 0.259706 |
+| rho_n | 0.000010 | 1.087155 |
+| phi_p_plus | 1.050974 | 1.168389 |
+| phi_n_minus | 0.000010 | 0.039698 |
+| sigma_p | 0.213622 | 0.073689 |
+| sigma_n | 0.463986 | 0.250562 |
+
+### ARX(1,1)
+
+SE status: `computed`
+
+| Parameter | Estimate | Std. Error |
+|---|---:|---:|
+| c | 0.006195 | 0.083565 |
+| rho_1 | 0.226001 | 0.161346 |
+| phi_1 | 0.678940 | 0.183477 |
+| p0 | 6.714397 | 17.234445 |
+| n0 | 1.728725 | 0.426538 |
+| rho_p | 0.313153 | 0.129167 |
+| rho_n | 0.013862 | 0.234585 |
+| phi_p_plus | 0.715508 | 0.098501 |
+| phi_n_minus | 0.880822 | 1.096451 |
+| sigma_p | 0.009492 | 0.001731 |
+| sigma_n | 0.564762 | 0.237184 |
 
 ### ARX(2,2)
 

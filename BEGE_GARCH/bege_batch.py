@@ -19,7 +19,38 @@ MEAN_PARAM_NAMES = {
 }
 REPORT_DROP_COLUMNS = {"message"}
 DRAW_FILE_RE = re.compile(r"draw_(\d+)\.csv$")
-DEFAULT_SELECTION_SHAPE_CAP = 200.0
+DEFAULT_HIGH_SHAPE_REFERENCE = 200.0
+
+
+def model_param_names_for_family(model_family: str) -> list[str]:
+    if model_family == "badgood":
+        return ["p0", "n0", "rho_p", "rho_n", "phi_p", "phi_n", "sigma_p", "sigma_n"]
+    if model_family == "id":
+        return ["p0", "n0", "rho_p", "rho_n", "phi_p_plus", "phi_n_minus", "sigma_p", "sigma_n"]
+    if model_family == "full":
+        return [
+            "p0",
+            "n0",
+            "rho_p",
+            "rho_n",
+            "phi_p_plus",
+            "phi_p_minus",
+            "phi_n_plus",
+            "phi_n_minus",
+            "sigma_p",
+            "sigma_n",
+        ]
+    if model_family == "symmetric":
+        return ["p0", "n0", "rho", "phi_plus", "phi_minus", "sigma_p", "sigma_n"]
+    raise ValueError(f"Unknown model_family {model_family!r}.")
+
+
+def variance_bound_for_family(model_family: str) -> float:
+    if model_family == "full":
+        return 0.75
+    if model_family in {"badgood", "id", "symmetric"}:
+        return 0.87
+    raise ValueError(f"Unknown model_family {model_family!r}.")
 
 
 def _resolve_column(df: pd.DataFrame, preferred: str, aliases: tuple[str, ...]) -> str:
@@ -321,6 +352,7 @@ def _selection_metrics_for_row(
     specs_by_mean: dict[str, dict],
 ) -> dict[str, float]:
     from BEGE_GARCH.BEGE_GARCH import gjr_recursion
+    from BEGE_GARCH.BEGE_density import BEGE_log_density
 
     residuals = _mean_residuals_from_row(row, specs_by_mean)
 
@@ -385,7 +417,22 @@ def _selection_metrics_for_row(
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
     cond_var = sigma_p * sigma_p * pseries + sigma_n * sigma_n * nseries
+    ll_vec = BEGE_log_density(residuals, pseries, nseries, sigma_p, sigma_n)
+    if not np.all(np.isfinite(ll_vec)):
+        corrected_loglik = np.nan
+    else:
+        corrected_loglik = float(np.sum(ll_vec))
+
+    mean_type = row.get("mean_type")
+    k_params = len(MEAN_PARAM_NAMES.get(mean_type, [])) + len(model_param_names_for_family(model_family))
+    n_obs = int(residuals.shape[0])
+    corrected_aic = 2.0 * k_params - 2.0 * corrected_loglik
+    corrected_bic = np.log(n_obs) * k_params - 2.0 * corrected_loglik
+
     return {
+        "corrected_loglik": float(corrected_loglik),
+        "corrected_AIC": float(corrected_aic),
+        "corrected_BIC": float(corrected_bic),
         "selection_persistence_p": float(persistence_p),
         "selection_persistence_n": float(persistence_n),
         "selection_sigma_min": float(min(sigma_p, sigma_n)),
@@ -399,12 +446,401 @@ def _selection_metrics_for_row(
     }
 
 
+def _parameter_names_for_row(row: pd.Series, model_family: str) -> list[str]:
+    mean_type = row.get("mean_type")
+    return MEAN_PARAM_NAMES[mean_type] + model_param_names_for_family(model_family)
+
+
+def _parameter_vector_from_row(row: pd.Series, model_family: str) -> tuple[list[str], np.ndarray]:
+    names = _parameter_names_for_row(row, model_family)
+    params = np.asarray([_row_float(row, f"param_{name}") for name in names], dtype=float)
+    if not np.all(np.isfinite(params)):
+        raise ValueError(f"Missing finite parameter values for {row.get('mean_type')}.")
+    return names, params
+
+
+def _bounds_for_row(spec: dict, mean_type: str, model_family: str) -> list[tuple[float | None, float | None]]:
+    y = np.asarray(spec["Y"], dtype=float)
+    ymin = float(np.min(y))
+    ymax = float(np.max(y))
+
+    if mean_type == "constant":
+        bounds_mean: list[tuple[float | None, float | None]] = []
+    elif mean_type == "ARX(1,1)":
+        bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10.0, 10.0)]
+    elif mean_type == "ARX(2,1)":
+        bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10.0, 10.0)]
+    elif mean_type == "ARX(2,2)":
+        bounds_mean = [
+            (ymin, ymax),
+            (-1.999, 1.999),
+            (-0.999, 0.999),
+            (-10.0, 10.0),
+            (-10.0, 10.0),
+        ]
+    else:
+        raise ValueError(f"Unknown mean_type {mean_type!r}.")
+
+    p0_bounds = (0.005, 10.0)
+    rho_bounds = (1e-5, 0.999)
+    phi_hi = 1.5 if model_family in {"badgood", "id"} else 0.999
+    phi_bounds = (1e-5, phi_hi)
+    sigma_bounds = (1e-5, 2.0)
+
+    if model_family in {"badgood", "id"}:
+        bounds_vol = [
+            p0_bounds,
+            p0_bounds,
+            rho_bounds,
+            rho_bounds,
+            phi_bounds,
+            phi_bounds,
+            sigma_bounds,
+            sigma_bounds,
+        ]
+    elif model_family == "full":
+        bounds_vol = [
+            p0_bounds,
+            p0_bounds,
+            rho_bounds,
+            rho_bounds,
+            phi_bounds,
+            phi_bounds,
+            phi_bounds,
+            phi_bounds,
+            sigma_bounds,
+            sigma_bounds,
+        ]
+    elif model_family == "symmetric":
+        bounds_vol = [p0_bounds, p0_bounds, rho_bounds, phi_bounds, phi_bounds, sigma_bounds, sigma_bounds]
+    else:
+        raise ValueError(f"Unknown model_family {model_family!r}.")
+
+    return bounds_mean + bounds_vol
+
+
+def _project_to_bounds(theta: np.ndarray, bounds: list[tuple[float | None, float | None]]) -> np.ndarray:
+    out = np.asarray(theta, dtype=float).copy()
+    tiny = 1e-10
+    for idx, (lo, hi) in enumerate(bounds):
+        if lo is not None:
+            out[idx] = max(out[idx], lo + tiny)
+        if hi is not None:
+            out[idx] = min(out[idx], hi - tiny)
+    return out
+
+
+def _sym_matrix(mat: np.ndarray) -> np.ndarray:
+    return 0.5 * (mat + mat.T)
+
+
+def _safe_inv_with_ridge(mat: np.ndarray, ridge0: float = 1e-8, max_tries: int = 6):
+    mat = _sym_matrix(np.asarray(mat, dtype=float))
+    eye = np.eye(mat.shape[0])
+    ridge = float(ridge0)
+    for _ in range(max_tries):
+        try:
+            return np.linalg.inv(mat + ridge * eye), ridge, False
+        except np.linalg.LinAlgError:
+            ridge *= 10.0
+    return np.linalg.pinv(mat), ridge, True
+
+
+def _vol_paths_from_theta(
+    theta: np.ndarray,
+    *,
+    mean_type: str,
+    model_family: str,
+    residuals: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, float, float, dict[str, float]]:
+    from BEGE_GARCH.BEGE_GARCH import gjr_recursion
+
+    num_m = len(MEAN_PARAM_NAMES[mean_type])
+    vol = theta[num_m:]
+
+    if model_family == "badgood":
+        p0, n0, rho_p, rho_n, phi_p, phi_n, sigma_p, sigma_n = vol
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p, phi_p), sigma_p)
+        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n, phi_n), sigma_n)
+        persistence_p = rho_p + phi_p
+        persistence_n = rho_n + phi_n
+
+    elif model_family == "id":
+        p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigma_p, sigma_n = vol
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p_plus, 0.0), sigma_p)
+        nseries = gjr_recursion(residuals, (n0, rho_n, 0.0, phi_n_minus), sigma_n)
+        persistence_p = rho_p + 0.5 * phi_p_plus
+        persistence_n = rho_n + 0.5 * phi_n_minus
+
+    elif model_family == "full":
+        (
+            p0,
+            n0,
+            rho_p,
+            rho_n,
+            phi_p_plus,
+            phi_p_minus,
+            phi_n_plus,
+            phi_n_minus,
+            sigma_p,
+            sigma_n,
+        ) = vol
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p_plus, phi_p_minus), sigma_p)
+        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n_plus, phi_n_minus), sigma_n)
+        persistence_p = rho_p + 0.5 * (phi_p_plus + phi_p_minus)
+        persistence_n = rho_n + 0.5 * (phi_n_plus + phi_n_minus)
+
+    elif model_family == "symmetric":
+        p0, n0, rho, phi_plus, phi_minus, sigma_p, sigma_n = vol
+        pseries = gjr_recursion(residuals, (p0, rho, phi_plus, phi_minus), sigma_p)
+        nseries = gjr_recursion(residuals, (n0, rho, phi_plus, phi_minus), sigma_n)
+        persistence_p = rho + 0.5 * (phi_plus + phi_minus)
+        persistence_n = persistence_p
+
+    else:
+        raise ValueError(f"Unknown model_family {model_family!r}.")
+
+    diagnostics = {
+        "p0": float(p0),
+        "n0": float(n0),
+        "persistence_p": float(persistence_p),
+        "persistence_n": float(persistence_n),
+    }
+    return pseries, nseries, float(sigma_p), float(sigma_n), diagnostics
+
+
+def _constraints_ok_for_theta(theta: np.ndarray, *, mean_type: str, model_family: str) -> bool:
+    num_m = len(MEAN_PARAM_NAMES[mean_type])
+    vol = np.asarray(theta[num_m:], dtype=float)
+    if not np.all(np.isfinite(vol)):
+        return False
+
+    variance_bound = variance_bound_for_family(model_family)
+
+    if model_family == "badgood":
+        p0, n0, rho_p, rho_n, phi_p, phi_n, sigma_p, sigma_n = vol
+        stable = (rho_p + phi_p < 1.0 - 1e-6) and (rho_n + phi_n < 1.0 - 1e-6)
+    elif model_family == "id":
+        p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigma_p, sigma_n = vol
+        stable = (rho_p + 0.5 * phi_p_plus < 1.0 - 1e-6) and (
+            rho_n + 0.5 * phi_n_minus < 1.0 - 1e-6
+        )
+    elif model_family == "full":
+        (
+            p0,
+            n0,
+            rho_p,
+            rho_n,
+            phi_p_plus,
+            phi_p_minus,
+            phi_n_plus,
+            phi_n_minus,
+            sigma_p,
+            sigma_n,
+        ) = vol
+        stable = (rho_p + 0.5 * (phi_p_plus + phi_p_minus) < 1.0 - 1e-6) and (
+            rho_n + 0.5 * (phi_n_plus + phi_n_minus) < 1.0 - 1e-6
+        )
+    elif model_family == "symmetric":
+        p0, n0, rho, phi_plus, phi_minus, sigma_p, sigma_n = vol
+        stable = rho + 0.5 * (phi_plus + phi_minus) < 1.0 - 1e-6
+    else:
+        raise ValueError(f"Unknown model_family {model_family!r}.")
+
+    if not stable:
+        return False
+    if sigma_p * sigma_p * p0 + sigma_n * sigma_n * n0 > variance_bound:
+        return False
+    return True
+
+
+def _row_likelihood_functions(
+    *,
+    spec: dict,
+    mean_type: str,
+    model_family: str,
+    big_penalty: float = 1e12,
+    big_vec_penalty: float = 1e6,
+):
+    from BEGE_GARCH.BEGE_GARCH import _make_residual_function
+    from BEGE_GARCH.BEGE_density import BEGE_log_density
+
+    residual_function = _make_residual_function(spec["Y"], spec["X"], mean_type)
+    n_obs = int(np.asarray(spec["Y"], dtype=float).shape[0])
+    num_m = len(MEAN_PARAM_NAMES[mean_type])
+
+    def _ind_negloglik(theta: np.ndarray) -> np.ndarray:
+        theta = np.asarray(theta, dtype=float)
+        if not _constraints_ok_for_theta(theta, mean_type=mean_type, model_family=model_family):
+            return np.full(n_obs, float(big_vec_penalty), dtype=float)
+
+        residuals = residual_function(theta[:num_m])
+        pseries, nseries, sigma_p, sigma_n, _ = _vol_paths_from_theta(
+            theta,
+            mean_type=mean_type,
+            model_family=model_family,
+            residuals=residuals,
+        )
+        if (
+            not np.all(np.isfinite(pseries))
+            or not np.all(np.isfinite(nseries))
+            or np.any(pseries <= 0.0)
+            or np.any(nseries <= 0.0)
+        ):
+            return np.full(n_obs, float(big_vec_penalty), dtype=float)
+
+        values = -BEGE_log_density(residuals, pseries, nseries, sigma_p, sigma_n)
+        values = np.asarray(values, dtype=float).reshape(-1)
+        if values.shape[0] != n_obs:
+            values = np.full(n_obs, float(values.ravel()[0]))
+        if not np.all(np.isfinite(values)):
+            values = np.full(n_obs, float(big_vec_penalty), dtype=float)
+        return values
+
+    def _negloglik(theta: np.ndarray) -> float:
+        values = _ind_negloglik(theta)
+        val = float(np.sum(values))
+        if not np.isfinite(val) or val >= big_vec_penalty * n_obs:
+            return float(big_penalty)
+        return val
+
+    return _negloglik, _ind_negloglik
+
+
+def _central_diff_scores(
+    theta: np.ndarray,
+    f_per_obs: Callable[[np.ndarray], np.ndarray],
+    bounds: list[tuple[float | None, float | None]],
+    n_obs: int,
+    rel: float = 1e-4,
+    absmin: float = 1e-6,
+) -> np.ndarray:
+    theta = np.asarray(theta, dtype=float)
+    k_params = theta.size
+    f0 = np.asarray(f_per_obs(theta), dtype=float).reshape(-1)
+    scores = np.empty((n_obs, k_params), dtype=float)
+    steps = np.maximum(absmin, rel * np.maximum(1.0, np.abs(theta)))
+
+    for idx in range(k_params):
+        theta_plus = theta.copy()
+        theta_minus = theta.copy()
+        theta_plus[idx] += steps[idx]
+        theta_minus[idx] -= steps[idx]
+        theta_plus = _project_to_bounds(theta_plus, bounds)
+        theta_minus = _project_to_bounds(theta_minus, bounds)
+
+        f_plus = np.asarray(f_per_obs(theta_plus), dtype=float).reshape(-1)
+        f_minus = np.asarray(f_per_obs(theta_minus), dtype=float).reshape(-1)
+        if f_plus.shape[0] != n_obs:
+            f_plus = np.full(n_obs, float(f_plus.ravel()[0]))
+        if f_minus.shape[0] != n_obs:
+            f_minus = np.full(n_obs, float(f_minus.ravel()[0]))
+
+        denom = float(theta_plus[idx] - theta_minus[idx])
+        if denom == 0.0:
+            theta_plus = theta.copy()
+            theta_plus[idx] += steps[idx]
+            theta_plus = _project_to_bounds(theta_plus, bounds)
+            f_plus = np.asarray(f_per_obs(theta_plus), dtype=float).reshape(-1)
+            if f_plus.shape[0] != n_obs:
+                f_plus = np.full(n_obs, float(f_plus.ravel()[0]))
+            f_minus = f0
+            denom = float(theta_plus[idx] - theta[idx])
+            if denom == 0.0:
+                scores[:, idx] = 0.0
+                continue
+
+        scores[:, idx] = (f_plus - f_minus) / denom
+
+    return scores
+
+
+def compute_standard_errors_for_row(
+    row: pd.Series,
+    *,
+    spec: dict,
+    model_family: str,
+) -> dict:
+    from statsmodels.tools.numdiff import approx_hess
+
+    mean_type = row["mean_type"]
+    names, theta = _parameter_vector_from_row(row, model_family)
+    bounds = _bounds_for_row(spec, mean_type, model_family)
+    theta_eval = _project_to_bounds(theta, bounds)
+    n_obs = int(np.asarray(spec["Y"], dtype=float).shape[0])
+    negloglik, ind_negloglik = _row_likelihood_functions(
+        spec=spec,
+        mean_type=mean_type,
+        model_family=model_family,
+    )
+
+    obj_value = negloglik(theta_eval)
+    if not np.isfinite(obj_value) or obj_value >= 1e12:
+        raise ValueError("Corrected likelihood is not finite at the supplied estimate.")
+
+    hessian = approx_hess(theta_eval, negloglik, epsilon=1e-5)
+    hessian = _sym_matrix(hessian)
+    hessian_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(hessian)
+
+    scores = _central_diff_scores(theta_eval, ind_negloglik, bounds, n_obs)
+    opg = scores.T @ scores
+    opg_scale = np.linalg.norm(opg) / max(1, opg.size)
+    used_opg_fallback = (not np.isfinite(opg_scale)) or opg_scale < 1e-8
+    if used_opg_fallback:
+        covariance = hessian_inv.copy()
+    else:
+        covariance = hessian_inv @ _sym_matrix(opg) @ hessian_inv
+
+    covariance = _sym_matrix(covariance)
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    eigenvalues = np.maximum(eigenvalues, 0.0)
+    covariance = (eigenvectors * eigenvalues) @ eigenvectors.T
+    standard_errors = np.sqrt(np.diag(covariance))
+
+    result = {
+        "se_message": "computed",
+        "se_hessian_ridge": float(used_ridge),
+        "se_used_pseudoinverse": bool(used_pseudo),
+        "se_used_opg_fallback": bool(used_opg_fallback),
+    }
+    for name, se in zip(names, standard_errors):
+        result[f"se_{name}"] = float(se)
+    return result
+
+
+def add_standard_errors_for_rows(
+    rows: list[pd.Series],
+    *,
+    project_root: Path,
+    model_family: str,
+) -> list[dict]:
+    specs_by_mean = {
+        spec["mean_type"]: spec
+        for spec in build_model_specs(load_effective_sample(project_root), include_arx22=True)
+    }
+
+    enriched_rows: list[dict] = []
+    for row in rows:
+        enriched = row.to_dict()
+        try:
+            se_values = compute_standard_errors_for_row(
+                row,
+                spec=specs_by_mean[row["mean_type"]],
+                model_family=model_family,
+            )
+            enriched.update(se_values)
+        except Exception as exc:
+            enriched["se_message"] = f"{type(exc).__name__}: {exc}"
+        enriched_rows.append(enriched)
+    return enriched_rows
+
+
 def add_selection_diagnostics(
     df: pd.DataFrame,
     *,
     project_root: Path,
     model_family: str,
-    shape_cap: float = DEFAULT_SELECTION_SHAPE_CAP,
+    shape_reference: float = DEFAULT_HIGH_SHAPE_REFERENCE,
 ) -> pd.DataFrame:
     out = df.copy()
     diagnostics = []
@@ -413,12 +849,22 @@ def add_selection_diagnostics(
         for spec in build_model_specs(load_effective_sample(project_root), include_arx22=True)
     }
 
-    finite = _finite_metric_mask(out)
     converged = strict_success_mask(out)
 
     for idx, row in out.iterrows():
         diag = {
-            "selection_shape_cap": float(shape_cap),
+            "stored_loglik": _row_float(row, "loglik"),
+            "stored_AIC": _row_float(row, "AIC"),
+            "stored_BIC": _row_float(row, "BIC"),
+            "corrected_loglik": np.nan,
+            "corrected_AIC": np.nan,
+            "corrected_BIC": np.nan,
+            "corrected_loglik_delta": np.nan,
+            "selection_shape_reference": float(shape_reference),
+            "selection_high_shape_density": False,
+            "selection_variance_bound": variance_bound_for_family(model_family),
+            "selection_bounds_ok": False,
+            "selection_constraints_ok": False,
             "selection_eligible": False,
             "selection_reason": "",
             "selection_persistence_p": np.nan,
@@ -434,8 +880,6 @@ def add_selection_diagnostics(
         }
 
         reasons = []
-        if not bool(finite.loc[idx]):
-            reasons.append("nonfinite information criterion")
         if not bool(converged.loc[idx]):
             reasons.append("optimizer did not converge")
 
@@ -446,10 +890,37 @@ def add_selection_diagnostics(
                 specs_by_mean=specs_by_mean,
             )
             diag.update(metrics)
+            diag["corrected_loglik_delta"] = diag["corrected_loglik"] - diag["stored_loglik"]
+            corrected_finite = all(
+                np.isfinite(diag[col])
+                for col in ("corrected_loglik", "corrected_AIC", "corrected_BIC")
+            )
+            if not corrected_finite:
+                reasons.append("nonfinite corrected information criterion")
             if not np.isfinite(diag["selection_shape_max"]):
                 reasons.append("nonfinite shape path")
-            elif diag["selection_shape_max"] >= shape_cap:
-                reasons.append(f"shape cap exceeded ({diag['selection_shape_max']:.6g} >= {shape_cap:g})")
+            elif diag["selection_shape_max"] >= shape_reference:
+                diag["selection_high_shape_density"] = True
+            if not np.isfinite(diag["selection_cond_var_min"]) or diag["selection_cond_var_min"] <= 0.0:
+                reasons.append("nonpositive conditional variance path")
+
+            names, theta = _parameter_vector_from_row(row, model_family)
+            bounds = _bounds_for_row(specs_by_mean[row["mean_type"]], row["mean_type"], model_family)
+            bounds_ok = all(
+                (lo is None or value >= lo - 1e-8) and (hi is None or value <= hi + 1e-8)
+                for value, (lo, hi) in zip(theta, bounds)
+            )
+            constraints_ok = _constraints_ok_for_theta(
+                theta,
+                mean_type=row["mean_type"],
+                model_family=model_family,
+            )
+            diag["selection_bounds_ok"] = bool(bounds_ok)
+            diag["selection_constraints_ok"] = bool(constraints_ok)
+            if not bounds_ok:
+                reasons.append("parameter outside documented bounds")
+            if not constraints_ok:
+                reasons.append("violates documented stability/variance constraints")
         except Exception as exc:
             reasons.append(f"diagnostics failed: {type(exc).__name__}: {exc}")
 
@@ -457,7 +928,11 @@ def add_selection_diagnostics(
         diag["selection_reason"] = "eligible" if diag["selection_eligible"] else "; ".join(reasons)
         diagnostics.append(diag)
 
-    return pd.concat([out.reset_index(drop=True), pd.DataFrame(diagnostics)], axis=1)
+    out = pd.concat([out.reset_index(drop=True), pd.DataFrame(diagnostics)], axis=1)
+    for metric in ("loglik", "AIC", "BIC"):
+        corrected_col = f"corrected_{metric}"
+        out[metric] = pd.to_numeric(out[corrected_col], errors="coerce")
+    return out
 
 
 def analysis_rows(df: pd.DataFrame, metric: str) -> pd.DataFrame:
@@ -523,8 +998,8 @@ def append_best_table(lines: list[str], title: str, rows: list[pd.Series]) -> No
     lines.append("")
 
 
-def append_parameter_tables(lines: list[str], rows: list[pd.Series], model_param_names: list[str]) -> None:
-    lines.extend(["## Parameter Estimates From Eligible Best AIC Fits", ""])
+def append_parameter_tables(lines: list[str], rows: list[dict], model_param_names: list[str]) -> None:
+    lines.extend(["## Parameter Estimates From Best AIC Fits", ""])
     if not rows:
         lines.extend(["No eligible estimates found.", ""])
         return
@@ -535,6 +1010,8 @@ def append_parameter_tables(lines: list[str], rows: list[pd.Series], model_param
         lines.extend(
             [
                 f"### {mean_type}",
+                "",
+                f"SE status: `{row.get('se_message', 'NA')}`",
                 "",
                 "| Parameter | Estimate | Std. Error |",
                 "|---|---:|---:|",
@@ -553,7 +1030,9 @@ def write_markdown_summary(
     summary_path: Path,
     title: str,
     model_param_names: list[str],
+    best_aic_with_se: list[dict] | None = None,
 ) -> None:
+    best_aic_with_se = best_aic_with_se or []
     best_aic = best_by_metric(df, "AIC")
     best_bic = best_by_metric(df, "BIC")
     best_aic_rows = best_by_mean(df, "AIC")
@@ -575,8 +1054,13 @@ def write_markdown_summary(
         f"Converged estimations: `{converged_count}`",
         f"Eligible estimations for best-model selection: `{eligible_count}`",
         "",
-        f"Selection screen: finite AIC/BIC/log-likelihood, successful optimizer status, and "
-        f"`max(p_t, n_t) < {DEFAULT_SELECTION_SHAPE_CAP:g}`.",
+        "Saved likelihoods are recomputed from the stored parameter paths before ranking. "
+        "Large recursive shape states are evaluated by the BEGE saddlepoint density backend; "
+        "`max(p_t, n_t)` is reported as a diagnostic, not as an exclusion rule.",
+        "",
+        "Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, "
+        "finite positive shape paths, positive conditional variance paths, and documented "
+        "parameter/stability/unconditional-variance constraints.",
         "",
     ]
 
@@ -622,13 +1106,20 @@ def write_markdown_summary(
 
     append_best_table(lines, "Eligible Best by Mean Type (AIC)", best_aic_rows)
     append_best_table(lines, "Eligible Best by Mean Type (BIC)", best_bic_rows)
-    append_parameter_tables(lines, best_aic_rows, model_param_names)
+    append_parameter_tables(lines, best_aic_with_se, model_param_names)
 
     summary_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def cleaned_csv_view(df: pd.DataFrame) -> pd.DataFrame:
-    drop_cols = [col for col in df.columns if col in REPORT_DROP_COLUMNS or col.startswith("se_")]
+    drop_cols = [
+        col
+        for col in df.columns
+        if col in REPORT_DROP_COLUMNS
+        or col.startswith("se_")
+        or col.startswith("selection_")
+        or col.startswith("corrected_")
+    ]
     return df.drop(columns=drop_cols, errors="ignore")
 
 
@@ -643,9 +1134,20 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "loglik",
         "AIC",
         "BIC",
+        "stored_loglik",
+        "stored_AIC",
+        "stored_BIC",
+        "corrected_loglik",
+        "corrected_AIC",
+        "corrected_BIC",
+        "corrected_loglik_delta",
         "selection_eligible",
         "selection_reason",
-        "selection_shape_cap",
+        "selection_shape_reference",
+        "selection_high_shape_density",
+        "selection_variance_bound",
+        "selection_bounds_ok",
+        "selection_constraints_ok",
         "selection_shape_max",
         "selection_max_p_t",
         "selection_max_n_t",
@@ -724,17 +1226,24 @@ def collect_results(
         project_root=script_dir.parents[1],
         model_family=model_family,
     )
+    best_aic_with_se = add_standard_errors_for_rows(
+        best_by_mean(all_results_with_diagnostics, "AIC"),
+        project_root=script_dir.parents[1],
+        model_family=model_family,
+    )
 
-    cleaned_csv_view(all_results).to_csv(results_dir / "all_estimations.csv", index=False)
+    cleaned_csv_view(all_results_with_diagnostics).to_csv(results_dir / "all_estimations.csv", index=False)
     selection_diagnostics_view(all_results_with_diagnostics).to_csv(
         results_dir / "selection_diagnostics.csv",
         index=False,
     )
+    pd.DataFrame(best_aic_with_se).to_csv(results_dir / "best_aic_with_se.csv", index=False)
     write_markdown_summary(
         all_results_with_diagnostics,
         results_dir / "best_model.md",
         title,
         model_param_names,
+        best_aic_with_se=best_aic_with_se,
     )
 
     if start_seed is not None or end_seed is not None:
@@ -742,4 +1251,5 @@ def collect_results(
     print(f"Read {len(csv_files)} raw file(s).")
     print(f"Wrote {results_dir / 'all_estimations.csv'}")
     print(f"Wrote {results_dir / 'selection_diagnostics.csv'}")
+    print(f"Wrote {results_dir / 'best_aic_with_se.csv'}")
     print(f"Wrote {results_dir / 'best_model.md'}")

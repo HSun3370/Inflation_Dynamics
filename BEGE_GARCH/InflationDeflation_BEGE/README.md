@@ -25,12 +25,14 @@ ID-GARCH stability restrictions:
 
 The hard shape cap $\max\{p_t, n_t\} < 200$ is **not imposed by default** in
 `ID_GARCH`. It can still be restored for sensitivity checks by passing
-`cap_pn=200`.
+`cap_pn=200`, but it is not part of the current best-model reporting screen.
 
 For reported best-model selection, `collect_id_results.py` keeps the raw search
-rows but applies the canonical $\max\{p_t, n_t\} < 200$ screen together with
-optimizer-convergence checks. The row-level selection outcome is written to
-`results/selection_diagnostics.csv`.
+rows, recomputes each likelihood with the stabilized BEGE density, and uses
+finite corrected criteria, optimizer convergence, and the documented
+parameter/stability/unconditional-variance constraints. The row-level selection
+outcome, stored likelihood, corrected likelihood, and maximum shape diagnostic
+are written to `results/selection_diagnostics.csv`.
 
 ## Estimation Workflow
 
@@ -45,5 +47,6 @@ seed estimates all four mean processes on the fixed effective sample
 
 The job runner skips standard-error calculations and saves one CSV row after
 each model fit so partial jobs leave recoverable output. The collector merges
-the raw CSV files, picks the best results, and computes standard errors only
-for the best AIC fit within each mean process.
+the raw CSV files, picks the corrected best results, writes
+`results/best_model.md`, and computes standard errors for the best AIC fit
+within each eligible mean process in `results/best_aic_with_se.csv`.
