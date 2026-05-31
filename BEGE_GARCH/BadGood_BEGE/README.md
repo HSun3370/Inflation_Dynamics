@@ -21,7 +21,12 @@ I have set the constraints below.
 - $\rho + \phi < 1$ for both good and bad shape processes.
 - $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$.
 
-The old hard cap $\max\{p_t, n_t\} < 200$ is no longer imposed by default. The stabilized BEGE density is evaluated directly as long as the recursive shape series are finite.
+The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start
+optimization by default. The stabilized BEGE density is evaluated directly as
+long as the recursive shape series are finite. For reported best-model
+selection, however, `collect_bg_results.py` applies the canonical
+$\max\{p_t, n_t\} < 200$ screen and writes the row-level outcome to
+`results/selection_diagnostics.csv`.
 
 ## Estimation Workflow
 
@@ -34,11 +39,13 @@ The script estimates the four mean-process specifications:
 - ARX(2,1)
 - ARX(2,2)
 
-Results are kept in memory during each seed job and written once, after the seed job finishes, to `output/raw/draw_###.csv`. This avoids reporting partial result files from long-running jobs.
+Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keeps completed mean-process rows when a seed job is interrupted, while the final write still contains all requested rows when the seed finishes.
 
 `collect_bg_results.py` merges the raw seed files and writes:
 
 - `results/all_estimations.csv`, without standard-error columns or optimizer messages.
 - `results/best_model.md`, with the best log-likelihood model for each mean process and standard errors for the reported parameter estimates.
 
-`SimulationBG.sh` defaults to 400 seed jobs, 1 draw per mean process, and 25 optimizer starts per draw. This gives 10,000 optimizer starts for each mean process. With all four mean processes, that is 40,000 optimizer starts total. The `estimate` action prints a rough per-seed time estimate before submitting jobs.
+When `START_ID` and `END_ID` are set, the collector only merges `draw_###.csv` files in that seed range. This prevents older seed files from entering a new smaller resubmission.
+
+`SimulationBG.sh` defaults to 400 seed jobs, 10 draws per mean process, 10 optimizer starts per draw, and 300 SLSQP iterations per start. This gives 40,000 optimizer starts for each mean process. With all four mean processes, that is 160,000 optimizer starts total. The `estimate` action prints a rough per-seed time estimate before submitting jobs.

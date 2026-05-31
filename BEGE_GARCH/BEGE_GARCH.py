@@ -13,8 +13,12 @@ import importlib
 from scipy.stats import gamma
 import matplotlib.pyplot as plt
 from itertools import product
-from arch import arch_model
-from arch.univariate import ARX
+try:
+    from arch import arch_model
+    from arch.univariate import ARX
+except ImportError:
+    arch_model = None
+    ARX = None
 from scipy.integrate import quad
 from BEGE_GARCH.BEGE_density import *
 from joblib import Parallel, delayed
@@ -139,6 +143,133 @@ def mean_ARX22(Y, X, params):
     return y - y_pred
 
 
+def _mean_x_len(X):
+    if X is None:
+        return None
+    if isinstance(X, pd.DataFrame):
+        return len(X)
+    if isinstance(X, dict):
+        return min((len(v) for v in X.values()), default=None)
+    return len(X)
+
+
+def _slice_mean_x(X, n):
+    if X is None:
+        return None
+    if isinstance(X, pd.DataFrame):
+        return X.iloc[:n].copy()
+    if isinstance(X, dict):
+        return {k: np.asarray(v, dtype=float)[:n] for k, v in X.items()}
+    return np.asarray(X, dtype=float)[:n]
+
+
+def _align_mean_sample(Y, X):
+    y = np.asarray(Y, dtype=float)
+    x_len = _mean_x_len(X)
+    if x_len is None:
+        return y, None
+    n = min(len(y), x_len)
+    return y[:n], _slice_mean_x(X, n)
+
+
+def _make_residual_function(Y, X, mean_type):
+    """
+    Pre-normalize mean inputs once so likelihood objectives do not rebuild
+    dicts/DataFrames and lag arrays on every optimizer evaluation.
+    """
+    y, data = _coerce_mean_inputs(Y, X)
+
+    if mean_type == 'constant':
+        return lambda params: y
+
+    if mean_type == 'ARX(1,1)':
+        if {"Inflation_lag_1", "SPF"}.issubset(data):
+            inflation_lag_1 = data["Inflation_lag_1"]
+            spf = data["SPF"]
+
+            def _resids(params):
+                c, rho_1, phi_1 = params
+                return y - (c + rho_1 * inflation_lag_1 + phi_1 * spf)
+            return _resids
+
+        if "SPF" in data:
+            spf = data["SPF"]
+
+            def _resids(params):
+                c, rho_1, phi_1 = params
+                y_pred = np.empty_like(y)
+                y_pred[0] = c + phi_1 * spf[0]
+                y_pred[1:] = c + rho_1 * y[:-1] + phi_1 * spf[1:]
+                return y - y_pred
+            return _resids
+
+    if mean_type == 'ARX(2,1)':
+        if {"Inflation_lag_1", "Inflation_lag_2", "SPF"}.issubset(data):
+            inflation_lag_1 = data["Inflation_lag_1"]
+            inflation_lag_2 = data["Inflation_lag_2"]
+            spf = data["SPF"]
+
+            def _resids(params):
+                c, rho_1, rho_2, phi_1 = params
+                return y - (
+                    c
+                    + rho_1 * inflation_lag_1
+                    + rho_2 * inflation_lag_2
+                    + phi_1 * spf
+                )
+            return _resids
+
+        if "SPF" in data:
+            spf = data["SPF"]
+
+            def _resids(params):
+                c, rho_1, rho_2, phi_1 = params
+                y_pred = np.empty_like(y)
+                y_pred[0] = c + phi_1 * spf[0]
+                y_pred[1] = c + rho_1 * y[0] + phi_1 * spf[1]
+                y_pred[2:] = c + rho_1 * y[1:-1] + rho_2 * y[:-2] + phi_1 * spf[2:]
+                return y - y_pred
+            return _resids
+
+    if mean_type == 'ARX(2,2)':
+        if {"Inflation_lag_1", "Inflation_lag_2", "SPF", "SPF_lag_1"}.issubset(data):
+            inflation_lag_1 = data["Inflation_lag_1"]
+            inflation_lag_2 = data["Inflation_lag_2"]
+            spf = data["SPF"]
+            spf_lag_1 = data["SPF_lag_1"]
+
+            def _resids(params):
+                c, rho_1, rho_2, phi_1, phi_2 = params
+                return y - (
+                    c
+                    + rho_1 * inflation_lag_1
+                    + rho_2 * inflation_lag_2
+                    + phi_1 * spf
+                    + phi_2 * spf_lag_1
+                )
+            return _resids
+
+        if "SPF" in data:
+            spf = data["SPF"]
+
+            def _resids(params):
+                c, rho_1, rho_2, phi_1, phi_2 = params
+                y_pred = np.empty_like(y)
+                y_pred[0] = c + phi_1 * spf[0]
+                y_pred[1] = c + rho_1 * y[0] + phi_1 * spf[1] + phi_2 * spf[0]
+                y_pred[2:] = (
+                    c
+                    + rho_1 * y[1:-1]
+                    + rho_2 * y[:-2]
+                    + phi_1 * spf[2:]
+                    + phi_2 * spf[1:-1]
+                )
+                return y - y_pred
+            return _resids
+
+    raise ValueError(f"{mean_type} has incompatible X inputs.")
+
+
 # def gjr_recursion(resids, params,sigma):
 #     '''
 #     input
@@ -172,7 +303,15 @@ def mean_ARX22(Y, X, params):
 
 
 
-from numba import njit
+try:
+    from numba import njit
+except Exception:
+    def njit(*decorator_args, **decorator_kwargs):
+        def _decorator(func):
+            return func
+        return _decorator
+
+
 @njit(cache=True, fastmath=True, nogil=True)
 def _gjr_recursion_numba_core(r, cont, rho, phi_p, phi_n, sigma):
     """
@@ -214,11 +353,11 @@ def gjr_recursion(resids, params, sigma):
 
  
 
-def loglikedgam_constant(resids, p, n, sigma_p, sigma_n ):
+def loglikedgam_constant(resids, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
     resids = np.asarray(resids)
     p = np.full_like(resids, p, dtype=np.double)
     n = np.full_like(resids, n, dtype=np.double)
-    return BEGE_log_density(resids, p, n, sigma_p, sigma_n )
+    return BEGE_log_density(resids, p, n, sigma_p, sigma_n, hyperu_method=hyperu_method)
 
 
 
@@ -227,7 +366,15 @@ def loglikedgam_constant(resids, p, n, sigma_p, sigma_n ):
 
 
 
-def BEGE_GARCH(Y,X=None,mean_type='constant',init_value = None):
+def BEGE_GARCH(
+    Y,
+    X=None,
+    mean_type='constant',
+    init_value=None,
+    compute_se=False,
+    density_hyperu_method='scipy_approx',
+):
+    Y, X = _align_mean_sample(Y, X)
     # mean model specification
     # initial values of mean model are the estimated values from previous GARCH model
     if mean_type=='constant':
@@ -255,6 +402,8 @@ def BEGE_GARCH(Y,X=None,mean_type='constant',init_value = None):
         bounds_mean=[(min(Y),max(Y)),(-1.999,1.999),(-0.999,0.999),(None,None),(None,None)]
         name_mean = ['constant\t','Inflation.Lag(1)','Inflation.Lag(2)','SPF\t\t','SPF.lag(1)\t']
  
+    residual_function = _make_residual_function(Y, X, mean_type)
+
     # log likelihood function
     def loglikelihood_bege(params,individual=False):
         """
@@ -271,12 +420,18 @@ def BEGE_GARCH(Y,X=None,mean_type='constant',init_value = None):
         param_tp=params[ num_param_mean+8]
         param_tn=params[ num_param_mean+9]
         
-        resids = mean_model(Y,X,param_mean)
+        resids = residual_function(param_mean)
         pseries =  gjr_recursion(resids, param_p,param_tp )
         nseries = gjr_recursion(resids, param_n,param_tn )
         if individual == False:
-            return -np.sum(BEGE_log_density(resids, pseries, nseries, param_tp, param_tn ))
-        return -BEGE_log_density(resids, pseries, nseries, param_tp, param_tn)
+            return -np.sum(BEGE_log_density(
+                resids, pseries, nseries, param_tp, param_tn,
+                hyperu_method=density_hyperu_method,
+            ))
+        return -BEGE_log_density(
+            resids, pseries, nseries, param_tp, param_tn,
+            hyperu_method=density_hyperu_method,
+        )
     
     # starting_value
     if init_value is None:
@@ -308,32 +463,33 @@ def BEGE_GARCH(Y,X=None,mean_type='constant',init_value = None):
     print("AIC:", AIC)
     print("BIC:", BIC)
     
-    hess = approx_hess(params,loglikelihood_bege, np.sqrt(np.finfo(float).eps)) 
-    
-    # Calculate the covariance matrix (inverse of the Hessian)
-    inv_hess = np.linalg.inv(hess)
-    
-    kwargs = {'individual':True}
-    scores = approx_fprime(params,loglikelihood_bege, np.sqrt(np.finfo(float).eps), kwargs=kwargs)
-    #score_cov = np.cov(scores.T)
-    if scores.shape[1] != len(params):
-        scores = scores.T
+    if compute_se:
+        hess = approx_hess(params,loglikelihood_bege, np.sqrt(np.finfo(float).eps)) 
+        
+        # Calculate the covariance matrix (inverse of the Hessian)
+        inv_hess = np.linalg.pinv(hess)
+        
+        kwargs = {'individual':True}
+        scores = approx_fprime(params,loglikelihood_bege, np.sqrt(np.finfo(float).eps), kwargs=kwargs)
+        #score_cov = np.cov(scores.T)
+        if scores.shape[1] != len(params):
+            scores = scores.T
 
-    # Step 5: Calculate the outer product of the score vectors and sum them
-    score_cov = np.zeros((len(params), len(params)))
-    for i in range(n):
-        score_vec = scores[i, :].reshape(-1, 1)  # column vector
-        score_cov += score_vec.dot(score_vec.T)
- 
-    covariance_matrix = inv_hess.dot(score_cov).dot(inv_hess) 
-    std_bege = np.sqrt(np.diag(covariance_matrix))
+        score_cov = scores.T @ scores
+        covariance_matrix = inv_hess.dot(score_cov).dot(inv_hess) 
+        std_bege = np.sqrt(np.clip(np.diag(covariance_matrix), a_min=0.0, a_max=None))
+    else:
+        std_bege = np.full(k, np.nan, dtype=float)
  
     print('-------------------------------------------------------')
     name_bege  = name_mean+['Good Envir Const','Good Envir AR.1 ','Good Envir phi^+','Good Envir phi^-','Bad Envir Const ','Bad Envir AR.1  ','Bad Envir phi^+ ','Bad Envir phi^- ','Good Envir sigma','Bad Envir sigma ']
     print('Estimated Parameterss:')
     print('-------------------------------------------------------')
     for i in range(k):
-        print(f"{name_bege[i]}: {params[i]:.3f},Std:{std_bege[i]:.3f},t-value:{params[i]/std_bege[i]:.3f}")
+        if compute_se:
+            print(f"{name_bege[i]}: {params[i]:.3f},Std:{std_bege[i]:.3f},t-value:{params[i]/std_bege[i]:.3f}")
+        else:
+            print(f"{name_bege[i]}: {params[i]:.3f}")
     return opt
 
 
@@ -734,12 +890,15 @@ def BEGE_GARCH(Y,X=None,mean_type='constant',init_value = None):
 from scipy.optimize import differential_evolution, minimize
 
 def BEGE_Constant_DE(Y, X=None, mean_type='constant',
-                  de_niter=60, de_popsize=15, refine_maxiter=300):
+                  de_niter=60, de_popsize=15, refine_maxiter=300,
+                  compute_se=False, density_hyperu_method='scipy_approx'):
     """
     1) Global search on all parameters (mean process + distributional) via Differential Evolution
     2) Optional local refine via SLSQP
     3) Print AIC, BIC, SE's and t‐stats
     """
+    Y, X = _align_mean_sample(Y, X)
+
     # ——— 1) select mean model
     if mean_type == 'constant':
         mean_model, num_m = mean_const, 0
@@ -771,19 +930,25 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
         ]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
 
+    residual_function = _make_residual_function(Y, X, mean_type)
+
     # ——— 2) full objective for DE & refine
     def full_obj(params):
         pm = params[:num_m]
         p, n, tp, tn = params[num_m:]
-        resid = mean_model(Y, X, pm)
-        return -np.sum(loglikedgam_constant(resid, p, n, tp, tn))
+        resid = residual_function(pm)
+        return -np.sum(loglikedgam_constant(
+            resid, p, n, tp, tn, hyperu_method=density_hyperu_method,
+        ))
 
     # ——— 3) per-observation loglik for score
     def ind_loglik(params):
         pm = params[:num_m]
         p, n, tp, tn = params[num_m:]
-        resid = mean_model(Y, X, pm)
-        return -loglikedgam_constant(resid, p, n, tp, tn)
+        resid = residual_function(pm)
+        return -loglikedgam_constant(
+            resid, p, n, tp, tn, hyperu_method=density_hyperu_method,
+        )
 
     # ——— 4) build bounds
     dist_bounds = [
@@ -824,29 +989,37 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
     BIC    = np.log(N)*k - 2*ll
     print(f"AIC: {AIC:.3f}, BIC: {BIC:.3f}")
 
-    # ——— 8) Hessian and SEs
-    hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
-    invh = np.linalg.inv(hess)
+    if compute_se:
+        # ——— 8) Hessian and SEs
+        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
+        invh = np.linalg.pinv(hess)
 
-    scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
-    # scores shape: (N, k)
-    S = sum(scores[i].reshape(-1,1) @ scores[i].reshape(1,-1) for i in range(N)) / N
-    cov = invh @ S @ invh
-    se  = np.sqrt(np.diag(cov))
+        scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
+        if scores.shape[0] != N and scores.shape[1] == N:
+            scores = scores.T
+        S = scores.T @ scores / N
+        cov = invh @ S @ invh
+        se  = np.sqrt(np.clip(np.diag(cov), a_min=0.0, a_max=None))
+    else:
+        se = np.full(k, np.nan, dtype=float)
 
     names = names_mean + ['GJR p', 'GJR n', 'σ₊', 'σ₋']
     print("-"*50)
     print("Parameter Estimates")
     print("-"*50)
     for i, nm in enumerate(names):
-        tstat = params[i] / se[i]
-        print(f"{nm:15s}: {params[i]:.4f} (SE {se[i]:.4f}, t={tstat:.2f})")
+        if compute_se:
+            tstat = params[i] / se[i]
+            print(f"{nm:15s}: {params[i]:.4f} (SE {se[i]:.4f}, t={tstat:.2f})")
+        else:
+            print(f"{nm:15s}: {params[i]:.4f}")
 
     return opt
 
 
 def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
-                      n_starts=20, maxiter=1500, tol=1e-8, random_state=None):
+                      n_starts=20, maxiter=1500, tol=1e-8, random_state=None,
+                      compute_se=False, density_hyperu_method='scipy_approx'):
     """
     BEGE GARCH MLE with random initialization.
     Mean params drawn from manually set ranges (last estimation results).
@@ -854,7 +1027,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
     """
 
     rng = np.random.default_rng(random_state)
-    Y = np.asarray(Y)
+    Y, X = _align_mean_sample(Y, X)
     N = len(Y)
     if n_starts < 1:
         raise ValueError("n_starts must be >= 1.")
@@ -908,19 +1081,24 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
     ]
     names_dist = ['GJR p', 'GJR n', 'σ₊', 'σ₋']
     full_bounds = bounds_mean + dist_bounds
+    residual_function = _make_residual_function(Y, X, mean_type)
 
     # -------- 3) Objective (negative log-likelihood) --------
     def full_obj(params):
         pm = params[:num_m]
         p, n, tp, tn = params[num_m:]
-        resid = mean_model(Y, X, pm)
-        return -np.sum(loglikedgam_constant(resid, p, n, tp, tn))
+        resid = residual_function(pm)
+        return -np.sum(loglikedgam_constant(
+            resid, p, n, tp, tn, hyperu_method=density_hyperu_method,
+        ))
 
     def ind_loglik(params):
         pm = params[:num_m]
         p, n, tp, tn = params[num_m:]
-        resid = mean_model(Y, X, pm)
-        return -loglikedgam_constant(resid, p, n, tp, tn)
+        resid = residual_function(pm)
+        return -loglikedgam_constant(
+            resid, p, n, tp, tn, hyperu_method=density_hyperu_method,
+        )
 
     # -------- 4) Sampling helpers --------
     def sample_mean_params():
@@ -955,21 +1133,24 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
     AIC = 2*k - 2*ll
     BIC = np.log(N)*k - 2*ll
 
-    # Hessian & robust SE
-    hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
-    try:
-        invh = np.linalg.inv(hess)
-    except np.linalg.LinAlgError:
-        invh = np.linalg.pinv(hess)
+    if compute_se:
+        # Hessian & robust SE
+        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
+        try:
+            invh = np.linalg.inv(hess)
+        except np.linalg.LinAlgError:
+            invh = np.linalg.pinv(hess)
 
-    scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
-    if scores.shape[0] != N and scores.shape[1] == N:
-        scores = scores.T
-    if scores.shape[0] != N:
-        raise RuntimeError(f"Unexpected score shape {scores.shape}; expected first dimension {N}.")
-    S = sum(scores[i].reshape(-1,1) @ scores[i].reshape(1,-1) for i in range(N)) / N
-    cov = invh @ S @ invh
-    se = np.sqrt(np.clip(np.diag(cov), a_min=0.0, a_max=None))
+        scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
+        if scores.shape[0] != N and scores.shape[1] == N:
+            scores = scores.T
+        if scores.shape[0] != N:
+            raise RuntimeError(f"Unexpected score shape {scores.shape}; expected first dimension {N}.")
+        S = scores.T @ scores / N
+        cov = invh @ S @ invh
+        se = np.sqrt(np.clip(np.diag(cov), a_min=0.0, a_max=None))
+    else:
+        se = np.full(k, np.nan, dtype=float)
 
     # # Print results
     # names = names_mean + names_dist
@@ -986,13 +1167,15 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         'se': se,
         'AIC': AIC,
         'BIC': BIC,
-        'loglik': ll
+        'loglik': ll,
+        'compute_se': bool(compute_se),
     }
 
 
 
 def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
-                       n_starts=20, maxiter=500, tol=1e-8, random_state=None):
+                       n_starts=20, maxiter=500, tol=1e-8, random_state=None,
+                       compute_se=False, density_hyperu_method='scipy_approx'):
     """
     Symmetric-volatility BEGE MLE (multi-start, no explicit constraints).
     - One shared GJR shape process s_t for BOTH p_t and n_t (symmetry).
@@ -1006,7 +1189,7 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
       dict with opt result, params, se, AIC, BIC, loglik
     """
     rng = np.random.default_rng(random_state)
-    Y = np.asarray(Y)
+    Y, X = _align_mean_sample(Y, X)
     N = len(Y)
 
     # ---------- 1) Mean model selection & ranges (copied from your MLE style) ----------
@@ -1059,6 +1242,7 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
     ]
     names_sym = ['Sym Cont', 'Sym AR(1)', 'Sym phi⁺', 'Sym phi⁻', 'Shared sigma']
     full_bounds = bounds_mean + sym_bounds
+    residual_function = _make_residual_function(Y, X, mean_type)
 
     # ---------- 3) Helpers ----------
     def sample_mean_params():
@@ -1083,10 +1267,13 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         if not _stable_tuple(cont, rho, phi_p, phi_n):
             return 1e12
 
-        resid = mean_model(Y, X, pm)
+        resid = residual_function(pm)
         sseries = gjr_recursion(resid, (cont, rho, phi_p, phi_n), sigma)  # your function
         # symmetric: p_t = n_t = s_t, tp = tn = sigma
-        ll = BEGE_log_density(resid, sseries, sseries, sigma, sigma)
+        ll = BEGE_log_density(
+            resid, sseries, sseries, sigma, sigma,
+            hyperu_method=density_hyperu_method,
+        )
         # negative total log-likelihood
         return -np.sum(ll)
 
@@ -1096,9 +1283,12 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         if not _stable_tuple(cont, rho, phi_p, phi_n):
             # return a large vector so OPG stays finite
             return np.full(N, 1e6, dtype=float)
-        resid = mean_model(Y, X, pm)
+        resid = residual_function(pm)
         sseries = gjr_recursion(resid, (cont, rho, phi_p, phi_n), sigma)
-        return -BEGE_log_density(resid, sseries, sseries, sigma, sigma)  # per-observation neg ll
+        return -BEGE_log_density(
+            resid, sseries, sseries, sigma, sigma,
+            hyperu_method=density_hyperu_method,
+        )  # per-observation neg ll
 
     # ---------- 5) Multi-start MLE ----------
     best_fun = np.inf
@@ -1134,16 +1324,21 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
     AIC = 2*k - 2*ll
     BIC = np.log(N)*k - 2*ll
 
-    # Hessian & robust SE (like your MLE)
-    hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
-    invh = np.linalg.inv(hess)
+    if compute_se:
+        # Hessian & robust SE (like your MLE)
+        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
+        invh = np.linalg.pinv(hess)
 
-    scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
-    if scores.ndim == 1:
-        scores = scores[:, None]
-    S = sum(scores[i].reshape(-1,1) @ scores[i].reshape(1,-1) for i in range(N)) / N
-    cov = invh @ S @ invh
-    se = np.sqrt(np.diag(cov))
+        scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
+        if scores.ndim == 1:
+            scores = scores[:, None]
+        if scores.shape[0] != N and scores.shape[1] == N:
+            scores = scores.T
+        S = scores.T @ scores / N
+        cov = invh @ S @ invh
+        se = np.sqrt(np.clip(np.diag(cov), a_min=0.0, a_max=None))
+    else:
+        se = np.full(k, np.nan, dtype=float)
 
     # Print results
     # names = names_mean + names_sym
@@ -1161,7 +1356,8 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         'se': se,
         'AIC': AIC,
         'BIC': BIC,
-        'loglik': ll
+        'loglik': ll,
+        'compute_se': bool(compute_se),
     }
 
 
@@ -1173,15 +1369,22 @@ def BEGE_AsymSharedGJR_MLE(
     rho_bounds=(1e-5, 0.999),
     phi_bounds=(1e-5, 0.999),  # kept for optimizer bounds; sampling ignores these for phis (see below)
     floor_eps=1e-6,
-    print_summary=True
+    print_summary=True,
+    cap_pn=None,
+    big_penalty=1e12,
+    big_vec_penalty=1e6,
+    compute_se=False,
+    density_hyperu_method='scipy_approx',
+    variance_bound=0.87,
 ):
     """
     BEGE with asymmetric constants and scales, shared GJR coefficients.
 
     MODS:
-      • Stability guard: 1 - rho - max(phin/2, phip/2) > floor_eps
-      • No p_t/n_t upper cap is applied by default. Nonfinite recursive
-        shape values still receive a large objective penalty.
+      • Stability guard: rho + 0.5*(phi+ + phi-) < 1.
+      • Unconditional variance guard: sigma_p^2*p0 + sigma_n^2*n0 <= variance_bound.
+      • No p_t/n_t upper cap is applied by default. If cap_pn is provided,
+        values above that cap receive a large objective penalty.
       • Sampling: sample all params from bounds except phip/2 and phin/2.
         Sample beta_p := phip/2 ~ U[0, 1 - rho - floor_eps], beta_n similarly,
         then set phip = 2*beta_p, phin = 2*beta_n.
@@ -1193,19 +1396,9 @@ def BEGE_AsymSharedGJR_MLE(
     from scipy.optimize import minimize
     from statsmodels.tools.numdiff import approx_hess
 
-    CAP_PN = None           # optional threshold for p_t and n_t; None disables the cap
-    BIG_PENALTY = 1e12     # objective penalty when recursion is invalid
-    BIG_VEC_PENALTY = 1e6  # per-observation penalty vector
-
     rng = np.random.default_rng(random_state)
-    Y = np.asarray(Y, dtype=float)
+    Y, X = _align_mean_sample(Y, X)
     N_obs = int(Y.shape[0])
-
-    if X is not None:
-        n = min(len(Y), len(X))
-        Y = Y[:n]
-        X = np.asarray(X, dtype=float)[:n]
-        N_obs = int(n)
 
     # ---------- mean spec ----------
     def _get_mean_spec(Y, mean_type):
@@ -1248,6 +1441,7 @@ def BEGE_AsymSharedGJR_MLE(
         return mean_model, num_m, bounds_mean, names_mean, ranges
 
     mean_model, num_m, bounds_mean, names_mean, mean_ranges = _get_mean_spec(Y, mean_type)
+    residual_function = _make_residual_function(Y, X, mean_type)
 
     # ---------- bounds & names ----------
     (sig_lo, sig_hi) = sigma_bounds
@@ -1270,33 +1464,59 @@ def BEGE_AsymSharedGJR_MLE(
     names_full = names_mean + names_vol
     k = len(bounds_full)
 
-    # ---------- stability guard ----------
-    def _stable(rho, phip, phin, eps=floor_eps):
-        # 1 - rho - max(phin/2, phip/2) > eps
-        return (1.0 - rho - max(phin * 0.5, phip * 0.5)) > eps
+    # ---------- constraints ----------
+    def _unpack_vol(theta):
+        p0, n0, rho, phip, phin, sigp, sign = theta[num_m:]
+        return p0, n0, rho, phip, phin, sigp, sign
+
+    def _constraints_ok(p0, n0, rho, phip, phin, sigp, sign):
+        vals = np.asarray([p0, n0, rho, phip, phin, sigp, sign], dtype=float)
+        if not np.all(np.isfinite(vals)):
+            return False
+        if rho + 0.5 * (phip + phin) >= 1.0 - floor_eps:
+            return False
+        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
+            return False
+        return True
+
+    def constr_rho_phi(theta):
+        p0, n0, rho, phip, phin, sigp, sign = _unpack_vol(theta)
+        return 1.0 - floor_eps - (rho + 0.5 * (phip + phin))
+
+    def constr_uncond_var(theta):
+        p0, n0, rho, phip, phin, sigp, sign = _unpack_vol(theta)
+        return variance_bound - (sigp**2 * p0 + sign**2 * n0)
+
+    constraints = [
+        {'type': 'ineq', 'fun': constr_rho_phi},
+        {'type': 'ineq', 'fun': constr_uncond_var},
+    ]
 
     # ---------- objectives ----------
     def _negloglik(params):
         pm = params[:num_m]
         p0, n0, rho, phip, phin, sigp, sign = params[num_m:]
-        # if not _stable(rho, phip, phin):
-        #     return BIG_PENALTY
-        res = mean_model(Y, X, pm)
+        if not _constraints_ok(p0, n0, rho, phip, phin, sigp, sign):
+            return float(big_penalty)
+        res = residual_function(pm)
 
         # Recursions
         pseries = gjr_recursion(res, (float(p0), float(rho), float(phip), float(phin)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho), float(phip), float(phin)), float(sign))
 
-        exceeds_cap = CAP_PN is not None and (np.any(pseries > CAP_PN) or np.any(nseries > CAP_PN))
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
         if (exceeds_cap or not np.all(np.isfinite(pseries)) or
             not np.all(np.isfinite(nseries))):
-            return BIG_PENALTY
+            return float(big_penalty)
 
-        ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
+        ll = BEGE_log_density(
+            res, pseries, nseries, float(sigp), float(sign),
+            hyperu_method=density_hyperu_method,
+        )
         val = -float(np.sum(ll))
         # Guard against NaNs/Infs in likelihood too
         if not np.isfinite(val):
-            return BIG_PENALTY
+            return float(big_penalty)
         return val
 
     def _ind_negloglik_vec(params):
@@ -1305,25 +1525,28 @@ def BEGE_AsymSharedGJR_MLE(
         """
         pm = params[:num_m]
         p0, n0, rho, phip, phin, sigp, sign = params[num_m:]
-        # if not _stable(rho, phip, phin):
-        #     return np.full(N_obs, BIG_VEC_PENALTY)
-        res = mean_model(Y, X, pm)
+        if not _constraints_ok(p0, n0, rho, phip, phin, sigp, sign):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        res = residual_function(pm)
 
         pseries = gjr_recursion(res, (float(p0), float(rho), float(phip), float(phin)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho), float(phip), float(phin)), float(sign))
 
-        exceeds_cap = CAP_PN is not None and (np.any(pseries > CAP_PN) or np.any(nseries > CAP_PN))
+        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
         if (exceeds_cap or not np.all(np.isfinite(pseries)) or
             not np.all(np.isfinite(nseries))):
-            return np.full(N_obs, BIG_VEC_PENALTY)
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
-        v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
+        v = -BEGE_log_density(
+            res, pseries, nseries, float(sigp), float(sign),
+            hyperu_method=density_hyperu_method,
+        )
         v = np.asarray(v, dtype=float).reshape(-1)
         if v.shape[0] != N_obs:
             v = np.full(N_obs, float(v.ravel()[0]))
         # Replace any bad values by penalty (robustness)
         if not np.all(np.isfinite(v)):
-            v = np.full(N_obs, BIG_VEC_PENALTY)
+            v = np.full(N_obs, float(big_vec_penalty))
         return v
 
     # ---------- robust numerical derivatives ----------
@@ -1393,24 +1616,40 @@ def BEGE_AsymSharedGJR_MLE(
         Sampling rule:
           - rho ~ U[rho_lo, rho_hi]
           - sigp, sign ~ U[sigma_lo, sigma_hi]
-          - p0, n0 ~ U[p0_lo, p0_hi]
+          - p0, n0 are sampled inside the unconditional variance bound
           - beta_p := phip/2 ~ U[0, 1 - rho - floor_eps]
             beta_n := phin/2 ~ U[0, 1 - rho - floor_eps]
             phip = 2*beta_p, phin = 2*beta_n
-          - Also require denom = 1 - rho - 0.5*(phip + phin) > floor_eps (numeric sanity)
+          - Require denom = 1 - rho - 0.5*(phip + phin) > floor_eps
         """
         p0_lo, p0_hi = p0_bounds
         rho_lo, rho_hi = rho_bounds
+        phi_lo, phi_hi = phi_bounds
         sig_lo, sig_hi = sigma_bounds
 
+        rho_upper = min(rho_hi, 1.0 - floor_eps - phi_lo)
+        if rho_upper <= rho_lo:
+            raise ValueError("rho_bounds and phi_bounds leave no feasible stable Symmetric BEGE starts.")
+
         for _ in range(max_tries):
-            rho  = rng.uniform(rho_lo, rho_hi)
+            rho  = rng.uniform(rho_lo, rho_upper)
             sigp = rng.uniform(sig_lo, sig_hi)
             sign = rng.uniform(sig_lo, sig_hi)
-            p0   = rng.uniform(p0_lo, p0_hi)
-            n0   = rng.uniform(p0_lo, p0_hi)
+            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
+            if min_var > variance_bound:
+                continue
 
-            cap = 1.0 - rho - floor_eps
+            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
+            if p0_upper <= p0_lo:
+                continue
+            p0 = rng.uniform(p0_lo, p0_upper)
+
+            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
+            if n0_upper <= p0_lo:
+                continue
+            n0 = rng.uniform(p0_lo, n0_upper)
+
+            cap = min(0.5 * phi_hi, 1.0 - rho - floor_eps)
             if cap <= 0:
                 continue
 
@@ -1419,19 +1658,18 @@ def BEGE_AsymSharedGJR_MLE(
             phip = 2.0 * beta_p
             phin = 2.0 * beta_n
 
-            if not (1.0 - rho - max(phin * 0.5, phip * 0.5) > floor_eps):
-                continue
-
             denom = 1.0 - rho - 0.5*(phip + phin)
             if denom <= floor_eps:
                 continue
 
-            return np.array([p0, n0, rho, phip, phin, sigp, sign], dtype=float)
+            vals = np.array([p0, n0, rho, phip, phin, sigp, sign], dtype=float)
+            if _constraints_ok(*vals):
+                return vals
 
         # Conservative fallback if repeated failures
         rho  = 0.5
-        sigp = 0.3
-        sign = 0.3
+        sigp = min(max(0.3, sig_lo), sig_hi)
+        sign = min(max(0.3, sig_lo), sig_hi)
         beta = 0.25 * (1.0 - rho - floor_eps) if (1.0 - rho - floor_eps) > 0 else 0.1
         phip = 2.0 * beta
         phin = 2.0 * beta
@@ -1441,6 +1679,9 @@ def BEGE_AsymSharedGJR_MLE(
         p_bar = 1.0; n_bar = 1.0
         p0 = float(np.clip(denom * p_bar, p0_lo + 1e-8, p0_hi - 1e-8))
         n0 = float(np.clip(denom * n_bar, p0_lo + 1e-8, p0_hi - 1e-8))
+        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
+            p0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sigp * sigp)))
+            n0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sign * sign)))
         return np.array([p0, n0, rho, phip, phin, sigp, sign], dtype=float)
 
     def _sample_vol():
@@ -1454,18 +1695,29 @@ def BEGE_AsymSharedGJR_MLE(
             max_tries=200
         )
 
-    # ---------- optimize (multi-start L-BFGS-B) ----------
+    # ---------- optimize (multi-start SLSQP) ----------
     best, best_fun = None, np.inf
     for _ in range(int(n_starts)):
         init = np.concatenate([_sample_mean(), _sample_vol()])
         opt = minimize(
-            _negloglik, init, method='L-BFGS-B',
+            _negloglik, init, method='SLSQP',
             bounds=bounds_full,
+            constraints=constraints,
             options={'maxiter': int(maxiter), 'ftol': float(tol)}
         )
-        if opt.fun < best_fun:
+        if (
+            np.isfinite(opt.fun)
+            and (
+                best is None
+                or (bool(opt.success) and not bool(best.success))
+                or (bool(opt.success) == bool(best.success) and opt.fun < best_fun)
+            )
+        ):
             best_fun = opt.fun
             best = opt
+
+    if best is None:
+        raise RuntimeError("All starts failed (likely numerical instability).")
 
     params = best.x
     ll = -best.fun
@@ -1487,48 +1739,61 @@ def BEGE_AsymSharedGJR_MLE(
                 ridge *= 10.0
         return np.linalg.pinv(A), ridge, True
 
-    # Larger epsilon for piecewise-smooth objective
-    H = approx_hess(params, _negloglik, epsilon=1e-5)
-    H = _sym(H)
-    H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
+    se = np.full(k_params, np.nan, dtype=float)
+    used_ridge = 0.0
+    used_pseudo = False
+    used_opg_fallback = False
 
-    # Per-observation scores (N_obs x k)
-    scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
-    OPG = scores.T @ scores
+    if compute_se:
+        # Larger epsilon for piecewise-smooth objective
+        H = approx_hess(params, _negloglik, epsilon=1e-5)
+        H = _sym(H)
+        H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
 
-    # Observed-info fallback if OPG is tiny/ill-conditioned
-    opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
-    if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
-        cov = H_inv.copy()
-        used_opg_fallback = True
-    else:
-        cov = H_inv @ _sym(OPG) @ H_inv
-        used_opg_fallback = False
+        # Per-observation scores (N_obs x k)
+        scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
+        OPG = scores.T @ scores
 
-    cov = _sym(cov)
-    # PSD projection
-    w, V = np.linalg.eigh(cov)
-    w = np.maximum(w, 0.0)
-    cov = (V * w) @ V.T
-    se = np.sqrt(np.diag(cov))
+        # Observed-info fallback if OPG is tiny/ill-conditioned
+        opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
+        if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
+            cov = H_inv.copy()
+            used_opg_fallback = True
+        else:
+            cov = H_inv @ _sym(OPG) @ H_inv
+            used_opg_fallback = False
+
+        cov = _sym(cov)
+        # PSD projection
+        w, V = np.linalg.eigh(cov)
+        w = np.maximum(w, 0.0)
+        cov = (V * w) @ V.T
+        se = np.sqrt(np.diag(cov))
 
     # ---------- summary ----------
-    if used_pseudo:
+    if compute_se and used_pseudo:
         print("[warn] Hessian singular; using pseudoinverse for covariance.")
-    elif used_ridge > 1e-8:
+    elif compute_se and used_ridge > 1e-8:
         print(f"[warn] Hessian near-singular; used ridge λ={used_ridge:.1e}.")
-    if used_opg_fallback:
+    if compute_se and used_opg_fallback:
         print("[warn] OPG nearly zero/ill-conditioned; using observed-information (H^{-1}) for covariance.")
 
     if print_summary:
         print("\n" + "-"*68)
         print("BEGE (Asymmetric constants & sigmas; shared GJR coefficients)")
         print("-"*68)
-        print(f"{'Parameter':<20}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        if compute_se:
+            print(f"{'Parameter':<20}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        else:
+            print(f"{'Parameter':<20}{'Estimate':>14}")
         print("-"*68)
-        for nm, val, err in zip(names_full, params, se):
-            t = np.nan if err <= 0 else (val/err)
-            print(f"{nm:<20}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        if compute_se:
+            for nm, val, err in zip(names_full, params, se):
+                t = np.nan if err <= 0 else (val/err)
+                print(f"{nm:<20}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        else:
+            for nm, val in zip(names_full, params):
+                print(f"{nm:<20}{val:>14.6f}")
         print("-"*68)
         print(f"{'LogLik':<20}{ll:>14.6f}")
         print(f"{'AIC':<20}{AIC:>14.6f}")
@@ -1542,7 +1807,567 @@ def BEGE_AsymSharedGJR_MLE(
         'AIC': AIC,
         'BIC': BIC,
         'loglik': ll,
-        'names': names_full
+        'names': names_full,
+        'compute_se': bool(compute_se),
+    }
+
+
+def ID_GARCH(
+    Y, X=None, mean_type='ARX(1,1)',
+    n_starts=50, maxiter=800, tol=1e-8, random_state=None,
+    sigma_bounds=(1e-5, 2.0),
+    p0n0_bounds=(0.005, 10.0),
+    rho_bounds=(1e-5, 0.999),
+    phi_bounds=(1e-5, 1.5),
+    floor_eps=1e-6,
+    print_summary=True,
+    compute_se=False,
+    initial_params=None,
+    cap_pn=None,
+    enforce_constraints=True,
+    variance_bound=0.87,
+    density_hyperu_method='scipy_approx',
+    big_penalty=1e12,
+    big_vec_penalty=1e6
+):
+    """
+    Inflation/Deflation BEGE-GJR.
+
+    Parameter order:
+      [mean params] +
+      [p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigma_p, sigma_n]
+
+    By default the likelihood enforces the documented persistence-plus-loading
+    bounds and unconditional variance reference sigp^2 * p0 + sign^2 * n0 <=
+    variance_bound, but does not impose a hard shape cap unless cap_pn is set.
+    The optimizer uses a SciPy/asymptotic BEGE-density fallback by default to
+    avoid slow high-precision calls at rejected trial points.
+    """
+    import numpy as np
+    from scipy.optimize import minimize
+    from statsmodels.tools.numdiff import approx_hess
+    from types import SimpleNamespace
+
+    rng = np.random.default_rng(random_state)
+    Y = np.asarray(Y, dtype=float)
+    N_obs = int(Y.shape[0])
+
+    def _x_len(x):
+        if x is None:
+            return len(Y)
+        if isinstance(x, pd.DataFrame):
+            return len(x)
+        if isinstance(x, dict):
+            return min(len(v) for v in x.values()) if x else len(Y)
+        return len(x)
+
+    def _slice_x(x, n):
+        if x is None:
+            return None
+        if isinstance(x, pd.DataFrame):
+            return x.iloc[:n].copy()
+        if isinstance(x, dict):
+            return {k: np.asarray(v, dtype=float)[:n] for k, v in x.items()}
+        return np.asarray(x, dtype=float)[:n]
+
+    if X is not None:
+        n = min(len(Y), _x_len(X))
+        Y = Y[:n]
+        X = _slice_x(X, n)
+        N_obs = int(n)
+
+    def _make_residual_function(y, x, model):
+        y, data = _coerce_mean_inputs(y, x)
+
+        if model == 'constant':
+            return lambda params: y
+
+        if model == 'ARX(1,1)':
+            if {"Inflation_lag_1", "SPF"}.issubset(data):
+                inflation_lag_1 = data["Inflation_lag_1"]
+                spf = data["SPF"]
+
+                def _resids(params):
+                    c, rho_1, phi_1 = params
+                    return y - (c + rho_1 * inflation_lag_1 + phi_1 * spf)
+                return _resids
+
+            if "SPF" in data:
+                spf = data["SPF"]
+
+                def _resids(params):
+                    c, rho_1, phi_1 = params
+                    y_pred = np.empty_like(y)
+                    y_pred[0] = c + phi_1 * spf[0]
+                    y_pred[1:] = c + rho_1 * y[:-1] + phi_1 * spf[1:]
+                    return y - y_pred
+                return _resids
+
+        if model == 'ARX(2,1)':
+            if {"Inflation_lag_1", "Inflation_lag_2", "SPF"}.issubset(data):
+                inflation_lag_1 = data["Inflation_lag_1"]
+                inflation_lag_2 = data["Inflation_lag_2"]
+                spf = data["SPF"]
+
+                def _resids(params):
+                    c, rho_1, rho_2, phi_1 = params
+                    return y - (
+                        c
+                        + rho_1 * inflation_lag_1
+                        + rho_2 * inflation_lag_2
+                        + phi_1 * spf
+                    )
+                return _resids
+
+            if "SPF" in data:
+                spf = data["SPF"]
+
+                def _resids(params):
+                    c, rho_1, rho_2, phi_1 = params
+                    y_pred = np.empty_like(y)
+                    y_pred[0] = c + phi_1 * spf[0]
+                    y_pred[1] = c + rho_1 * y[0] + phi_1 * spf[1]
+                    y_pred[2:] = c + rho_1 * y[1:-1] + rho_2 * y[:-2] + phi_1 * spf[2:]
+                    return y - y_pred
+                return _resids
+
+        if model == 'ARX(2,2)':
+            if {"Inflation_lag_1", "Inflation_lag_2", "SPF", "SPF_lag_1"}.issubset(data):
+                inflation_lag_1 = data["Inflation_lag_1"]
+                inflation_lag_2 = data["Inflation_lag_2"]
+                spf = data["SPF"]
+                spf_lag_1 = data["SPF_lag_1"]
+
+                def _resids(params):
+                    c, rho_1, rho_2, phi_1, phi_2 = params
+                    return y - (
+                        c
+                        + rho_1 * inflation_lag_1
+                        + rho_2 * inflation_lag_2
+                        + phi_1 * spf
+                        + phi_2 * spf_lag_1
+                    )
+                return _resids
+
+            if "SPF" in data:
+                spf = data["SPF"]
+
+                def _resids(params):
+                    c, rho_1, rho_2, phi_1, phi_2 = params
+                    y_pred = np.empty_like(y)
+                    y_pred[0] = c + phi_1 * spf[0]
+                    y_pred[1] = c + rho_1 * y[0] + phi_1 * spf[1] + phi_2 * spf[0]
+                    y_pred[2:] = (
+                        c
+                        + rho_1 * y[1:-1]
+                        + rho_2 * y[:-2]
+                        + phi_1 * spf[2:]
+                        + phi_2 * spf[1:-1]
+                    )
+                    return y - y_pred
+                return _resids
+
+        raise ValueError(f"{model} has incompatible X inputs.")
+
+    def _get_mean_spec(y, model):
+        ymin, ymax = float(np.min(y)), float(np.max(y))
+        if model == 'constant':
+            return mean_const, 0, [], [], []
+        if model == 'ARX(1,1)':
+            return (
+                mean_ARX11,
+                3,
+                [(ymin, ymax), (-0.999, 0.999), (-10, 10)],
+                ['c', 'rho_1', 'phi_1'],
+                [
+                    (0.0824 - 2 * 0.086, 0.0824 + 2 * 0.086),
+                    (0.3005 - 2 * 0.112, 0.3005 + 2 * 0.112),
+                    (0.7337 - 2 * 0.167, 0.7337 + 2 * 0.167),
+                ],
+            )
+        if model == 'ARX(2,1)':
+            return (
+                mean_ARX21,
+                4,
+                [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)],
+                ['c', 'rho_1', 'rho_2', 'phi_1'],
+                [
+                    (0.0897 - 2 * 0.086, 0.0897 + 2 * 0.086),
+                    (0.2892 - 2 * 0.098, 0.2892 + 2 * 0.098),
+                    (0.0834 - 2 * 0.126, 0.0834 + 2 * 0.126),
+                    (0.6385 - 2 * 0.251, 0.6385 + 2 * 0.251),
+                ],
+            )
+        if model == 'ARX(2,2)':
+            return (
+                mean_ARX22,
+                5,
+                [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)],
+                ['c', 'rho_1', 'rho_2', 'phi_1', 'phi_2'],
+                [
+                    (0.0856 - 2 * 0.086, 0.0856 + 2 * 0.086),
+                    (0.2992 - 2 * 0.106, 0.2992 + 2 * 0.106),
+                    (0.0914 - 2 * 0.125, 0.0914 + 2 * 0.125),
+                    (0.4084 - 2 * 0.433, 0.4084 + 2 * 0.433),
+                    (0.2136 - 2 * 0.297, 0.2136 + 2 * 0.297),
+                ],
+            )
+        raise ValueError("Invalid mean_type")
+
+    mean_model, num_m, bounds_mean, names_mean, mean_ranges = _get_mean_spec(Y, mean_type)
+    residual_function = _make_residual_function(Y, X, mean_type)
+
+    sig_lo, sig_hi = sigma_bounds
+    p0_lo, p0_hi = p0n0_bounds
+    rho_lo, rho_hi = rho_bounds
+    phi_lo, phi_hi = phi_bounds
+
+    bounds_vol = [
+        (p0_lo, p0_hi),
+        (p0_lo, p0_hi),
+        (rho_lo, rho_hi),
+        (rho_lo, rho_hi),
+        (phi_lo, phi_hi),
+        (phi_lo, phi_hi),
+        (sig_lo, sig_hi),
+        (sig_lo, sig_hi),
+    ]
+    names_vol = ['p0', 'n0', 'rho_p', 'rho_n', 'phi_p_plus', 'phi_n_minus', 'sigma_p', 'sigma_n']
+    bounds_full = bounds_mean + bounds_vol
+    names_full = names_mean + names_vol
+
+    def _constraints_ok(p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign):
+        if not enforce_constraints:
+            return True
+        if rho_p + 0.5 * phi_p_plus >= 1.0 - floor_eps:
+            return False
+        if rho_n + 0.5 * phi_n_minus >= 1.0 - floor_eps:
+            return False
+        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
+            return False
+        return True
+
+    def _series_ok(pseries, nseries):
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
+            return False
+        if cap_pn is not None and (np.any(pseries >= cap_pn) or np.any(nseries >= cap_pn)):
+            return False
+        return True
+
+    def _negloglik(theta):
+        pm = theta[:num_m]
+        p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign = theta[num_m:]
+        if not _constraints_ok(p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign):
+            return float(big_penalty)
+
+        res = residual_function(pm)
+        pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), 0.0), float(sigp))
+        nseries = gjr_recursion(res, (float(n0), float(rho_n), 0.0, float(phi_n_minus)), float(sign))
+
+        if not _series_ok(pseries, nseries):
+            return float(big_penalty)
+
+        ll = BEGE_log_density(
+            res,
+            pseries,
+            nseries,
+            float(sigp),
+            float(sign),
+            hyperu_method=density_hyperu_method,
+        )
+        val = -float(np.sum(ll))
+        return val if np.isfinite(val) else float(big_penalty)
+
+    def _ind_negloglik_vec(theta):
+        pm = theta[:num_m]
+        p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign = theta[num_m:]
+        if not _constraints_ok(p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+
+        res = residual_function(pm)
+        pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), 0.0), float(sigp))
+        nseries = gjr_recursion(res, (float(n0), float(rho_n), 0.0, float(phi_n_minus)), float(sign))
+
+        if not _series_ok(pseries, nseries):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+
+        v = -BEGE_log_density(
+            res,
+            pseries,
+            nseries,
+            float(sigp),
+            float(sign),
+            hyperu_method=density_hyperu_method,
+        )
+        v = np.asarray(v, dtype=float).reshape(-1)
+        if v.shape[0] != N_obs:
+            v = np.full(N_obs, float(v.ravel()[0]))
+        if not np.all(np.isfinite(v)):
+            v = np.full(N_obs, float(big_vec_penalty))
+        return v
+
+    def _sym(A):
+        return 0.5 * (A + A.T)
+
+    def _safe_inv_with_ridge(A, ridge0=1e-8, max_tries=6):
+        A = _sym(A)
+        I = np.eye(A.shape[0])
+        ridge = float(ridge0)
+        for _ in range(max_tries):
+            try:
+                return np.linalg.inv(A + ridge * I), ridge, False
+            except np.linalg.LinAlgError:
+                ridge *= 10.0
+        return np.linalg.pinv(A), ridge, True
+
+    def _project_to_bounds(x, bounds):
+        out = np.array(x, dtype=float)
+        tiny = 1e-10
+        for j, (lo, hi) in enumerate(bounds):
+            if lo is not None:
+                out[j] = max(out[j], lo + tiny)
+            if hi is not None:
+                out[j] = min(out[j], hi - tiny)
+        return out
+
+    def _central_diff_scores(theta, f_per_obs, bounds, rel=1e-4, absmin=1e-6):
+        theta = np.asarray(theta, dtype=float)
+        k = theta.size
+        f0 = f_per_obs(theta)
+        J = np.empty((N_obs, k), dtype=float)
+        h = np.maximum(absmin, rel * np.maximum(1.0, np.abs(theta)))
+
+        for j in range(k):
+            th_p = theta.copy()
+            th_m = theta.copy()
+            th_p[j] += h[j]
+            th_m[j] -= h[j]
+            th_p = _project_to_bounds(th_p, bounds)
+            th_m = _project_to_bounds(th_m, bounds)
+
+            fp = np.asarray(f_per_obs(th_p), dtype=float).reshape(-1)
+            fm = np.asarray(f_per_obs(th_m), dtype=float).reshape(-1)
+            if fp.shape[0] != N_obs:
+                fp = np.full(N_obs, float(fp.ravel()[0]))
+            if fm.shape[0] != N_obs:
+                fm = np.full(N_obs, float(fm.ravel()[0]))
+
+            denom = float(th_p[j] - th_m[j])
+            if denom == 0.0:
+                th_p = theta.copy()
+                th_p[j] += h[j]
+                th_p = _project_to_bounds(th_p, bounds)
+                fp = np.asarray(f_per_obs(th_p), dtype=float).reshape(-1)
+                if fp.shape[0] != N_obs:
+                    fp = np.full(N_obs, float(fp.ravel()[0]))
+                fm = f0
+                denom = float(th_p[j] - theta[j])
+
+            J[:, j] = (fp - fm) / denom
+        return J
+
+    def _sample_mean():
+        if num_m == 0:
+            return np.array([], dtype=float)
+        vals = []
+        for (low, high), (b_low, b_high) in zip(mean_ranges, bounds_mean):
+            lo = max(low, b_low if b_low is not None else low)
+            hi = min(high, b_high if b_high is not None else high)
+            vals.append(rng.uniform(lo, hi))
+        return np.array(vals, dtype=float)
+
+    def _sample_vol():
+        if not enforce_constraints:
+            return np.array(
+                [
+                    rng.uniform(p0_lo, p0_hi),
+                    rng.uniform(p0_lo, p0_hi),
+                    rng.uniform(rho_lo, rho_hi),
+                    rng.uniform(rho_lo, rho_hi),
+                    rng.uniform(phi_lo, phi_hi),
+                    rng.uniform(phi_lo, phi_hi),
+                    rng.uniform(sig_lo, sig_hi),
+                    rng.uniform(sig_lo, sig_hi),
+                ],
+                dtype=float,
+            )
+
+        rho_upper = min(rho_hi, 1.0 - floor_eps - 0.5 * phi_lo)
+        if rho_upper <= rho_lo:
+            raise ValueError("rho_bounds and phi_bounds leave no feasible stable ID-GARCH starts.")
+
+        for _ in range(500):
+            sigp = rng.uniform(sig_lo, sig_hi)
+            sign = rng.uniform(sig_lo, sig_hi)
+            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
+            if min_var > variance_bound:
+                continue
+
+            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
+            if p0_upper <= p0_lo:
+                continue
+            p0 = rng.uniform(p0_lo, p0_upper)
+
+            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
+            if n0_upper <= p0_lo:
+                continue
+            n0 = rng.uniform(p0_lo, n0_upper)
+
+            rho_p = rng.uniform(rho_lo, rho_upper)
+            phi_p_upper = min(phi_hi, 2.0 * (1.0 - floor_eps - rho_p))
+            if phi_p_upper <= phi_lo:
+                continue
+            phi_p_plus = rng.uniform(phi_lo, phi_p_upper)
+
+            rho_n = rng.uniform(rho_lo, rho_upper)
+            phi_n_upper = min(phi_hi, 2.0 * (1.0 - floor_eps - rho_n))
+            if phi_n_upper <= phi_lo:
+                continue
+            phi_n_minus = rng.uniform(phi_lo, phi_n_upper)
+
+            vals = np.array([p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign], dtype=float)
+            if _constraints_ok(*vals):
+                return vals
+
+        sig_default = min(max(0.4, sig_lo), sig_hi)
+        p0_default = min(max(0.5, p0_lo), p0_hi)
+        n0_default = min(max(0.5, p0_lo), p0_hi)
+        if sig_default * sig_default * (p0_default + n0_default) > variance_bound:
+            p0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
+            n0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
+        rho_default = min(max(0.3, rho_lo), rho_upper)
+        phi_default = min(0.5, phi_hi, 2.0 * (1.0 - floor_eps - rho_default))
+        phi_default = max(phi_lo, phi_default)
+        return np.array(
+            [
+                p0_default,
+                n0_default,
+                rho_default,
+                rho_default,
+                phi_default,
+                phi_default,
+                sig_default,
+                sig_default,
+            ],
+            dtype=float,
+        )
+
+    best = None
+    best_fun = np.inf
+
+    if initial_params is not None and int(n_starts) <= 0:
+        params0 = np.asarray(initial_params, dtype=float)
+        if params0.shape[0] != len(bounds_full):
+            raise ValueError(f"initial_params has length {params0.shape[0]}, expected {len(bounds_full)}.")
+        params0 = _project_to_bounds(params0, bounds_full)
+        best_fun = _negloglik(params0)
+        best = SimpleNamespace(
+            x=params0,
+            fun=best_fun,
+            success=np.isfinite(best_fun) and best_fun < big_penalty,
+            status=0,
+            message="Evaluated supplied initial_params without re-optimizing.",
+        )
+    else:
+        start_values = []
+        if initial_params is not None:
+            params0 = np.asarray(initial_params, dtype=float)
+            if params0.shape[0] != len(bounds_full):
+                raise ValueError(f"initial_params has length {params0.shape[0]}, expected {len(bounds_full)}.")
+            start_values.append(_project_to_bounds(params0, bounds_full))
+        for _ in range(max(0, int(n_starts))):
+            start_values.append(np.concatenate([_sample_mean(), _sample_vol()]))
+
+        if not start_values:
+            raise ValueError("Set n_starts >= 1 or provide initial_params.")
+
+        for init in start_values:
+            try:
+                opt = minimize(
+                    _negloglik,
+                    init,
+                    method='L-BFGS-B',
+                    bounds=bounds_full,
+                    options={'maxiter': int(maxiter), 'ftol': float(tol)}
+                )
+                if np.isfinite(opt.fun) and opt.fun < best_fun:
+                    best_fun = opt.fun
+                    best = opt
+            except Exception:
+                continue
+
+    if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
+        raise RuntimeError("All starts failed (likely numerical instability).")
+
+    params = np.asarray(best.x, dtype=float)
+    ll = -float(best.fun)
+    AIC = 2 * len(params) - 2 * ll
+    BIC = np.log(N_obs) * len(params) - 2 * ll
+
+    se = np.full(len(params), np.nan, dtype=float)
+    used_ridge = 0.0
+    used_pseudo = False
+    used_opg_fallback = False
+
+    if compute_se:
+        H = approx_hess(params, _negloglik, epsilon=1e-5)
+        H = _sym(H)
+        H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
+
+        scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
+        OPG = scores.T @ scores
+
+        opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
+        if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
+            cov = H_inv.copy()
+            used_opg_fallback = True
+        else:
+            cov = H_inv @ _sym(OPG) @ H_inv
+            used_opg_fallback = False
+
+        cov = _sym(cov)
+        w, V = np.linalg.eigh(cov)
+        w = np.maximum(w, 0.0)
+        cov = (V * w) @ V.T
+        se = np.sqrt(np.diag(cov))
+
+    if compute_se and used_pseudo:
+        print("[warn] Hessian singular; using pseudoinverse for covariance.")
+    elif compute_se and used_ridge > 1e-8:
+        print(f"[warn] Hessian near-singular; used ridge lambda={used_ridge:.1e}.")
+    if compute_se and used_opg_fallback:
+        print("[warn] OPG nearly zero/ill-conditioned; using observed-information inverse for covariance.")
+
+    if print_summary:
+        print("\n" + "-" * 72)
+        print("ID_GARCH (Inflation/Deflation asymmetry)")
+        print("-" * 72)
+        if compute_se:
+            print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+            print("-" * 72)
+            for nm, val, err in zip(names_full, params, se):
+                t = np.nan if err <= 0 else (val / err)
+                print(f"{nm:<18}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        else:
+            print(f"{'Parameter':<18}{'Estimate':>14}")
+            print("-" * 72)
+            for nm, val in zip(names_full, params):
+                print(f"{nm:<18}{val:>14.6f}")
+        print("-" * 72)
+        print(f"{'LogLik':<18}{ll:>14.6f}")
+        print(f"{'AIC':<18}{AIC:>14.6f}")
+        print(f"{'BIC':<18}{BIC:>14.6f}")
+        print("-" * 72)
+
+    return {
+        'opt': best,
+        'params': params,
+        'se': se,
+        'AIC': AIC,
+        'BIC': BIC,
+        'loglik': ll,
+        'names': names_full,
+        'compute_se': bool(compute_se),
     }
 
 
@@ -1553,14 +2378,16 @@ def BEGE_FullGJR_MLE(
     sigma_bounds=(1e-5, 2.0),
     p0n0_bounds=(0.005, 10.0),
     rho_bounds=(1e-5, 0.999),
-    phi_bounds=(1e-5, 1.5),
-    floor_eps=1e-6,             # kept for API compatibility; not used for stability
-    # use_stability_penalty=True, # ignored (no stability checks)
+    phi_bounds=(1e-5, 0.999),
+    floor_eps=1e-6,
     print_summary=True,
     # ---- hard penalty controls ----
     cap_pn=None,                # optional cap; None means no p_t/n_t upper cap
     big_penalty=1e12,           # scalar objective penalty
-    big_vec_penalty=1e6         # per-observation penalty (vector version)
+    big_vec_penalty=1e6,        # per-observation penalty (vector version)
+    compute_se=False,
+    density_hyperu_method='scipy_approx',
+    variance_bound=0.75,
 ):
     """
     BEGE with FULL GJR recursions (separate parameters for p_t and n_t).
@@ -1570,11 +2397,13 @@ def BEGE_FullGJR_MLE(
       [p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigma_p, sigma_n]
 
     Behavior in this version:
-      • No stability checks (use_stability_penalty is ignored).
-      • No p_t/n_t upper cap is applied by default. If cap_pn is provided, values
-        above that cap receive the hard penalty.
-        We return a large penalty (scalar in _negloglik, per-time vector in _ind_negloglik_vec).
-      • Random starts are sampled independently from bounds (no stability filtering).
+      • Stability is enforced for both shape processes:
+        rho + 0.5*(phi_plus + phi_minus) < 1.
+      • The unconditional variance bound
+        sigma_p^2*p0 + sigma_n^2*n0 <= variance_bound is enforced.
+      • No p_t/n_t upper cap is applied by default. If cap_pn is provided,
+        values above that cap receive the hard penalty.
+      • Random starts are sampled from the feasible stability/variance region.
 
     Returns:
       {'opt','params','se','AIC','BIC','loglik','names'}
@@ -1584,14 +2413,8 @@ def BEGE_FullGJR_MLE(
     from statsmodels.tools.numdiff import approx_hess
 
     rng = np.random.default_rng(random_state)
-    Y = np.asarray(Y, dtype=float)
+    Y, X = _align_mean_sample(Y, X)
     N_obs = int(Y.shape[0])
-
-    if X is not None:
-        n = min(len(Y), len(X))
-        Y = Y[:n]
-        X = np.asarray(X, dtype=float)[:n]
-        N_obs = int(n)
 
     # ---------- mean spec ----------
     def _get_mean_spec(Y, mean_type):
@@ -1640,6 +2463,7 @@ def BEGE_FullGJR_MLE(
         return mean_model, num_m, bounds_mean, names_mean, ranges
 
     mean_model, num_m, bounds_mean, names_mean, mean_ranges = _get_mean_spec(Y, mean_type)
+    residual_function = _make_residual_function(Y, X, mean_type)
 
     # ---------- bounds & names ----------
     (sig_lo, sig_hi) = sigma_bounds
@@ -1675,23 +2499,40 @@ def BEGE_FullGJR_MLE(
         phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
         return p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign
 
-    # 1) rho_p + phi_p⁺/2 + phi_p⁻/2 <= 1
+    def _constraints_ok(p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus,
+                        phi_n_plus, phi_n_minus, sigp, sign):
+        vals = np.asarray(
+            [p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus,
+             phi_n_plus, phi_n_minus, sigp, sign],
+            dtype=float,
+        )
+        if not np.all(np.isfinite(vals)):
+            return False
+        if rho_p + 0.5 * (phi_p_plus + phi_p_minus) >= 1.0 - floor_eps:
+            return False
+        if rho_n + 0.5 * (phi_n_plus + phi_n_minus) >= 1.0 - floor_eps:
+            return False
+        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
+            return False
+        return True
+
+    # 1) rho_p + phi_p⁺/2 + phi_p⁻/2 < 1
     def constr_rho_phi_p(theta):
         p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, \
         phi_n_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
-        return 1.0 - (rho_p + 0.5 * (phi_p_plus + phi_p_minus))
+        return 1.0 - floor_eps - (rho_p + 0.5 * (phi_p_plus + phi_p_minus))
 
-    # 2) rho_n + phi_n⁺/2 + phi_n⁻/2 <= 1
+    # 2) rho_n + phi_n⁺/2 + phi_n⁻/2 < 1
     def constr_rho_phi_n(theta):
         p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, \
         phi_n_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
-        return 1.0 - (rho_n + 0.5 * (phi_n_plus + phi_n_minus))
+        return 1.0 - floor_eps - (rho_n + 0.5 * (phi_n_plus + phi_n_minus))
 
-    # 3) unconditional variance: sig_p² p0 + sig_n² n0 <= 0.87
+    # 3) unconditional variance: sig_p² p0 + sig_n² n0 <= variance_bound
     def constr_uncond_var(theta):
         p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, \
         phi_n_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
-        return 0.87 - (sigp**2 * p0 + sign**2 * n0)
+        return variance_bound - (sigp**2 * p0 + sign**2 * n0)
 
     constraints = [
         {'type': 'ineq', 'fun': constr_rho_phi_p},
@@ -1704,8 +2545,13 @@ def BEGE_FullGJR_MLE(
     def _negloglik(theta):
         pm = theta[:num_m]
         p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
+        if not _constraints_ok(
+            p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus,
+            phi_n_plus, phi_n_minus, sigp, sign,
+        ):
+            return float(big_penalty)
 
-        res = mean_model(Y, X, pm)
+        res = residual_function(pm)
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
@@ -1713,7 +2559,10 @@ def BEGE_FullGJR_MLE(
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return float(big_penalty)
 
-        ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
+        ll = BEGE_log_density(
+            res, pseries, nseries, float(sigp), float(sign),
+            hyperu_method=density_hyperu_method,
+        )
         val = -float(np.sum(ll))
         if not np.isfinite(val):
             return float(big_penalty)
@@ -1723,8 +2572,13 @@ def BEGE_FullGJR_MLE(
     def _ind_negloglik_vec(theta):
         pm = theta[:num_m]
         p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
+        if not _constraints_ok(
+            p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus,
+            phi_n_plus, phi_n_minus, sigp, sign,
+        ):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
-        res = mean_model(Y, X, pm)
+        res = residual_function(pm)
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
@@ -1732,7 +2586,10 @@ def BEGE_FullGJR_MLE(
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
-        v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
+        v = -BEGE_log_density(
+            res, pseries, nseries, float(sigp), float(sign),
+            hyperu_method=density_hyperu_method,
+        )
         v = np.asarray(v, float).reshape(-1)
         if v.shape[0] != N_obs:
             v = np.full(N_obs, float(v.ravel()[0]))
@@ -1832,22 +2689,37 @@ def BEGE_FullGJR_MLE(
         p0_lo, p0_hi = p0_bounds
         rho_lo, rho_hi = rho_bounds
         sig_lo, sig_hi = sigma_bounds
+        phi_lo, phi_hi = phi_bounds
+
+        rho_upper = min(rho_hi, 1.0 - floor_eps - phi_lo)
+        if rho_upper <= rho_lo:
+            raise ValueError("rho_bounds and phi_bounds leave no feasible stable Full BEGE starts.")
 
         for _ in range(max_tries):
             # Sample rho parameters
-            rho_p = rng.uniform(rho_lo, rho_hi)
-            rho_n = rng.uniform(rho_lo, rho_hi)
+            rho_p = rng.uniform(rho_lo, rho_upper)
+            rho_n = rng.uniform(rho_lo, rho_upper)
             
             # Sample sigma parameters
             sigp = rng.uniform(sig_lo, sig_hi)
             sign = rng.uniform(sig_lo, sig_hi)
-            
-            # Sample p0, n0
-            p0 = rng.uniform(p0_lo, p0_hi)
-            n0 = rng.uniform(p0_lo, p0_hi)
+
+            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
+            if min_var > variance_bound:
+                continue
+
+            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
+            if p0_upper <= p0_lo:
+                continue
+            p0 = rng.uniform(p0_lo, p0_upper)
+
+            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
+            if n0_upper <= p0_lo:
+                continue
+            n0 = rng.uniform(p0_lo, n0_upper)
 
             # Sample p component phi parameters
-            cap_p = 1.0 - rho_p - floor_eps
+            cap_p = min(0.5 * phi_hi, 1.0 - rho_p - floor_eps)
             if cap_p <= 0:
                 continue
                 
@@ -1867,7 +2739,7 @@ def BEGE_FullGJR_MLE(
                 continue
 
             # Sample n component phi parameters
-            cap_n = 1.0 - rho_n - floor_eps
+            cap_n = min(0.5 * phi_hi, 1.0 - rho_n - floor_eps)
             if cap_n <= 0:
                 continue
                 
@@ -1885,15 +2757,16 @@ def BEGE_FullGJR_MLE(
             if denom_n <= floor_eps:
                 continue
 
-            # All checks passed
-            return np.array([p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, 
-                            phi_n_plus, phi_n_minus, sigp, sign], dtype=float)
+            vals = np.array([p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, 
+                             phi_n_plus, phi_n_minus, sigp, sign], dtype=float)
+            if _constraints_ok(*vals):
+                return vals
 
         # Conservative fallback if repeated failures
         rho_p = 0.5
         rho_n = 0.5
-        sigp = 0.3
-        sign = 0.3
+        sigp = min(max(0.3, sig_lo), sig_hi)
+        sign = min(max(0.3, sig_lo), sig_hi)
         
         # Conservative beta values for p component
         beta_p = 0.25 * (1.0 - rho_p - floor_eps) if (1.0 - rho_p - floor_eps) > 0 else 0.1
@@ -1918,6 +2791,9 @@ def BEGE_FullGJR_MLE(
         n_bar = 1.0
         p0 = float(np.clip(denom_p * p_bar, p0_lo + 1e-8, p0_hi - 1e-8))
         n0 = float(np.clip(denom_n * n_bar, p0_lo + 1e-8, p0_hi - 1e-8))
+        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
+            p0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sigp * sigp)))
+            n0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sign * sign)))
         
         return np.array([p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, 
                         phi_n_plus, phi_n_minus, sigp, sign], dtype=float)
@@ -1943,7 +2819,14 @@ def BEGE_FullGJR_MLE(
                             bounds=bounds_full,
                             constraints=constraints,
                             options={'maxiter': int(maxiter), 'ftol': float(tol)})
-            if np.isfinite(opt.fun) and opt.fun < best_fun:
+            if (
+                np.isfinite(opt.fun)
+                and (
+                    best is None
+                    or (bool(opt.success) and not bool(best.success))
+                    or (bool(opt.success) == bool(best.success) and opt.fun < best_fun)
+                )
+            ):
                 best_fun = opt.fun
                 best = opt
         except Exception:
@@ -1958,45 +2841,58 @@ def BEGE_FullGJR_MLE(
     AIC    = 2*len(params) - 2*ll
     BIC    = np.log(N_obs)*len(params) - 2*ll
 
-    # ---------- SEs ----------
-    H = approx_hess(params, _negloglik, epsilon=1e-5)
-    H = _sym(H)
-    H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
+    se = np.full(len(params), np.nan, dtype=float)
+    used_ridge = 0.0
+    used_pseudo = False
+    used_opg_fallback = False
 
-    scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
-    OPG    = scores.T @ scores
+    if compute_se:
+        # ---------- SEs ----------
+        H = approx_hess(params, _negloglik, epsilon=1e-5)
+        H = _sym(H)
+        H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
 
-    opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
-    if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
-        cov = H_inv.copy()
-        used_opg_fallback = True
-    else:
-        cov = H_inv @ _sym(OPG) @ H_inv
-        used_opg_fallback = False
+        scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
+        OPG    = scores.T @ scores
 
-    cov = _sym(cov)
-    w, V = np.linalg.eigh(cov)
-    w = np.maximum(w, 0.0)
-    cov = (V * w) @ V.T
-    se  = np.sqrt(np.diag(cov))
+        opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
+        if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
+            cov = H_inv.copy()
+            used_opg_fallback = True
+        else:
+            cov = H_inv @ _sym(OPG) @ H_inv
+            used_opg_fallback = False
+
+        cov = _sym(cov)
+        w, V = np.linalg.eigh(cov)
+        w = np.maximum(w, 0.0)
+        cov = (V * w) @ V.T
+        se  = np.sqrt(np.diag(cov))
 
     # ---------- summary ----------
-    if used_pseudo:
+    if compute_se and used_pseudo:
         print("[warn] Hessian singular; using pseudoinverse for covariance.")
-    elif used_ridge > 1e-8:
+    elif compute_se and used_ridge > 1e-8:
         print(f"[warn] Hessian near-singular; used ridge λ={used_ridge:.1e}.")
-    if used_opg_fallback:
+    if compute_se and used_opg_fallback:
         print("[warn] OPG nearly zero/ill-conditioned; using observed-information (H^{-1}) for covariance.")
 
     if print_summary:
         print("\n" + "-"*72)
         print("BEGE (Full GJR: separate p_t and n_t) — hard overflow penalty")
         print("-"*72)
-        print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        if compute_se:
+            print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        else:
+            print(f"{'Parameter':<18}{'Estimate':>14}")
         print("-"*72)
-        for nm, val, err in zip(names_full, params, se):
-            t = np.nan if err <= 0 else (val/err)
-            print(f"{nm:<18}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        if compute_se:
+            for nm, val, err in zip(names_full, params, se):
+                t = np.nan if err <= 0 else (val/err)
+                print(f"{nm:<18}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        else:
+            for nm, val in zip(names_full, params):
+                print(f"{nm:<18}{val:>14.6f}")
         print("-"*72)
         print(f"{'LogLik':<18}{ll:>14.6f}")
         print(f"{'AIC':<18}{AIC:>14.6f}")
@@ -2010,7 +2906,8 @@ def BEGE_FullGJR_MLE(
         'AIC': AIC,
         'BIC': BIC,
         'loglik': ll,
-        'names': names_full
+        'names': names_full,
+        'compute_se': bool(compute_se),
     }
 
 
@@ -2027,7 +2924,10 @@ def BG_GARCH(
     print_summary=True,
     cap_pn=None,
     big_penalty=1e12,
-    big_vec_penalty=1e6
+    big_vec_penalty=1e6,
+    compute_se=False,
+    density_hyperu_method='scipy_approx',
+    variance_bound=0.87,
 ):
     """
     BG_GARCH: Good/Bad volatility with symmetric-in-sign GARCH:
@@ -2043,14 +2943,8 @@ def BG_GARCH(
     from statsmodels.tools.numdiff import approx_hess
 
     rng = np.random.default_rng(random_state)
-    Y = np.asarray(Y, dtype=float)
+    Y, X = _align_mean_sample(Y, X)
     N_obs = int(Y.shape[0])
-
-    if X is not None and not isinstance(X, (dict, pd.DataFrame)):
-        n = min(len(Y), len(X))
-        Y = Y[:n]
-        X = np.asarray(X, dtype=float)[:n]
-        N_obs = int(n)
 
     # ---------- mean spec ----------
     def _get_mean_spec(Y, mean_type):
@@ -2093,6 +2987,7 @@ def BG_GARCH(
         return mean_model, num_m, bounds_mean, names_mean, ranges
 
     mean_model, num_m, bounds_mean, names_mean, mean_ranges = _get_mean_spec(Y, mean_type)
+    residual_function = _make_residual_function(Y, X, mean_type)
 
     # ---------- bounds & names ----------
     (sig_lo, sig_hi) = sigma_bounds
@@ -2120,20 +3015,32 @@ def BG_GARCH(
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = theta[num_m:]
         return p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign
 
-    # rho_p + phi_p <= 1
+    def _constraints_ok(p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign):
+        vals = np.asarray([p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign], dtype=float)
+        if not np.all(np.isfinite(vals)):
+            return False
+        if rho_p + phi_p >= 1.0 - floor_eps:
+            return False
+        if rho_n + phi_n >= 1.0 - floor_eps:
+            return False
+        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
+            return False
+        return True
+
+    # rho_p + phi_p < 1
     def constr_rho_phi_p(theta):
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = _unpack_vol(theta)
-        return 1.0 - (rho_p + phi_p)
+        return 1.0 - floor_eps - (rho_p + phi_p)
 
-    # rho_n + phi_n <= 1
+    # rho_n + phi_n < 1
     def constr_rho_phi_n(theta):
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = _unpack_vol(theta)
-        return 1.0 - (rho_n + phi_n)
+        return 1.0 - floor_eps - (rho_n + phi_n)
 
     # unconditional variance constraint
     def constr_uncond_var(theta):
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = _unpack_vol(theta)
-        return 0.87 - (sigp**2 * p0 + sign**2 * n0)
+        return variance_bound - (sigp**2 * p0 + sign**2 * n0)
 
     constraints = [
         {'type': 'ineq', 'fun': constr_rho_phi_p},
@@ -2145,8 +3052,10 @@ def BG_GARCH(
     def _negloglik(theta):
         pm = theta[:num_m]
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = theta[num_m:]
+        if not _constraints_ok(p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign):
+            return float(big_penalty)
 
-        res = mean_model(Y, X, pm)
+        res = residual_function(pm)
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
 
@@ -2154,7 +3063,10 @@ def BG_GARCH(
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return float(big_penalty)
 
-        ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
+        ll = BEGE_log_density(
+            res, pseries, nseries, float(sigp), float(sign),
+            hyperu_method=density_hyperu_method,
+        )
         val = -float(np.sum(ll))
         if not np.isfinite(val):
             return float(big_penalty)
@@ -2163,8 +3075,10 @@ def BG_GARCH(
     def _ind_negloglik_vec(theta):
         pm = theta[:num_m]
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = theta[num_m:]
+        if not _constraints_ok(p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
-        res = mean_model(Y, X, pm)
+        res = residual_function(pm)
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
 
@@ -2172,7 +3086,10 @@ def BG_GARCH(
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
-        v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
+        v = -BEGE_log_density(
+            res, pseries, nseries, float(sigp), float(sign),
+            hyperu_method=density_hyperu_method,
+        )
         v = np.asarray(v, float).reshape(-1)
         if v.shape[0] != N_obs:
             v = np.full(N_obs, float(v.ravel()[0]))
@@ -2241,31 +3158,59 @@ def BG_GARCH(
         phi_lo, phi_hi = phi_bounds
         sig_lo, sig_hi = sigma_bounds
 
-        for _ in range(200):
+        rho_upper = min(rho_hi, 1.0 - floor_eps - phi_lo)
+        if rho_upper <= rho_lo:
+            raise ValueError("rho_bounds and phi_bounds leave no feasible stable BG-GARCH starts.")
+
+        for _ in range(500):
+            sigp = rng.uniform(sig_lo, sig_hi)
+            sign = rng.uniform(sig_lo, sig_hi)
+            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
+            if min_var > variance_bound:
+                continue
+
+            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
+            if p0_upper <= p0_lo:
+                continue
+            p0 = rng.uniform(p0_lo, p0_upper)
+
+            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
+            if n0_upper <= p0_lo:
+                continue
+            n0 = rng.uniform(p0_lo, n0_upper)
+
             rho_p = rng.uniform(rho_lo, rho_hi)
             rho_n = rng.uniform(rho_lo, rho_hi)
-            # enforce simple stability-ish condition on sampled phi:
-            max_phi_p = max(phi_lo, 1.0 - rho_p - floor_eps)
-            max_phi_n = max(phi_lo, 1.0 - rho_n - floor_eps)
-            max_phi_p = min(max_phi_p, phi_hi)
-            max_phi_n = min(max_phi_n, phi_hi)
+            max_phi_p = min(phi_hi, 1.0 - floor_eps - rho_p)
+            max_phi_n = min(phi_hi, 1.0 - floor_eps - rho_n)
+            if max_phi_p <= phi_lo or max_phi_n <= phi_lo:
+                continue
 
             phi_p = rng.uniform(phi_lo, max_phi_p)
             phi_n = rng.uniform(phi_lo, max_phi_n)
-            sigp  = rng.uniform(sig_lo, sig_hi)
-            sign  = rng.uniform(sig_lo, sig_hi)
-            p0    = rng.uniform(p0_lo, p0_hi)
-            n0    = rng.uniform(p0_lo, p0_hi)
 
-            # light uncond variance screen
-            if sigp**2 * p0 + sign**2 * n0 <= 1.5:  # loose
-                return np.array([p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign], dtype=float)
+            vals = np.array([p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign], dtype=float)
+            if _constraints_ok(*vals):
+                return vals
 
         # fallback
-        return np.array([1.0, 1.0, 0.3, 0.3, 0.4, 0.4, 0.5, 0.5], dtype=float)
+        sig_default = min(max(0.5, sig_lo), sig_hi)
+        p0_default = min(max(0.5, p0_lo), p0_hi)
+        n0_default = min(max(0.5, p0_lo), p0_hi)
+        if sig_default * sig_default * (p0_default + n0_default) > variance_bound:
+            p0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
+            n0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
+        rho_default = min(max(0.3, rho_lo), rho_upper)
+        phi_default = min(0.4, phi_hi, 1.0 - floor_eps - rho_default)
+        phi_default = max(phi_lo, phi_default)
+        return np.array(
+            [p0_default, n0_default, rho_default, rho_default, phi_default, phi_default, sig_default, sig_default],
+            dtype=float,
+        )
 
     # ---------- optimize ----------
     best, best_fun = None, np.inf
+    last_error = None
     for _ in range(int(n_starts)):
         init = np.concatenate([_sample_mean(), _sample_vol()])
         try:
@@ -2280,56 +3225,73 @@ def BG_GARCH(
             if np.isfinite(opt.fun) and opt.fun < best_fun:
                 best_fun = opt.fun
                 best = opt
-        except Exception:
+        except Exception as exc:
+            last_error = exc
             continue
 
     if best is None:
-        raise RuntimeError("All starts failed (likely numerical instability).")
+        detail = ""
+        if last_error is not None:
+            detail = f" Last error: {type(last_error).__name__}: {last_error}"
+        raise RuntimeError(f"All starts failed (likely numerical instability).{detail}")
 
     params = best.x
     ll     = -best.fun
     AIC    = 2*len(params) - 2*ll
     BIC    = np.log(N_obs)*len(params) - 2*ll
 
-    # ---------- SEs ----------
-    H = approx_hess(params, _negloglik, epsilon=1e-5)
-    H = _sym(H)
-    H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
+    se = np.full(len(params), np.nan, dtype=float)
+    used_ridge = 0.0
+    used_pseudo = False
+    used_opg_fallback = False
 
-    scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
-    OPG    = scores.T @ scores
+    if compute_se:
+        # ---------- SEs ----------
+        H = approx_hess(params, _negloglik, epsilon=1e-5)
+        H = _sym(H)
+        H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
 
-    opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
-    if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
-        cov = H_inv.copy()
-        used_opg_fallback = True
-    else:
-        cov = H_inv @ _sym(OPG) @ H_inv
-        used_opg_fallback = False
+        scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
+        OPG    = scores.T @ scores
 
-    cov = _sym(cov)
-    w, V = np.linalg.eigh(cov)
-    w = np.maximum(w, 0.0)
-    cov = (V * w) @ V.T
-    se  = np.sqrt(np.diag(cov))
+        opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
+        if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
+            cov = H_inv.copy()
+            used_opg_fallback = True
+        else:
+            cov = H_inv @ _sym(OPG) @ H_inv
+            used_opg_fallback = False
+
+        cov = _sym(cov)
+        w, V = np.linalg.eigh(cov)
+        w = np.maximum(w, 0.0)
+        cov = (V * w) @ V.T
+        se  = np.sqrt(np.diag(cov))
 
     # ---------- summary ----------
-    if used_pseudo:
+    if compute_se and used_pseudo:
         print("[warn] Hessian singular; using pseudoinverse for covariance.")
-    elif used_ridge > 1e-8:
+    elif compute_se and used_ridge > 1e-8:
         print(f"[warn] Hessian near-singular; used ridge λ={used_ridge:.1e}.")
-    if used_opg_fallback:
+    if compute_se and used_opg_fallback:
         print("[warn] OPG nearly zero/ill-conditioned; using observed-information (H^{-1}) for covariance.")
 
     if print_summary:
         print("\n" + "-"*72)
         print("BG_GARCH (sym-in-sign good/bad volatility)")
         print("-"*72)
-        print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        if compute_se:
+            print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        else:
+            print(f"{'Parameter':<18}{'Estimate':>14}")
         print("-"*72)
-        for nm, val, err in zip(names_full, params, se):
-            t = np.nan if err <= 0 else (val/err)
-            print(f"{nm:<18}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        if compute_se:
+            for nm, val, err in zip(names_full, params, se):
+                t = np.nan if err <= 0 else (val/err)
+                print(f"{nm:<18}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        else:
+            for nm, val in zip(names_full, params):
+                print(f"{nm:<18}{val:>14.6f}")
         print("-"*72)
         print(f"{'LogLik':<18}{ll:>14.6f}")
         print(f"{'AIC':<18}{AIC:>14.6f}")
@@ -2343,14 +3305,15 @@ def BG_GARCH(
         'AIC': AIC,
         'BIC': BIC,
         'loglik': ll,
-        'names': names_full
+        'names': names_full,
+        'compute_se': bool(compute_se),
     }
 
 
 
 
 
-def ID_GARCH(
+def _ID_GARCH_legacy(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
     sigma_bounds=(1e-5, 2.0),

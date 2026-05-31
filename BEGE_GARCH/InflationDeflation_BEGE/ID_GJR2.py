@@ -66,7 +66,7 @@ for i in range(start_iter, 51):  # or 501
             Y=spec["Y"],
             X=spec["X"],
             mean_type=mean_type,
-            n_starts=50,
+            n_starts=25,
             maxiter=500,
             tol=1e-8,
             random_state=i + seed * 10000,

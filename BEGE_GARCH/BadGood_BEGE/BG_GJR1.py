@@ -179,6 +179,9 @@ def run_seed(
     tol: float,
     include_arx22: bool,
     print_summary: bool,
+    density_hyperu_method: str,
+    cap_pn,
+    compute_se: bool,
 ) -> None:
     output_dir = SCRIPT_DIR / "output"
     raw_dir = output_dir / "raw"
@@ -214,6 +217,9 @@ def run_seed(
                     maxiter=maxiter,
                     tol=tol,
                     random_state=rs,
+                    cap_pn=cap_pn,
+                    compute_se=compute_se,
+                    density_hyperu_method=density_hyperu_method,
                     print_summary=print_summary,
                 )
                 row = _result_to_row(result, mean_type=mean_type, draw=draw, seed=seed, random_state=rs)
@@ -233,6 +239,8 @@ def run_seed(
                 }
 
             all_rows.append(row)
+            out_file = raw_dir / f"draw_{seed:03d}.csv"
+            _save_seed_csv(all_rows, out_file)
 
         print(f"Finished mean_type={mean_type}.")
 
@@ -258,6 +266,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print every optimizer summary. Default is quiet row-level logging.",
     )
+    parser.add_argument(
+        "--density-hyperu-method",
+        choices=["scipy_approx", "scipy_fast", "mpmath"],
+        default="scipy_approx",
+        help="BEGE density backend. Default uses the stabilized SciPy/high-precision fallback.",
+    )
+    parser.add_argument(
+        "--cap-pn",
+        type=float,
+        default=None,
+        help="Optional hard cap for p_t and n_t. Default is no shape cap.",
+    )
+    parser.add_argument(
+        "--compute-se",
+        action="store_true",
+        help="Compute robust numerical standard errors. Default skips SEs for fast search.",
+    )
     return parser.parse_args()
 
 
@@ -271,4 +296,7 @@ if __name__ == "__main__":
         tol=args.tol,
         include_arx22=not args.skip_arx22,
         print_summary=args.print_summary,
+        density_hyperu_method=args.density_hyperu_method,
+        cap_pn=args.cap_pn,
+        compute_se=args.compute_se,
     )

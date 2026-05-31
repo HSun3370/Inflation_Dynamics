@@ -9,16 +9,19 @@ PROJECT_ROOT = SCRIPT_DIR.parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from BEGE_GARCH.BEGE_GARCH import BEGE_AsymSharedGJR_MLE
+from BEGE_GARCH.BEGE_GARCH import BEGE_FullGJR_MLE
 from BEGE_GARCH.bege_batch import run_seed_estimation
 
 
-SYMMETRIC_PARAM_NAMES = [
+FULL_PARAM_NAMES = [
     "p0",
     "n0",
-    "rho",
-    "phi_plus",
-    "phi_minus",
+    "rho_p",
+    "rho_n",
+    "phi_p_plus",
+    "phi_p_minus",
+    "phi_n_plus",
+    "phi_n_minus",
     "sigma_p",
     "sigma_n",
 ]
@@ -37,11 +40,11 @@ def run_seed(
     compute_se: bool,
 ) -> None:
     run_seed_estimation(
-        estimator=BEGE_AsymSharedGJR_MLE,
-        model_label="Symmetric BEGE",
+        estimator=BEGE_FullGJR_MLE,
+        model_label="Full BEGE",
         script_dir=SCRIPT_DIR,
         project_root=PROJECT_ROOT,
-        model_param_names=SYMMETRIC_PARAM_NAMES,
+        model_param_names=FULL_PARAM_NAMES,
         seed=seed,
         n_draws=n_draws,
         n_starts=n_starts,
@@ -56,7 +59,7 @@ def run_seed(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Symmetric BEGE-GARCH random-search estimation")
+    parser = argparse.ArgumentParser(description="Full BEGE-GARCH random-search estimation")
     parser.add_argument("--id", type=int, default=1, help="Seed id for job-array style runs")
     parser.add_argument("--n-draws", type=int, default=1, help="Number of random draws per mean specification")
     parser.add_argument("--n-starts", type=int, default=25, help="MLE restarts per draw")

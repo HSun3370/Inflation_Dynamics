@@ -43,4 +43,20 @@ To start the random search of initial mean parameters, I draw uniform samples fr
 | ARX(1,1)  | $(\min \pi_t,\ \max \pi_t)$ | $(-0.999,\ 0.999)$  | ---                 | $(-10,\ 10)$   | ---            |
 | ARX(2,1)  | $(\min \pi_t,\ \max \pi_t)$ | $(-1.999,\ 1.999)$  | $(-0.999,\ 0.999)$  | $(-10,\ 10)$   | ---            |
 | ARX(2,2)  | $(\min \pi_t,\ \max \pi_t)$ | $(-1.999,\ 1.999)$  | $(-0.999,\ 0.999)$  | $(-10,\ 10)$   | $(-10,\ 10)$   |
+
+## Estimation Speed Controls
+
+The BEGE likelihood now uses the fast SciPy route by default through `hyperu_method="scipy_approx"`. This path keeps the vectorized SciPy evaluation for moderate cases but falls back to high-precision evaluation when the hypergeometric-$U$ inputs are in high-shape regions where the asymptotic shortcut is inaccurate. The more aggressive approximation remains available as `hyperu_method="scipy_fast"` for diagnostic timing checks only. Exact high-precision checks can also be forced with `hyperu_method="mpmath"` or the estimator-specific `density_hyperu_method="mpmath"`.
+
+For the multi-start BEGE estimators, robust numerical standard errors are optional through `compute_se`. The default is `compute_se=False` for fast model search; set `compute_se=True` after selecting a preferred specification if standard errors and t-statistics are needed.
+
+## Best-Model Reporting Screen
+
+Raw BEGE search outputs are kept in `results/all_estimations.csv`. For reported
+best-model tables, collectors require finite likelihood criteria, successful
+optimizer convergence, and the canonical shape-path screen
+$\max_t\{p_t,n_t\} < 200$. The companion
+`results/selection_diagnostics.csv` file records the implied persistence,
+minimum scale, maximum shape path, and exclusion reason for each saved
+estimation row.
  

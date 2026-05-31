@@ -49,71 +49,148 @@ def numerical_approximation(x, p, n, sigma_p, sigma_n, n_points=1000):
     return log_likelihood
 
 
-mp.dps = 25
+mp.mp.dps = 25
 
-HYPERU_INTEGER_B_TOL = 1e-6
+HYPERU_TINY = np.finfo(np.float64).tiny
+HYPERU_MPMATH_MAXTERMS = 1000
 
 
-def _log_hyperu_helper_scalar(a, b, z, hyperu_method='scipy'):
+def _log_hyperu_large_z_approximation(a, b, z):
+    return -a * np.log(z) + a * (a + 1 - b) / z
+
+
+def _log_hyperu_small_z_approximation(a, b, z):
+    if b > 1:
+        return loggamma(b - 1) - loggamma(a) + (1 - b) * np.log(z)
+    if b < 1:
+        return loggamma(1 - b) - loggamma(a - b + 1)
+
+    euler_gamma = 0.5772156649015329
+    leading_term = -np.log(z) - digamma(a) - 2 * euler_gamma
+    if leading_term <= 0:
+        return np.nan
+    return np.log(leading_term) - loggamma(a)
+
+
+def _log_hyperu_approximation(a, b, z):
+    if z < 1e-8:
+        return _log_hyperu_small_z_approximation(a, b, z)
+    return _log_hyperu_large_z_approximation(a, b, z)
+
+
+def _log_hyperu_mpmath_scalar(a, b, z):
+    a_mp = mp.mpf(float(a))
+    b_mp = mp.mpf(float(b))
+    z_mp = mp.mpf(float(z))
+    try:
+        result = mp.hyperu(a_mp, b_mp, z_mp, maxterms=HYPERU_MPMATH_MAXTERMS)
+    except Exception:
+        return _log_hyperu_approximation(a, b, z)
+    if result <= 0:
+        return _log_hyperu_approximation(a, b, z)
+    result_log = mp.log(result)
+    if not mp.isfinite(result_log):
+        return _log_hyperu_approximation(a, b, z)
+    return float(result_log)
+
+
+def _log_hyperu_helper_scalar(a, b, z, hyperu_method='scipy_approx'):
     """
     Calculate hypergeometric U function using mpmath for higher precision.
-    Vectorized version that can handle array inputs.
+    Scalar fallback used by the array implementation below.
     """
-    def compute_large_z_approximation():
-        return -a * np.log(z)
-
-    def compute_small_z_approximation():
-        if b > 1:
-            return loggamma(b - 1) - loggamma(a) + (1 - b) * np.log(z)
-        if b < 1:
-            return loggamma(1 - b) - loggamma(a - b + 1)
-
-        euler_gamma = 0.5772156649015329
-        leading_term = -np.log(z) - digamma(a) - 2 * euler_gamma
-        if leading_term <= 0:
-            return np.nan
-        return np.log(leading_term) - loggamma(a)
-
-    def compute_approximation():
-        if z < 1e-8:
-            return compute_small_z_approximation()
-        return compute_large_z_approximation()
-        
-    def compute_with_mpmath():
-        a_mp = mp.mpf(float(a))
-        b_mp = mp.mpf(float(b))
-        z_mp = mp.mpf(float(z))
-        result = mp.hyperu(a_mp, b_mp, z_mp)
-        if result <= 0:
-            return np.nan
-        result_log = mp.log(result)
-        
-        if not mp.isfinite(result_log):
-            return compute_approximation()
-        return float(result_log)
-
-    def compute_with_scipy():
-        result = hyperu(a, b, z)
-        if result <= sys.float_info.min or not np.isfinite(result):
-            try:
-                return compute_with_mpmath()
-            except Exception:
-                return compute_approximation()
-        return np.log(result)
-
     try:
-        near_integer_b = np.isclose(b, np.round(b), rtol=0.0, atol=HYPERU_INTEGER_B_TOL)
-        if hyperu_method == 'mpmath' or b >= 40 or near_integer_b:
-            return compute_with_mpmath()
-        return compute_with_scipy()
+        if hyperu_method == 'mpmath':
+            return _log_hyperu_mpmath_scalar(a, b, z)
+
+        near_integer_b = np.isclose(b, np.round(b), rtol=0.0, atol=1e-6)
+        if hyperu_method == 'scipy_approx' and (a > 50.0 or b >= 40.0 or near_integer_b):
+            return _log_hyperu_mpmath_scalar(a, b, z)
+
+        result = hyperu(a, b, z)
+        if result > HYPERU_TINY and np.isfinite(result):
+            return np.log(result)
+
+        if hyperu_method == 'scipy_fast':
+            return _log_hyperu_approximation(a, b, z)
+
+        return _log_hyperu_mpmath_scalar(a, b, z)
     except Exception:
-        return compute_approximation()
+        return _log_hyperu_approximation(a, b, z)
 
 
-log_hyperu_helper = np.vectorize(_log_hyperu_helper_scalar, otypes=[np.float64])
+def log_hyperu_helper(a, b, z, hyperu_method='scipy_approx'):
+    """
+    Vectorized log U(a, b, z).
+
+    The estimation loop calls this hundreds of thousands of times.  Use SciPy's
+    array implementation first, and only pay for scalar mpmath evaluations on
+    entries where SciPy underflows or returns a non-finite value.
+    """
+    a, b, z = np.broadcast_arrays(
+        np.asarray(a, dtype=np.float64),
+        np.asarray(b, dtype=np.float64),
+        np.asarray(z, dtype=np.float64),
+    )
+    scalar_output = a.ndim == 0
+    out = np.full(a.shape, np.nan, dtype=np.float64)
+    valid = np.isfinite(a) & np.isfinite(b) & np.isfinite(z) & (z > 0)
+
+    if hyperu_method == 'mpmath':
+        flat_a = a.ravel()
+        flat_b = b.ravel()
+        flat_z = z.ravel()
+        flat_out = out.ravel()
+        for idx in np.flatnonzero(valid.ravel()):
+            flat_out[idx] = _log_hyperu_helper_scalar(
+                flat_a[idx], flat_b[idx], flat_z[idx], hyperu_method
+            )
+        return float(out) if scalar_output else out
+
+    valid_idx = np.flatnonzero(valid.ravel())
+    if valid_idx.size:
+        flat_a = a.ravel()
+        flat_b = b.ravel()
+        flat_z = z.ravel()
+        flat_out = out.ravel()
+        scipy_idx = valid_idx
+
+        if hyperu_method == 'scipy_fast':
+            force_approx = (
+                (flat_a[valid_idx] > 50.0)
+                | (flat_b[valid_idx] > 100.0)
+                | (flat_z[valid_idx] > 80.0)
+            )
+            approx_idx = valid_idx[force_approx]
+            for idx in approx_idx:
+                flat_out[idx] = _log_hyperu_approximation(flat_a[idx], flat_b[idx], flat_z[idx])
+            scipy_idx = valid_idx[~force_approx]
+        elif hyperu_method == 'scipy_approx':
+            near_integer_b = np.isclose(flat_b[valid_idx], np.round(flat_b[valid_idx]), rtol=0.0, atol=1e-6)
+            force_mpmath = (flat_a[valid_idx] > 50.0) | (flat_b[valid_idx] >= 40.0) | near_integer_b
+            mpmath_idx = valid_idx[force_mpmath]
+            for idx in mpmath_idx:
+                flat_out[idx] = _log_hyperu_mpmath_scalar(flat_a[idx], flat_b[idx], flat_z[idx])
+            scipy_idx = valid_idx[~force_mpmath]
+
+        try:
+            with np.errstate(divide='ignore', invalid='ignore', over='ignore', under='ignore'):
+                values = hyperu(flat_a[scipy_idx], flat_b[scipy_idx], flat_z[scipy_idx])
+                good = np.isfinite(values) & (values > HYPERU_TINY)
+                flat_out[scipy_idx[good]] = np.log(values[good])
+        except Exception:
+            good = np.zeros(scipy_idx.size, dtype=bool)
+
+        bad_idx = scipy_idx[~good]
+        for idx in bad_idx:
+            flat_out[idx] = _log_hyperu_helper_scalar(
+                flat_a[idx], flat_b[idx], flat_z[idx], hyperu_method
+            )
+
+    return float(out) if scalar_output else out
             
 
-def BEGE_log_density(x, p, n, sigma_p, sigma_n, hyperu_method='scipy'):
+def BEGE_log_density(x, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
     """
     Compute the BEGE log density for a vector of parameters.
 

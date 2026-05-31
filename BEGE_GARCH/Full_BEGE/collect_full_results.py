@@ -11,13 +11,15 @@ if str(PROJECT_ROOT) not in sys.path:
 from BEGE_GARCH.bege_batch import collect_results
 
 
-BG_PARAM_NAMES = [
+FULL_PARAM_NAMES = [
     "p0",
     "n0",
     "rho_p",
     "rho_n",
-    "phi_p",
-    "phi_n",
+    "phi_p_plus",
+    "phi_p_minus",
+    "phi_n_plus",
+    "phi_n_minus",
     "sigma_p",
     "sigma_n",
 ]
@@ -26,9 +28,9 @@ BG_PARAM_NAMES = [
 def main() -> None:
     collect_results(
         script_dir=SCRIPT_DIR,
-        title="BadGood BEGE Best Model Summary",
-        model_param_names=BG_PARAM_NAMES,
-        model_family="badgood",
+        title="Full BEGE Best Model Summary",
+        model_param_names=FULL_PARAM_NAMES,
+        model_family="full",
     )
 
 
