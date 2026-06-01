@@ -20,7 +20,7 @@ except ImportError:
     arch_model = None
     ARX = None
 from scipy.integrate import quad
-from BEGE_GARCH.BEGE_density import *
+from BEGE_GARCH.BEGE_Density.BEGE_density import *
 from joblib import Parallel, delayed
 
 # mean model

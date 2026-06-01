@@ -352,7 +352,7 @@ def _selection_metrics_for_row(
     specs_by_mean: dict[str, dict],
 ) -> dict[str, float]:
     from BEGE_GARCH.BEGE_GARCH import gjr_recursion
-    from BEGE_GARCH.BEGE_density import BEGE_log_density
+    from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
 
     residuals = _mean_residuals_from_row(row, specs_by_mean)
 
@@ -663,7 +663,7 @@ def _row_likelihood_functions(
     big_vec_penalty: float = 1e6,
 ):
     from BEGE_GARCH.BEGE_GARCH import _make_residual_function
-    from BEGE_GARCH.BEGE_density import BEGE_log_density
+    from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
 
     residual_function = _make_residual_function(spec["Y"], spec["X"], mean_type)
     n_obs = int(np.asarray(spec["Y"], dtype=float).shape[0])
