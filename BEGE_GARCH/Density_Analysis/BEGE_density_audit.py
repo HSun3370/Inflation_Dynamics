@@ -13,7 +13,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-PACKAGE_DIR = Path(__file__).resolve().parent
+ANALYSIS_DIR = Path(__file__).resolve().parent
+PACKAGE_DIR = ANALYSIS_DIR.parent
 PROJECT_ROOT = PACKAGE_DIR.parent
 if str(PACKAGE_DIR) not in sys.path:
     sys.path.insert(0, str(PACKAGE_DIR))
@@ -26,45 +27,42 @@ from BEGE_density_Numerical_Integration import loglikedgam_constant as numerical
 DATA_PATH = PROJECT_ROOT / "DataSummary" / "Aggregate_CPI_inflation_Quarterly.pkl"
 REPORT_PATH = PACKAGE_DIR / "BEGE_Density.md"
 
-RANGE_CSV = PACKAGE_DIR / "BEGE_density_shape_ranges.csv"
-REPRESENTATIVE_CSV = PACKAGE_DIR / "BEGE_density_representative_sets.csv"
-ANALYTIC_CSV = PACKAGE_DIR / "BEGE_density_comparison.csv"
-NUMERICAL_CSV = PACKAGE_DIR / "BEGE_density_numerical_grid.csv"
-CONSISTENCY_CSV = PACKAGE_DIR / "BEGE_density_consistency.csv"
+RANGE_CSV = ANALYSIS_DIR / "BEGE_density_shape_ranges.csv"
+REPRESENTATIVE_CSV = ANALYSIS_DIR / "BEGE_density_representative_sets.csv"
+ANALYTIC_CSV = ANALYSIS_DIR / "BEGE_density_comparison.csv"
+NUMERICAL_CSV = ANALYSIS_DIR / "BEGE_density_numerical_grid.csv"
+CONSISTENCY_CSV = ANALYSIS_DIR / "BEGE_density_consistency.csv"
+LLF_TABLE_CSV = ANALYSIS_DIR / "BEGE_density_llf_table.csv"
+SPEED_TABLE_CSV = ANALYSIS_DIR / "BEGE_density_speed_table.csv"
 
-NUMERICAL_FIG = PACKAGE_DIR / "BEGE_Density_numerical_convergence.png"
-CONSISTENCY_FIG = PACKAGE_DIR / "BEGE_Density_shape_consistency.png"
+NUMERICAL_FIG = ANALYSIS_DIR / "BEGE_Density_numerical_convergence.png"
+CONSISTENCY_FIG = ANALYSIS_DIR / "BEGE_Density_shape_consistency.png"
 
-SUPPLIED_REFERENCE = {
-    "set": "provided_reference",
-    "source": "User supplied fixed-shape parameter vector",
-    "p": 2.627875,
-    "n": 0.281123,
-    "sigma_p": 0.285666,
-    "sigma_n": 0.800204,
-}
-
-NUMERICAL_POINTS = [250, 500, 1000, 2500, 5000, 10000, 25000, 50000]
+NUMERICAL_POINTS = [100, 500, 1000, 5000, 10000, 50000]
 CONSISTENCY_VALUES = [
+    0.05,
     0.1,
-    0.281123,
+    0.25,
     0.5,
     1.0,
-    2.627875,
+    2.5,
     5.0,
     10.0,
     25.0,
     50.0,
     100.0,
-    150.0,
-    180.0,
-    190.0,
-    199.0,
     200.0,
     500.0,
     1000.0,
+    2500.0,
+    5000.0,
 ]
 CONSISTENCY_NUMERICAL_POINTS = 5000
+METHOD_COLUMNS = [
+    ("my_function", "My function"),
+    ("justin_function", "Justin function"),
+    *[(f"numerical_{npoints}", f"Numerical {npoints}") for npoints in NUMERICAL_POINTS],
+]
 
 
 def arx11_residuals(data: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
@@ -161,9 +159,6 @@ def _load_estimation_table(results_dir: Path) -> pd.DataFrame:
         "corrected_BIC",
         "selection_eligible",
         "selection_reason",
-        "selection_shape_max",
-        "selection_max_p_t",
-        "selection_max_n_t",
     ]
     diagnostics = diagnostics[[c for c in keep_cols if c in diagnostics.columns]]
     return estimates.merge(diagnostics, on=["seed", "draw", "mean_type"], how="left")
@@ -175,39 +170,16 @@ def _shape_paths_for_row(model: str, row: pd.Series, residuals: np.ndarray) -> t
     if model == "BadGood":
         p_path = gjr_recursion(residuals, row.param_p0, row.param_rho_p, row.param_phi_p, row.param_phi_p, sigma_p)
         n_path = gjr_recursion(residuals, row.param_n0, row.param_rho_n, row.param_phi_n, row.param_phi_n, sigma_n)
-    elif model == "InflationDeflation":
-        p_path = gjr_recursion(residuals, row.param_p0, row.param_rho_p, row.param_phi_p_plus, 0.0, sigma_p)
-        n_path = gjr_recursion(residuals, row.param_n0, row.param_rho_n, 0.0, row.param_phi_n_minus, sigma_n)
-    elif model == "Full":
-        p_path = gjr_recursion(
-            residuals,
-            row.param_p0,
-            row.param_rho_p,
-            row.param_phi_p_plus,
-            row.param_phi_p_minus,
-            sigma_p,
-        )
-        n_path = gjr_recursion(
-            residuals,
-            row.param_n0,
-            row.param_rho_n,
-            row.param_phi_n_plus,
-            row.param_phi_n_minus,
-            sigma_n,
-        )
     else:
         raise ValueError(f"Unknown BEGE model {model}.")
     return p_path, n_path
 
 
-def collect_shape_ranges(residuals: np.ndarray) -> tuple[pd.DataFrame, pd.DataFrame]:
+def collect_shape_ranges(residuals: np.ndarray) -> pd.DataFrame:
     specs = {
         "BadGood": PACKAGE_DIR / "BadGood_BEGE" / "results",
-        "InflationDeflation": PACKAGE_DIR / "InflationDeflation_BEGE" / "results",
-        "Full": PACKAGE_DIR / "Full_BEGE" / "results",
     }
     range_rows = []
-    candidate_rows = []
 
     for model, results_dir in specs.items():
         table = _load_estimation_table(results_dir)
@@ -225,23 +197,6 @@ def collect_shape_ranges(residuals: np.ndarray) -> tuple[pd.DataFrame, pd.DataFr
             p_path, n_path = _shape_paths_for_row(model, row, residuals)
             p_all.append(p_path)
             n_all.append(n_path)
-            candidate_rows.append(
-                {
-                    "model": model,
-                    "seed": int(row["seed"]),
-                    "draw": int(row["draw"]),
-                    "AIC": float(row["corrected_AIC"] if pd.notna(row.get("corrected_AIC", np.nan)) else row["AIC"]),
-                    "loglik": float(row["corrected_loglik"] if pd.notna(row.get("corrected_loglik", np.nan)) else row["loglik"]),
-                    "median_p": float(np.median(p_path)),
-                    "median_n": float(np.median(n_path)),
-                    "q95_p": float(np.quantile(p_path, 0.95)),
-                    "q95_n": float(np.quantile(n_path, 0.95)),
-                    "max_p": float(np.max(p_path)),
-                    "max_n": float(np.max(n_path)),
-                    "sigma_p": float(row["param_sigma_p"]),
-                    "sigma_n": float(row["param_sigma_n"]),
-                }
-            )
 
         if p_all:
             p_all = np.concatenate(p_all)
@@ -250,89 +205,97 @@ def collect_shape_ranges(residuals: np.ndarray) -> tuple[pd.DataFrame, pd.DataFr
             sigma_n = eligible["param_sigma_n"].to_numpy(dtype=float)
             p_summary = quantile_summary(p_all)
             n_summary = quantile_summary(n_all)
-            sp_summary = quantile_summary(sigma_p)
-            sn_summary = quantile_summary(sigma_n)
             range_rows.append(
                 {
                     "model": model,
                     "eligible_ARX11_rows": int(len(eligible)),
-                    "p_min": p_summary["min"],
                     "p_q05": p_summary["q05"],
                     "p_median": p_summary["median"],
                     "p_q95": p_summary["q95"],
-                    "p_max": p_summary["max"],
-                    "n_min": n_summary["min"],
                     "n_q05": n_summary["q05"],
                     "n_median": n_summary["median"],
                     "n_q95": n_summary["q95"],
-                    "n_max": n_summary["max"],
-                    "sigma_p_min": sp_summary["min"],
-                    "sigma_p_q05": sp_summary["q05"],
-                    "sigma_p_median": sp_summary["median"],
-                    "sigma_p_q95": sp_summary["q95"],
-                    "sigma_p_max": sp_summary["max"],
-                    "sigma_n_min": sn_summary["min"],
-                    "sigma_n_q05": sn_summary["q05"],
-                    "sigma_n_median": sn_summary["median"],
-                    "sigma_n_q95": sn_summary["q95"],
-                    "sigma_n_max": sn_summary["max"],
+                    "sigma_p_median": float(np.median(sigma_p)),
+                    "sigma_n_median": float(np.median(sigma_n)),
                 }
             )
 
-    return pd.DataFrame(range_rows), pd.DataFrame(candidate_rows)
+    return pd.DataFrame(range_rows)
 
 
-def representative_sets(range_df: pd.DataFrame, candidate_df: pd.DataFrame) -> pd.DataFrame:
-    rows = [SUPPLIED_REFERENCE.copy()]
+def representative_sets(range_df: pd.DataFrame) -> pd.DataFrame:
+    if range_df.empty:
+        raise ValueError("No BadGood ARX(1,1) range was available for density representative sets.")
 
-    if not range_df.empty:
-        rows.append(
-            {
-                "set": "pooled_median_estimates",
-                "source": "Pooled median over eligible ARX(1,1) BG/ID/Full shape paths",
-                "p": float(np.median(range_df["p_median"])),
-                "n": float(np.median(range_df["n_median"])),
-                "sigma_p": float(np.median(range_df["sigma_p_median"])),
-                "sigma_n": float(np.median(range_df["sigma_n_median"])),
-            }
-        )
+    bg = range_df[range_df["model"] == "BadGood"]
+    if bg.empty:
+        raise ValueError("BadGood range row is required for density representative sets.")
 
-    for model in ["BadGood", "InflationDeflation", "Full"]:
-        sub = candidate_df[candidate_df["model"] == model].sort_values("AIC")
-        if sub.empty:
-            continue
-        row = sub.iloc[0]
-        rows.append(
-            {
-                "set": f"{model}_best_AIC_median_shape",
-                "source": f"{model} eligible ARX(1,1) best AIC row, median recursive shape fixed over time",
-                "p": float(row["median_p"]),
-                "n": float(row["median_n"]),
-                "sigma_p": float(row["sigma_p"]),
-                "sigma_n": float(row["sigma_n"]),
-            }
-        )
+    bg = bg.iloc[0]
+    sigma_p = float(bg["sigma_p_median"])
+    sigma_n = float(bg["sigma_n_median"])
+    p_q05 = float(bg["p_q05"])
+    p_median = float(bg["p_median"])
+    p_q95 = float(bg["p_q95"])
+    n_q05 = float(bg["n_q05"])
+    n_median = float(bg["n_median"])
+    n_q95 = float(bg["n_q95"])
 
-    full = candidate_df[candidate_df["model"] == "Full"].copy()
-    if not full.empty:
-        full["shape_max"] = full[["max_p", "max_n"]].max(axis=1)
-        moderate = full[full["shape_max"] <= 20.0].sort_values("AIC")
-        if not moderate.empty:
-            row = moderate.iloc[0]
-            rows.append(
-                {
-                    "set": "Full_moderate_shape",
-                    "source": "Best Full ARX(1,1) eligible row with max recursive shape <= 20",
-                    "p": float(row["median_p"]),
-                    "n": float(row["median_n"]),
-                    "sigma_p": float(row["sigma_p"]),
-                    "sigma_n": float(row["sigma_n"]),
-                }
-            )
+    rows = [
+        {
+            "set": "p q05, n median",
+            "p": p_q05,
+            "n": n_median,
+            "sigma_p": sigma_p,
+            "sigma_n": sigma_n,
+        },
+        {
+            "set": "p median, n median",
+            "p": p_median,
+            "n": n_median,
+            "sigma_p": sigma_p,
+            "sigma_n": sigma_n,
+        },
+        {
+            "set": "p q95, n median",
+            "p": p_q95,
+            "n": n_median,
+            "sigma_p": sigma_p,
+            "sigma_n": sigma_n,
+        },
+        {
+            "set": "p median, n q05",
+            "p": p_median,
+            "n": n_q05,
+            "sigma_p": sigma_p,
+            "sigma_n": sigma_n,
+        },
+        {
+            "set": "p median, n q95",
+            "p": p_median,
+            "n": n_q95,
+            "sigma_p": sigma_p,
+            "sigma_n": sigma_n,
+        },
+    ]
+    return pd.DataFrame(rows)
 
-    reps = pd.DataFrame(rows)
-    reps = reps.drop_duplicates(subset=["set"], keep="first").reset_index(drop=True)
-    return reps
+
+def median_badgood_parameters(range_df: pd.DataFrame) -> dict[str, float]:
+    if range_df.empty:
+        raise ValueError("No BadGood ARX(1,1) range was available for tail consistency.")
+
+    bg = range_df[range_df["model"] == "BadGood"]
+    if bg.empty:
+        raise ValueError("BadGood range row is required for tail consistency.")
+
+    bg = bg.iloc[0]
+    return {
+        "p": float(bg["p_median"]),
+        "n": float(bg["n_median"]),
+        "sigma_p": float(bg["sigma_p_median"]),
+        "sigma_n": float(bg["sigma_n_median"]),
+    }
 
 
 def compare_density_methods(residuals: np.ndarray, reps: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -393,11 +356,44 @@ def compare_density_methods(residuals: np.ndarray, reps: pd.DataFrame) -> tuple[
     return pd.DataFrame(analytic_rows), pd.DataFrame(numerical_rows)
 
 
-def run_consistency(residuals: np.ndarray) -> pd.DataFrame:
+def wide_method_tables(analytic_df: pd.DataFrame, numerical_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    llf_rows = []
+    speed_rows = []
+
+    for _, analytic in analytic_df.iterrows():
+        set_name = analytic["set"]
+        numerical = numerical_df[numerical_df["set"] == set_name].set_index("npoints")
+        llf_row = {
+            "set": set_name,
+            "my_function": float(analytic["my_loglik"]),
+            "justin_function": float(analytic["justin_loglik"]),
+        }
+        speed_row = {
+            "set": set_name,
+            "my_function": float(analytic["my_seconds"]),
+            "justin_function": float(analytic["justin_seconds"]),
+        }
+
+        for npoints in NUMERICAL_POINTS:
+            col = f"numerical_{npoints}"
+            if npoints in numerical.index:
+                llf_row[col] = float(numerical.loc[npoints, "numerical_loglik"])
+                speed_row[col] = float(numerical.loc[npoints, "numerical_seconds"])
+            else:
+                llf_row[col] = np.nan
+                speed_row[col] = np.nan
+
+        llf_rows.append(llf_row)
+        speed_rows.append(speed_row)
+
+    return pd.DataFrame(llf_rows), pd.DataFrame(speed_rows)
+
+
+def run_consistency(residuals: np.ndarray, base: dict[str, float]) -> pd.DataFrame:
     rows = []
-    base = SUPPLIED_REFERENCE
     for vary in ["p", "n"]:
-        for value in CONSISTENCY_VALUES:
+        values = np.unique(np.r_[np.asarray(CONSISTENCY_VALUES, dtype=np.float64), float(base[vary])])
+        for value in values:
             p = float(base["p"])
             n = float(base["n"])
             if vary == "p":
@@ -510,9 +506,9 @@ def write_report(
     residual_summary: dict[str, float],
     range_df: pd.DataFrame,
     reps: pd.DataFrame,
-    analytic_df: pd.DataFrame,
-    numerical_df: pd.DataFrame,
-    consistency_df: pd.DataFrame,
+    llf_df: pd.DataFrame,
+    speed_df: pd.DataFrame,
+    consistency_base: dict[str, float],
 ) -> None:
     residual_rows = pd.DataFrame(
         [
@@ -538,66 +534,30 @@ def write_report(
             "p_q05",
             "p_median",
             "p_q95",
-            "p_max",
             "n_q05",
             "n_median",
             "n_q95",
-            "n_max",
             "sigma_p_median",
             "sigma_n_median",
         ]
     ].copy()
 
-    analytic_report = analytic_df[
-        [
-            "set",
-            "my_loglik",
-            "justin_loglik",
-            "my_minus_justin",
-            "my_seconds",
-            "justin_seconds",
-            "speedup_vs_justin",
-            "my_bad_obs",
-            "justin_bad_obs",
+    method_columns = ["set"] + [col for col, _ in METHOD_COLUMNS]
+    method_labels = ["Parameter set"] + [label for _, label in METHOD_COLUMNS]
+    figure_path = NUMERICAL_FIG.relative_to(PACKAGE_DIR).as_posix()
+    consistency_figure_path = CONSISTENCY_FIG.relative_to(PACKAGE_DIR).as_posix()
+    artifact_paths = [
+        path.relative_to(PACKAGE_DIR).as_posix()
+        for path in [
+            RANGE_CSV,
+            REPRESENTATIVE_CSV,
+            ANALYTIC_CSV,
+            NUMERICAL_CSV,
+            LLF_TABLE_CSV,
+            SPEED_TABLE_CSV,
+            CONSISTENCY_CSV,
         ]
-    ].copy()
-
-    final_grid = numerical_df[numerical_df["npoints"] == max(NUMERICAL_POINTS)].copy()
-    final_grid = final_grid[
-        [
-            "set",
-            "npoints",
-            "numerical_loglik",
-            "numerical_minus_justin",
-            "numerical_minus_my",
-            "numerical_seconds",
-            "numerical_bad_obs",
-        ]
-    ].copy()
-
-    numerical_grid_report = numerical_df[
-        [
-            "set",
-            "npoints",
-            "numerical_loglik",
-            "numerical_minus_justin",
-            "numerical_minus_my",
-            "numerical_seconds",
-            "numerical_bad_obs",
-        ]
-    ].copy()
-
-    consistency_report = consistency_df[
-        [
-            "vary",
-            "value",
-            "my_loglik",
-            "justin_loglik",
-            "numerical_loglik",
-            "my_minus_justin",
-            "numerical_minus_justin",
-        ]
-    ].copy()
+    ]
 
     lines = [
         "```{raw:typst}",
@@ -630,7 +590,7 @@ def write_report(
         "",
         "## Shape Parameter Range From Previous BEGE Runs",
         "",
-        "The range below uses eligible ARX(1,1) rows from BadGood, InflationDeflation, and Full BEGE results. For each saved parameter vector I recomputed the recursive shape paths on the common ARX(1,1) residuals, then summarized all observations and all eligible rows. The density comparison itself keeps the selected shape values constant across time.",
+        "The range below uses eligible ARX(1,1) rows from the BadGood BEGE results only. For each saved parameter vector I recomputed the recursive shape paths on the common ARX(1,1) residuals, then summarized all observations and all eligible rows. The density comparison itself keeps the selected shape values constant across time.",
         "",
         markdown_table(
             range_report,
@@ -640,11 +600,9 @@ def write_report(
                 "p_q05",
                 "p_median",
                 "p_q95",
-                "p_max",
                 "n_q05",
                 "n_median",
                 "n_q95",
-                "n_max",
                 "sigma_p_median",
                 "sigma_n_median",
             ],
@@ -654,120 +612,63 @@ def write_report(
                 "p q05",
                 "p median",
                 "p q95",
-                "p max",
                 "n q05",
                 "n median",
                 "n q95",
-                "n max",
                 "sigma_p med",
                 "sigma_n med",
             ],
             {c: 4 for c in range_report.columns},
         ),
         "",
-        "## Representative Fixed-Shape Parameter Sets",
+        "## Fixed-Shape Parameter Sets",
+        "",
+        "The log likelihood and timing comparison uses the following five BadGood-based parameter sets. In each row, `sigma_p` and `sigma_n` are held at their BadGood medians.",
         "",
         markdown_table(
             reps,
-            ["set", "p", "n", "sigma_p", "sigma_n", "source"],
-            ["Set", "p", "n", "sigma_p", "sigma_n", "Source"],
+            ["set", "p", "n", "sigma_p", "sigma_n"],
+            ["Set", "p", "n", "sigma_p", "sigma_n"],
             {"p": 6, "n": 6, "sigma_p": 6, "sigma_n": 6},
         ),
         "",
-        "## Analytic Density Speed And Accuracy",
+        "## Log Likelihood Comparison",
         "",
-        "`BEGE_density.py` is the current implementation. `BEGE_density_Justin.py` is Justin's analytic formula, with only import/broadcasting fixes so it can be evaluated on a residual vector. Justin's formula is a good cross-check at ordinary shape values, but the direct hypergeometric expression can become numerically unreliable in the high-shape/tiny-scale region.",
-        "",
-        markdown_table(
-            analytic_report,
-            [
-                "set",
-                "my_loglik",
-                "justin_loglik",
-                "my_minus_justin",
-                "my_seconds",
-                "justin_seconds",
-                "speedup_vs_justin",
-                "my_bad_obs",
-                "justin_bad_obs",
-            ],
-            [
-                "Set",
-                "My LL",
-                "Justin LL",
-                "My - Justin",
-                "My sec",
-                "Justin sec",
-                "Speedup",
-                "My bad obs",
-                "Justin bad obs",
-            ],
-            {
-                "my_loglik": 6,
-                "justin_loglik": 6,
-                "my_minus_justin": 6,
-                "my_seconds": 4,
-                "justin_seconds": 4,
-                "speedup_vs_justin": 2,
-            },
-        ),
-        "",
-        "## Numerical Integration At 50,000 Grid Points",
-        "",
-        "The numerical integration function is `BEGE_density_Numerical_Integration.py::loglikedgam_constant`. It is much slower and uses a finite-difference CDF approximation with internal density clipping, so it should be read as a convergence diagnostic rather than the optimizer backend.",
+        "`BEGE_density.py` is the current implementation. `BEGE_density_Justin.py` is Justin's analytic formula, and the numerical columns use `BEGE_density_Numerical_Integration.py::loglikedgam_constant` at the stated grid size.",
         "",
         markdown_table(
-            final_grid,
-            ["set", "npoints", "numerical_loglik", "numerical_minus_justin", "numerical_minus_my", "numerical_seconds", "numerical_bad_obs"],
-            ["Set", "npoints", "Numerical LL", "Numerical - Justin", "Numerical - My", "Seconds", "Bad obs"],
-            {"numerical_loglik": 6, "numerical_minus_justin": 6, "numerical_minus_my": 6, "numerical_seconds": 4},
+            llf_df,
+            method_columns,
+            method_labels,
+            {col: 6 for col in method_columns if col != "set"},
         ),
         "",
-        "## Numerical Grid Comparison",
+        "## Evaluation Speed Comparison",
         "",
         markdown_table(
-            numerical_grid_report,
-            ["set", "npoints", "numerical_loglik", "numerical_minus_justin", "numerical_minus_my", "numerical_seconds", "numerical_bad_obs"],
-            ["Set", "npoints", "Numerical LL", "Numerical - Justin", "Numerical - My", "Seconds", "Bad obs"],
-            {"numerical_loglik": 6, "numerical_minus_justin": 6, "numerical_minus_my": 6, "numerical_seconds": 4},
+            speed_df,
+            method_columns,
+            method_labels,
+            {col: 4 for col in method_columns if col != "set"},
         ),
         "",
-        f"![Numerical integration convergence]({NUMERICAL_FIG.name})",
+        f"![Numerical integration convergence]({figure_path})",
         "",
         "## Shape Tail Consistency",
         "",
-        "Holding all other parameters at the supplied reference values, I varied only one shape parameter at a time. With `sigma_p` and `sigma_n` fixed, the BEGE variance grows with the shape level (`p sigma_p^2 + n sigma_n^2`), so the log likelihood is not expected to converge to a finite constant as a shape goes to infinity. The practical diagnostic is that it should not jump to artificial huge positive values. The current implementation now switches to the saddlepoint backend at shape values of 180 or larger.",
+        f"Holding the other parameters at the BadGood medians (`p={consistency_base['p']:.4f}`, `n={consistency_base['n']:.4f}`, `sigma_p={consistency_base['sigma_p']:.4f}`, `sigma_n={consistency_base['sigma_n']:.4f}`), I vary either `p` or `n` up to 5000 and compare the three density functions. The numerical integration line uses {CONSISTENCY_NUMERICAL_POINTS:,} grid points.",
         "",
-        markdown_table(
-            consistency_report,
-            ["vary", "value", "my_loglik", "justin_loglik", "numerical_loglik", "my_minus_justin", "numerical_minus_justin"],
-            ["Varied", "Value", "My LL", "Justin LL", "Numerical LL", "My - Justin", "Numerical - Justin"],
-            {
-                "value": 6,
-                "my_loglik": 6,
-                "justin_loglik": 6,
-                "numerical_loglik": 6,
-                "my_minus_justin": 6,
-                "numerical_minus_justin": 6,
-            },
-        ),
-        "",
-        f"![Shape consistency]({CONSISTENCY_FIG.name})",
+        f"![Shape consistency]({consistency_figure_path})",
         "",
         "## Findings",
         "",
-        "- The current `BEGE_density.py` and Justin analytic density agree to numerical precision for ordinary shape values. In the high-shape/tiny-scale stress case, Justin's direct hypergeometric expression is numerically unstable, while the current saddlepoint backend stays finite and much closer to the numerical integration diagnostic.",
-        "- The previous import/broadcast issues in `BEGE_density_Justin.py` are fixed, so Justin's analytic function now evaluates scalar fixed-shape parameters over the full residual vector.",
-        "- The numerical integration function is useful as a convergence diagnostic, but it is slow and can remain materially away from the analytic density even at large grid sizes for asymmetric or high-shape parameter sets.",
-        "- The large-shape diagnostics do not show the current density creating insane positive likelihoods. Lowering the saddlepoint handoff to 180 catches the near-cap region where direct hypergeometric evaluation can produce artificial likelihood improvements.",
+        "- BadGood quantiles provide the fixed-shape examples used in the likelihood and timing tables.",
+        "- The numerical integration function is useful as a convergence diagnostic, but it is much slower than the analytic functions and remains grid-sensitive.",
+        "- The shape-tail plot varies one shape parameter at a time while holding the other shape and both scale parameters at the BadGood medians.",
         "",
         "Generated audit files:",
         "",
-        f"- `{RANGE_CSV.name}`",
-        f"- `{REPRESENTATIVE_CSV.name}`",
-        f"- `{ANALYTIC_CSV.name}`",
-        f"- `{NUMERICAL_CSV.name}`",
-        f"- `{CONSISTENCY_CSV.name}`",
+        *[f"- `{path}`" for path in artifact_paths],
         "",
     ]
     REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
@@ -776,20 +677,32 @@ def write_report(
 def run_audit():
     data = pd.read_pickle(DATA_PATH)
     residuals, _, residual_summary = arx11_residuals(data)
-    range_df, candidate_df = collect_shape_ranges(residuals)
-    reps = representative_sets(range_df, candidate_df)
+    range_df = collect_shape_ranges(residuals)
+    reps = representative_sets(range_df)
     analytic_df, numerical_df = compare_density_methods(residuals, reps)
-    consistency_df = run_consistency(residuals)
+    llf_df, speed_df = wide_method_tables(analytic_df, numerical_df)
+    consistency_base = median_badgood_parameters(range_df)
+    consistency_df = run_consistency(residuals, consistency_base)
 
     range_df.to_csv(RANGE_CSV, index=False)
     reps.to_csv(REPRESENTATIVE_CSV, index=False)
     analytic_df.to_csv(ANALYTIC_CSV, index=False)
     numerical_df.to_csv(NUMERICAL_CSV, index=False)
+    llf_df.to_csv(LLF_TABLE_CSV, index=False)
+    speed_df.to_csv(SPEED_TABLE_CSV, index=False)
     consistency_df.to_csv(CONSISTENCY_CSV, index=False)
 
     write_figures(numerical_df, consistency_df)
-    write_report(data, residual_summary, range_df, reps, analytic_df, numerical_df, consistency_df)
-    return range_df, reps, analytic_df, numerical_df, consistency_df
+    write_report(
+        data,
+        residual_summary,
+        range_df,
+        reps,
+        llf_df,
+        speed_df,
+        consistency_base,
+    )
+    return range_df, reps, analytic_df, numerical_df, llf_df, speed_df, consistency_df
 
 
 if __name__ == "__main__":
@@ -799,4 +712,6 @@ if __name__ == "__main__":
     print(f"Wrote {REPRESENTATIVE_CSV}")
     print(f"Wrote {ANALYTIC_CSV}")
     print(f"Wrote {NUMERICAL_CSV}")
+    print(f"Wrote {LLF_TABLE_CSV}")
+    print(f"Wrote {SPEED_TABLE_CSV}")
     print(f"Wrote {CONSISTENCY_CSV}")

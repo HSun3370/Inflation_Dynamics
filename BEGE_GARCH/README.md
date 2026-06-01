@@ -22,7 +22,7 @@ I computed the sum of log-likelihood using two approaches:
 
 The old numerical method was evaluated over a wide range of grid resolutions (up to $50{,}000$ points), and the resulting log-likelihood sums were plotted alongside the benchmark value computed from Justin's code.
 
-![BEGE LLF Comparison](BEGELLF_comparison.png)
+![BEGE LLF Comparison](Density_Analysis/BEGELLF_comparison.png)
 
 **Findings:**
 
