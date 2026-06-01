@@ -351,6 +351,92 @@ def gjr_recursion(resids, params, sigma):
     return _gjr_recursion_numba_core(r, float(cont), float(rho), float(phi_p), float(phi_n), float(sigma))
 
 
+BEGE_VARIANCE_EWMA_LAMBDA = 0.94
+BEGE_VARIANCE_EWMA_TAU = 75
+
+
+def bege_implied_variance(pseries, nseries, sigma_p, sigma_n):
+    pseries = np.asarray(pseries, dtype=float)
+    nseries = np.asarray(nseries, dtype=float)
+    return float(sigma_p) * float(sigma_p) * pseries + float(sigma_n) * float(sigma_n) * nseries
+
+
+def bege_variance_bounds(
+    resids,
+    lam=BEGE_VARIANCE_EWMA_LAMBDA,
+    tau=BEGE_VARIANCE_EWMA_TAU,
+):
+    """
+    Arch-style EWMA variance bounds used to screen BEGE implied variance paths.
+    """
+    r = np.asarray(resids, dtype=float).reshape(-1)
+    if r.size == 0:
+        raise ValueError("resids must contain at least one observation.")
+    if not np.all(np.isfinite(r)):
+        raise ValueError("resids must be finite to compute variance bounds.")
+
+    sq = r * r
+    n_obs = r.size
+    tau_eff = int(min(max(1, tau), n_obs))
+    weights = float(lam) ** np.arange(tau_eff, dtype=float)
+    weights = weights / np.sum(weights)
+
+    initial_value = float(np.dot(weights, sq[:tau_eff]))
+    sample_var = float(np.var(r))
+    tiny = np.finfo(float).tiny
+    if (not np.isfinite(initial_value)) or initial_value <= 0.0:
+        initial_value = sample_var if sample_var > 0.0 else tiny
+
+    ewma = np.empty(n_obs, dtype=float)
+    ewma[0] = max(initial_value, tiny)
+    one_minus_lam = 1.0 - float(lam)
+    for t in range(1, n_obs):
+        ewma[t] = float(lam) * ewma[t - 1] + one_minus_lam * sq[t - 1]
+        if (not np.isfinite(ewma[t])) or ewma[t] <= 0.0:
+            ewma[t] = tiny
+
+    max_resid_sq = float(np.max(sq))
+    lower_floor = sample_var / 1e8
+    upper_cap = 1e7 * (1.0 + max_resid_sq)
+    min_upper = 1.0 + max_resid_sq
+
+    lower = np.maximum(ewma / 1e6, lower_floor)
+    upper = np.minimum(ewma * 1e6, upper_cap)
+    upper = np.maximum(upper, min_upper)
+    upper = np.maximum(upper, lower)
+    return lower, upper, ewma
+
+
+def bege_variance_bounds_ok(
+    resids,
+    pseries,
+    nseries,
+    sigma_p,
+    sigma_n,
+    *,
+    return_details=False,
+):
+    lower, upper, ewma = bege_variance_bounds(resids)
+    cond_var = bege_implied_variance(pseries, nseries, sigma_p, sigma_n)
+    finite = (
+        np.all(np.isfinite(cond_var))
+        and np.all(np.isfinite(lower))
+        and np.all(np.isfinite(upper))
+    )
+    ok = bool(finite and np.all(cond_var >= lower) and np.all(cond_var <= upper))
+    if not return_details:
+        return ok
+    return {
+        "ok": ok,
+        "cond_var": cond_var,
+        "lower": lower,
+        "upper": upper,
+        "ewma": ewma,
+        "min_margin": float(np.min(cond_var - lower)) if finite else np.nan,
+        "max_margin": float(np.min(upper - cond_var)) if finite else np.nan,
+    }
+
+
  
 
 def loglikedgam_constant(resids, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
@@ -1019,7 +1105,8 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
 
 def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
                       n_starts=20, maxiter=1500, tol=1e-8, random_state=None,
-                      compute_se=False, density_hyperu_method='scipy_approx'):
+                      compute_se=False, density_hyperu_method='scipy_approx',
+                      enforce_variance_bounds=True):
     """
     BEGE GARCH MLE with random initialization.
     Mean params drawn from manually set ranges (last estimation results).
@@ -1029,6 +1116,8 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
     rng = np.random.default_rng(random_state)
     Y, X = _align_mean_sample(Y, X)
     N = len(Y)
+    big_penalty = 1e12
+    big_vec_penalty = 1e6
     if n_starts < 1:
         raise ValueError("n_starts must be >= 1.")
 
@@ -1088,14 +1177,23 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         pm = params[:num_m]
         p, n, tp, tn = params[num_m:]
         resid = residual_function(pm)
-        return -np.sum(loglikedgam_constant(
+        pseries = np.full_like(resid, float(p), dtype=float)
+        nseries = np.full_like(resid, float(n), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(resid, pseries, nseries, tp, tn):
+            return float(big_penalty)
+        val = -float(np.sum(loglikedgam_constant(
             resid, p, n, tp, tn, hyperu_method=density_hyperu_method,
-        ))
+        )))
+        return val if np.isfinite(val) else float(big_penalty)
 
     def ind_loglik(params):
         pm = params[:num_m]
         p, n, tp, tn = params[num_m:]
         resid = residual_function(pm)
+        pseries = np.full_like(resid, float(p), dtype=float)
+        nseries = np.full_like(resid, float(n), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(resid, pseries, nseries, tp, tn):
+            return np.full(N, float(big_vec_penalty), dtype=float)
         return -loglikedgam_constant(
             resid, p, n, tp, tn, hyperu_method=density_hyperu_method,
         )
@@ -1123,7 +1221,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
             best_fun = opt.fun
             best_opt = opt
 
-    if best_opt is None:
+    if best_opt is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
         raise RuntimeError("All optimization runs failed to produce finite objective values.")
 
     # -------- 6) Post-estimation --------
@@ -1175,7 +1273,8 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
 
 def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
                        n_starts=20, maxiter=500, tol=1e-8, random_state=None,
-                       compute_se=False, density_hyperu_method='scipy_approx'):
+                       compute_se=False, density_hyperu_method='scipy_approx',
+                       enforce_variance_bounds=True):
     """
     Symmetric-volatility BEGE MLE (multi-start, no explicit constraints).
     - One shared GJR shape process s_t for BOTH p_t and n_t (symmetry).
@@ -1191,6 +1290,8 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
     rng = np.random.default_rng(random_state)
     Y, X = _align_mean_sample(Y, X)
     N = len(Y)
+    big_penalty = 1e12
+    big_vec_penalty = 1e6
 
     # ---------- 1) Mean model selection & ranges (copied from your MLE style) ----------
     if mean_type == 'constant':
@@ -1234,10 +1335,10 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
     # Keep broad but sane bounds; no explicit constraints, but avoid blow-ups via a soft penalty.
     # (cont_s, rho_s, phi_p, phi_n, sigma)
     sym_bounds = [
-        (0.05, 10),          # cont_s
-        (1e-5, 0.999),         # rho_s
-        (1e-5, 1.999),         # phi_p
-        (1e-5, 1.999),         # phi_n
+        (0.0, 10),             # cont_s
+        (0.0, 1.0),            # rho_s
+        (0.0, 2.0),            # phi_p
+        (0.0, 2.0),            # phi_n
         (1e-5, 2),  # sigma (shared tp=tn)
     ]
     names_sym = ['Sym Cont', 'Sym AR(1)', 'Sym phi⁺', 'Sym phi⁻', 'Shared sigma']
@@ -1265,26 +1366,37 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         cont, rho, phi_p, phi_n, sigma = params[num_m:]
         # soft penalty to skip explosive regions without formal constraints
         if not _stable_tuple(cont, rho, phi_p, phi_n):
-            return 1e12
+            return float(big_penalty)
 
         resid = residual_function(pm)
         sseries = gjr_recursion(resid, (cont, rho, phi_p, phi_n), sigma)  # your function
+        if (
+            not np.all(np.isfinite(sseries))
+            or (enforce_variance_bounds and not bege_variance_bounds_ok(resid, sseries, sseries, sigma, sigma))
+        ):
+            return float(big_penalty)
         # symmetric: p_t = n_t = s_t, tp = tn = sigma
         ll = BEGE_log_density(
             resid, sseries, sseries, sigma, sigma,
             hyperu_method=density_hyperu_method,
         )
         # negative total log-likelihood
-        return -np.sum(ll)
+        val = -float(np.sum(ll))
+        return val if np.isfinite(val) else float(big_penalty)
 
     def ind_loglik(params):
         pm = params[:num_m]
         cont, rho, phi_p, phi_n, sigma = params[num_m:]
         if not _stable_tuple(cont, rho, phi_p, phi_n):
             # return a large vector so OPG stays finite
-            return np.full(N, 1e6, dtype=float)
+            return np.full(N, float(big_vec_penalty), dtype=float)
         resid = residual_function(pm)
         sseries = gjr_recursion(resid, (cont, rho, phi_p, phi_n), sigma)
+        if (
+            not np.all(np.isfinite(sseries))
+            or (enforce_variance_bounds and not bege_variance_bounds_ok(resid, sseries, sseries, sigma, sigma))
+        ):
+            return np.full(N, float(big_vec_penalty), dtype=float)
         return -BEGE_log_density(
             resid, sseries, sseries, sigma, sigma,
             hyperu_method=density_hyperu_method,
@@ -1316,6 +1428,9 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         if opt.fun < best_fun:
             best_fun = opt.fun
             best_opt = opt
+
+    if best_opt is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
+        raise RuntimeError("All starts failed (likely numerical instability or variance-bound rejection).")
 
     # ---------- 6) Post-estimation ----------
     params = best_opt.x
@@ -1365,9 +1480,9 @@ def BEGE_AsymSharedGJR_MLE(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
     sigma_bounds=(1e-5, 2.0),
-    p0n0_bounds=(0.005, 10.0),
-    rho_bounds=(1e-5, 0.999),
-    phi_bounds=(1e-5, 0.999),  # kept for optimizer bounds; sampling ignores these for phis (see below)
+    p0n0_bounds=(0.0, 10.0),
+    rho_bounds=(0.0, 1.0),
+    phi_bounds=(0.0, 2.0),  # kept for optimizer bounds; sampling ignores these for phis (see below)
     floor_eps=1e-6,
     print_summary=True,
     cap_pn=None,
@@ -1376,6 +1491,7 @@ def BEGE_AsymSharedGJR_MLE(
     compute_se=False,
     density_hyperu_method='scipy_approx',
     variance_bound=0.87,
+    enforce_variance_bounds=True,
 ):
     """
     BEGE with asymmetric constants and scales, shared GJR coefficients.
@@ -1508,6 +1624,8 @@ def BEGE_AsymSharedGJR_MLE(
         if (exceeds_cap or not np.all(np.isfinite(pseries)) or
             not np.all(np.isfinite(nseries))):
             return float(big_penalty)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return float(big_penalty)
 
         ll = BEGE_log_density(
             res, pseries, nseries, float(sigp), float(sign),
@@ -1535,6 +1653,8 @@ def BEGE_AsymSharedGJR_MLE(
         exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
         if (exceeds_cap or not np.all(np.isfinite(pseries)) or
             not np.all(np.isfinite(nseries))):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(
@@ -1716,7 +1836,7 @@ def BEGE_AsymSharedGJR_MLE(
             best_fun = opt.fun
             best = opt
 
-    if best is None:
+    if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
         raise RuntimeError("All starts failed (likely numerical instability).")
 
     params = best.x
@@ -1816,9 +1936,9 @@ def ID_GARCH(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
     sigma_bounds=(1e-5, 2.0),
-    p0n0_bounds=(0.005, 10.0),
-    rho_bounds=(1e-5, 0.999),
-    phi_bounds=(1e-5, 1.5),
+    p0n0_bounds=(0.0, 10.0),
+    rho_bounds=(0.0, 1.0),
+    phi_bounds=(0.0, 2.0),
     floor_eps=1e-6,
     print_summary=True,
     compute_se=False,
@@ -1828,7 +1948,8 @@ def ID_GARCH(
     variance_bound=0.87,
     density_hyperu_method='scipy_approx',
     big_penalty=1e12,
-    big_vec_penalty=1e6
+    big_vec_penalty=1e6,
+    enforce_variance_bounds=True
 ):
     """
     Inflation/Deflation BEGE-GJR.
@@ -2066,6 +2187,8 @@ def ID_GARCH(
 
         if not _series_ok(pseries, nseries):
             return float(big_penalty)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return float(big_penalty)
 
         ll = BEGE_log_density(
             res,
@@ -2089,6 +2212,8 @@ def ID_GARCH(
         nseries = gjr_recursion(res, (float(n0), float(rho_n), 0.0, float(phi_n_minus)), float(sign))
 
         if not _series_ok(pseries, nseries):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(
@@ -2376,9 +2501,9 @@ def BEGE_FullGJR_MLE(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
     sigma_bounds=(1e-5, 2.0),
-    p0n0_bounds=(0.005, 10.0),
-    rho_bounds=(1e-5, 0.999),
-    phi_bounds=(1e-5, 0.999),
+    p0n0_bounds=(0.0, 10.0),
+    rho_bounds=(0.0, 1.0),
+    phi_bounds=(0.0, 2.0),
     floor_eps=1e-6,
     print_summary=True,
     # ---- hard penalty controls ----
@@ -2388,6 +2513,7 @@ def BEGE_FullGJR_MLE(
     compute_se=False,
     density_hyperu_method='scipy_approx',
     variance_bound=0.75,
+    enforce_variance_bounds=True,
 ):
     """
     BEGE with FULL GJR recursions (separate parameters for p_t and n_t).
@@ -2558,6 +2684,8 @@ def BEGE_FullGJR_MLE(
         exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return float(big_penalty)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return float(big_penalty)
 
         ll = BEGE_log_density(
             res, pseries, nseries, float(sigp), float(sign),
@@ -2584,6 +2712,8 @@ def BEGE_FullGJR_MLE(
 
         exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(
@@ -2832,7 +2962,7 @@ def BEGE_FullGJR_MLE(
         except Exception:
             continue
 
-    if best is None:
+    if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
         raise RuntimeError("All starts failed (likely numerical instability). "
                            "Consider tightening bounds, increasing big_penalty, or scaling data.")
 
@@ -2917,9 +3047,9 @@ def BG_GARCH(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
     sigma_bounds=(1e-5, 2.0),
-    p0n0_bounds=(0.005, 10.0),
-    rho_bounds=(1e-5, 0.999),
-    phi_bounds=(1e-5, 1.5),
+    p0n0_bounds=(0.0, 10.0),
+    rho_bounds=(0.0, 1.0),
+    phi_bounds=(0.0, 2.0),
     floor_eps=1e-6,
     print_summary=True,
     cap_pn=None,
@@ -2928,6 +3058,7 @@ def BG_GARCH(
     compute_se=False,
     density_hyperu_method='scipy_approx',
     variance_bound=0.87,
+    enforce_variance_bounds=True,
 ):
     """
     BG_GARCH: Good/Bad volatility with symmetric-in-sign GARCH:
@@ -3062,6 +3193,8 @@ def BG_GARCH(
         exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
             return float(big_penalty)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return float(big_penalty)
 
         ll = BEGE_log_density(
             res, pseries, nseries, float(sigp), float(sign),
@@ -3084,6 +3217,8 @@ def BG_GARCH(
 
         exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(
@@ -3229,7 +3364,7 @@ def BG_GARCH(
             last_error = exc
             continue
 
-    if best is None:
+    if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
         detail = ""
         if last_error is not None:
             detail = f" Last error: {type(last_error).__name__}: {last_error}"

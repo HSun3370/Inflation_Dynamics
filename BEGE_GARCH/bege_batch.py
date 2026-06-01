@@ -352,6 +352,7 @@ def _selection_metrics_for_row(
     specs_by_mean: dict[str, dict],
 ) -> dict[str, float]:
     from BEGE_GARCH.BEGE_GARCH import gjr_recursion
+    from BEGE_GARCH.BEGE_GARCH import bege_variance_bounds_ok
     from BEGE_GARCH.BEGE_density import BEGE_log_density
 
     residuals = _mean_residuals_from_row(row, specs_by_mean)
@@ -416,7 +417,17 @@ def _selection_metrics_for_row(
     else:
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
-    cond_var = sigma_p * sigma_p * pseries + sigma_n * sigma_n * nseries
+    variance_details = bege_variance_bounds_ok(
+        residuals,
+        pseries,
+        nseries,
+        sigma_p,
+        sigma_n,
+        return_details=True,
+    )
+    cond_var = variance_details["cond_var"]
+    lower = variance_details["lower"]
+    upper = variance_details["upper"]
     ll_vec = BEGE_log_density(residuals, pseries, nseries, sigma_p, sigma_n)
     if not np.all(np.isfinite(ll_vec)):
         corrected_loglik = np.nan
@@ -443,6 +454,11 @@ def _selection_metrics_for_row(
         "selection_cond_var_min": float(np.min(cond_var)),
         "selection_cond_var_median": float(np.median(cond_var)),
         "selection_cond_var_max": float(np.max(cond_var)),
+        "selection_implied_variance_bounds_ok": bool(variance_details["ok"]),
+        "selection_cond_var_lower_min": float(np.min(lower)),
+        "selection_cond_var_lower_max": float(np.max(lower)),
+        "selection_cond_var_upper_min": float(np.min(upper)),
+        "selection_cond_var_upper_max": float(np.max(upper)),
     }
 
 
@@ -481,10 +497,9 @@ def _bounds_for_row(spec: dict, mean_type: str, model_family: str) -> list[tuple
     else:
         raise ValueError(f"Unknown mean_type {mean_type!r}.")
 
-    p0_bounds = (0.005, 10.0)
-    rho_bounds = (1e-5, 0.999)
-    phi_hi = 1.5 if model_family in {"badgood", "id"} else 0.999
-    phi_bounds = (1e-5, phi_hi)
+    p0_bounds = (0.0, 10.0)
+    rho_bounds = (0.0, 1.0)
+    phi_bounds = (0.0, 2.0)
     sigma_bounds = (1e-5, 2.0)
 
     if model_family in {"badgood", "id"}:
@@ -654,6 +669,24 @@ def _constraints_ok_for_theta(theta: np.ndarray, *, mean_type: str, model_family
     return True
 
 
+def _mean_stationarity_ok(theta: np.ndarray, mean_type: str) -> bool:
+    theta = np.asarray(theta, dtype=float)
+    if mean_type == "constant":
+        return True
+    if mean_type == "ARX(1,1)":
+        if theta.size < 2 or not np.isfinite(theta[1]):
+            return False
+        return bool(abs(theta[1]) < 1.0)
+    if mean_type in {"ARX(2,1)", "ARX(2,2)"}:
+        if theta.size < 3 or not np.all(np.isfinite(theta[1:3])):
+            return False
+        rho_1, rho_2 = theta[1], theta[2]
+        companion = np.array([[rho_1, rho_2], [1.0, 0.0]], dtype=float)
+        roots = np.linalg.eigvals(companion)
+        return bool(np.all(np.abs(roots) < 1.0))
+    raise ValueError(f"Unknown mean_type {mean_type!r}.")
+
+
 def _row_likelihood_functions(
     *,
     spec: dict,
@@ -662,7 +695,7 @@ def _row_likelihood_functions(
     big_penalty: float = 1e12,
     big_vec_penalty: float = 1e6,
 ):
-    from BEGE_GARCH.BEGE_GARCH import _make_residual_function
+    from BEGE_GARCH.BEGE_GARCH import _make_residual_function, bege_variance_bounds_ok
     from BEGE_GARCH.BEGE_density import BEGE_log_density
 
     residual_function = _make_residual_function(spec["Y"], spec["X"], mean_type)
@@ -687,6 +720,8 @@ def _row_likelihood_functions(
             or np.any(pseries <= 0.0)
             or np.any(nseries <= 0.0)
         ):
+            return np.full(n_obs, float(big_vec_penalty), dtype=float)
+        if not bege_variance_bounds_ok(residuals, pseries, nseries, sigma_p, sigma_n):
             return np.full(n_obs, float(big_vec_penalty), dtype=float)
 
         values = -BEGE_log_density(residuals, pseries, nseries, sigma_p, sigma_n)
@@ -865,6 +900,8 @@ def add_selection_diagnostics(
             "selection_variance_bound": variance_bound_for_family(model_family),
             "selection_bounds_ok": False,
             "selection_constraints_ok": False,
+            "selection_mean_stationary": False,
+            "selection_implied_variance_bounds_ok": False,
             "selection_eligible": False,
             "selection_reason": "",
             "selection_persistence_p": np.nan,
@@ -877,6 +914,10 @@ def add_selection_diagnostics(
             "selection_cond_var_min": np.nan,
             "selection_cond_var_median": np.nan,
             "selection_cond_var_max": np.nan,
+            "selection_cond_var_lower_min": np.nan,
+            "selection_cond_var_lower_max": np.nan,
+            "selection_cond_var_upper_min": np.nan,
+            "selection_cond_var_upper_max": np.nan,
         }
 
         reasons = []
@@ -903,6 +944,8 @@ def add_selection_diagnostics(
                 diag["selection_high_shape_density"] = True
             if not np.isfinite(diag["selection_cond_var_min"]) or diag["selection_cond_var_min"] <= 0.0:
                 reasons.append("nonpositive conditional variance path")
+            if not bool(diag.get("selection_implied_variance_bounds_ok", False)):
+                reasons.append("implied variance outside EWMA bounds")
 
             names, theta = _parameter_vector_from_row(row, model_family)
             bounds = _bounds_for_row(specs_by_mean[row["mean_type"]], row["mean_type"], model_family)
@@ -915,12 +958,16 @@ def add_selection_diagnostics(
                 mean_type=row["mean_type"],
                 model_family=model_family,
             )
+            mean_stationary = _mean_stationarity_ok(theta, row["mean_type"])
             diag["selection_bounds_ok"] = bool(bounds_ok)
             diag["selection_constraints_ok"] = bool(constraints_ok)
+            diag["selection_mean_stationary"] = bool(mean_stationary)
             if not bounds_ok:
                 reasons.append("parameter outside documented bounds")
             if not constraints_ok:
                 reasons.append("violates documented stability/variance constraints")
+            if not mean_stationary:
+                reasons.append("mean process is not stationary")
         except Exception as exc:
             reasons.append(f"diagnostics failed: {type(exc).__name__}: {exc}")
 
@@ -1059,8 +1106,9 @@ def write_markdown_summary(
         "`max(p_t, n_t)` is reported as a diagnostic, not as an exclusion rule.",
         "",
         "Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, "
-        "finite positive shape paths, positive conditional variance paths, and documented "
-        "parameter/stability/unconditional-variance constraints.",
+        "finite positive shape paths, positive conditional variance paths, EWMA implied-variance "
+        "bounds, mean-process stationarity, and documented parameter/stability/unconditional-variance "
+        "constraints.",
         "",
     ]
 
@@ -1148,6 +1196,8 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_variance_bound",
         "selection_bounds_ok",
         "selection_constraints_ok",
+        "selection_mean_stationary",
+        "selection_implied_variance_bounds_ok",
         "selection_shape_max",
         "selection_max_p_t",
         "selection_max_n_t",
@@ -1158,6 +1208,10 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_cond_var_min",
         "selection_cond_var_median",
         "selection_cond_var_max",
+        "selection_cond_var_lower_min",
+        "selection_cond_var_lower_max",
+        "selection_cond_var_upper_min",
+        "selection_cond_var_upper_max",
     ]
     return df[[col for col in cols if col in df.columns]]
 

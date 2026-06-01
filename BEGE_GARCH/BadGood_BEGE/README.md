@@ -20,6 +20,7 @@ I have set the constraints below.
 
 - $\rho + \phi < 1$ for both good and bad shape processes.
 - $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$.
+- The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.
 
 The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start
 optimization or reported best-model selection by default. The stabilized BEGE
@@ -49,4 +50,4 @@ Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keep
 
 When `START_ID` and `END_ID` are set, the collector only merges `draw_###.csv` files in that seed range. This prevents older seed files from entering a new smaller resubmission.
 
-`SimulationBG.sh` defaults to 400 seed jobs, 10 draws per mean process, 10 optimizer starts per draw, and 300 SLSQP iterations per start. This gives 40,000 optimizer starts for each mean process. With all four mean processes, that is 160,000 optimizer starts total. The `estimate` action prints a rough per-seed time estimate before submitting jobs.
+`SimulationBG.sh` defaults to 50 seed jobs, 40 draws per mean process, 25 optimizer starts per draw, and 800 SLSQP iterations per start. This gives 50,000 optimizer starts for each mean process and BadGood BEGE specification. With all four mean processes, that is 200,000 optimizer starts total. The `estimate` action prints a rough per-seed time estimate before submitting jobs.

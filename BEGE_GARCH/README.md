@@ -64,13 +64,28 @@ BEGE density before writing `results/all_estimations.csv`, so stale likelihoods
 from earlier density code do not determine the best model. Reported best-model
 tables require finite corrected likelihood criteria, successful optimizer
 convergence, finite positive shape paths, positive conditional variance paths,
-and the documented parameter, stability, and unconditional-variance
-constraints.
+mean-process stationarity, the documented parameter/stability constraints, and
+the EWMA implied-variance bounds applied to
+$\sigma_p^2 p_t + \sigma_n^2 n_t$.
+
+The implied-variance bounds use the same screen during optimization and
+collection. For residuals from the effective sample, compute an EWMA path with
+$\lambda = 0.94$ and an initialization window of
+$\tau = \min(75, T)$. The lower and upper paths are
+
+$$
+\max(EWMA_t / 10^6,\ \operatorname{Var}(u_t) / 10^8)
+\leq
+\sigma_p^2 p_t + \sigma_n^2 n_t
+\leq
+\max\left\{\min(EWMA_t \cdot 10^6,\ 10^7(1 + \max u_t^2)),\ 1 + \max u_t^2\right\}.
+$$
 
 The diagnostic value $\max_t\{p_t,n_t\}$ is recorded but is not used as a
 selection exclusion rule. The companion `results/selection_diagnostics.csv`
 records stored versus corrected likelihood criteria, high-shape density usage,
-implied persistence, minimum scale, maximum shape path, and the exclusion reason
-for each saved estimation row. The reported best-AIC rows with standard errors
-are written to `results/best_aic_with_se.csv`.
+implied persistence, minimum scale, maximum shape path, implied-variance-bound
+status, mean stationarity status, and the exclusion reason for each saved
+estimation row. The reported best-AIC rows with standard errors are written to
+`results/best_aic_with_se.csv`.
  

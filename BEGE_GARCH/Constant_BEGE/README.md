@@ -25,3 +25,12 @@ $\bar{p}$ and $\bar{n}$ are unconditional shape parameters. The random search an
 
 - $0.05 < \sigma_p, \sigma_n < 2$
 - $0.1 < p, n < 10$
+
+The constant implied variance path
+
+$$
+\sigma_p^2 \bar{p} + \sigma_n^2 \bar{n}
+$$
+
+is screened against the same project EWMA lower and upper bounds used by the
+dynamic BEGE specifications during optimization and result collection.

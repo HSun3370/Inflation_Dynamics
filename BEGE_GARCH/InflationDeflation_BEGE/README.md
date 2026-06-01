@@ -22,6 +22,7 @@ ID-GARCH stability restrictions:
 
 - $\rho_p + \frac{\phi_p^+}{2} < 1$ and $\rho_n + \frac{\phi_n^-}{2} < 1$.
 - $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$.
+- The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.
 
 The hard shape cap $\max\{p_t, n_t\} < 200$ is **not imposed by default** in
 `ID_GARCH`. It can still be restored for sensitivity checks by passing
@@ -36,7 +37,7 @@ are written to `results/selection_diagnostics.csv`.
 
 ## Estimation Workflow
 
-The Slurm workflow in `SimulationID.sh` submits 100 seed jobs by default. Each
+The Slurm workflow in `SimulationID.sh` submits 50 seed jobs by default. Each
 seed estimates all four mean processes on the fixed effective sample
 `1969Q2--2022Q4`:
 
@@ -46,7 +47,10 @@ seed estimates all four mean processes on the fixed effective sample
 - ARX(2,2)
 
 The job runner skips standard-error calculations and saves one CSV row after
-each model fit so partial jobs leave recoverable output. The collector merges
+each model fit so partial jobs leave recoverable output. Each seed uses 40
+draws per mean process and 25 optimizer starts per draw, giving 50,000
+optimizer starts for each mean process and Inflation/Deflation BEGE
+specification. The collector merges
 the raw CSV files, picks the corrected best results, writes
 `results/best_model.md`, and computes standard errors for the best AIC fit
 within each eligible mean process in `results/best_aic_with_se.csv`.

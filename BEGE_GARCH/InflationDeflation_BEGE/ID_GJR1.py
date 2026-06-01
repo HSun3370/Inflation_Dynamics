@@ -201,9 +201,9 @@ def run_seed(seed: int, n_draws: int, n_starts: int, maxiter: int, tol: float, o
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Inflation/Deflation BEGE-GJR random-search estimation")
     parser.add_argument("--id", type=int, default=1, help="Seed id for job-array style runs")
-    parser.add_argument("--n-draws", type=int, default=10, help="Number of saved estimation draws per mean type")
-    parser.add_argument("--n-starts", type=int, default=10, help="Random starts per saved estimation")
-    parser.add_argument("--maxiter", type=int, default=10, help="Max optimizer iterations per start")
+    parser.add_argument("--n-draws", type=int, default=40, help="Number of saved estimation draws per mean type")
+    parser.add_argument("--n-starts", type=int, default=25, help="Random starts per saved estimation")
+    parser.add_argument("--maxiter", type=int, default=800, help="Max optimizer iterations per start")
     parser.add_argument("--tol", type=float, default=1e-8, help="Optimizer tolerance")
     parser.add_argument("--output-dir", type=Path, default=None, help="Directory for per-seed raw CSV output")
     return parser.parse_args()

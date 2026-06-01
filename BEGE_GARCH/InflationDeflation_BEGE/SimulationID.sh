@@ -9,10 +9,10 @@ PY_SCRIPT="${SCRIPT_DIR}/ID_GJR1.py"
 COLLECT_SCRIPT="${SCRIPT_DIR}/collect_id_results.py"
 
 START_ID="${START_ID:-1}"
-END_ID="${END_ID:-100}"
-N_DRAWS="${N_DRAWS:-10}"
-N_STARTS="${N_STARTS:-10}"
-MAXITER="${MAXITER:-10}"
+END_ID="${END_ID:-50}"
+N_DRAWS="${N_DRAWS:-40}"
+N_STARTS="${N_STARTS:-25}"
+MAXITER="${MAXITER:-800}"
 TOL="${TOL:-1e-8}"
 SUBMIT_COLLECTOR="${SUBMIT_COLLECTOR:-1}"
 COLLECT_DEPENDENCY_TYPE="${COLLECT_DEPENDENCY_TYPE:-afterany}"
@@ -64,7 +64,7 @@ EOF
 run_collect_now() {
     eval "$(python_setup_block)"
     cd "${PROJECT_ROOT}"
-    python3 -u "${COLLECT_SCRIPT}"
+    START_ID="${START_ID}" END_ID="${END_ID}" python3 -u "${COLLECT_SCRIPT}"
 }
 
 submit_collector() {
@@ -96,7 +96,7 @@ echo "\$SLURM_JOB_NAME"
 echo "Collector starts \$(date)"
 start_time=\$(date +%s)
 
-python3 -u "${COLLECT_SCRIPT}"
+START_ID=${START_ID} END_ID=${END_ID} python3 -u "${COLLECT_SCRIPT}"
 
 echo "Collector ends \$(date)"
 $(elapsed_block)

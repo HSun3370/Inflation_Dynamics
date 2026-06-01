@@ -9,10 +9,10 @@ PY_SCRIPT="${SCRIPT_DIR}/BEGE_GJR1.py"
 COLLECT_SCRIPT="${SCRIPT_DIR}/collect_full_results.py"
 
 START_ID="${START_ID:-1}"
-END_ID="${END_ID:-400}"
-N_DRAWS="${N_DRAWS:-10}"
-N_STARTS="${N_STARTS:-10}"
-MAXITER="${MAXITER:-300}"
+END_ID="${END_ID:-50}"
+N_DRAWS="${N_DRAWS:-40}"
+N_STARTS="${N_STARTS:-25}"
+MAXITER="${MAXITER:-800}"
 TOL="${TOL:-1e-8}"
 INCLUDE_ARX22="${INCLUDE_ARX22:-1}"
 DENSITY_HYPERU_METHOD="${DENSITY_HYPERU_METHOD:-scipy_approx}"
@@ -46,8 +46,8 @@ Environment overrides:
   SUBMIT_COLLECTOR=${SUBMIT_COLLECTOR}
 
 Default workload:
-  400 seed jobs x 10 draws x 10 starts = 40,000 starts per mean process.
-  With all four mean processes, this is 160,000 optimizer starts total.
+  50 seed jobs x 40 draws x 25 starts = 50,000 starts per mean process.
+  With all four mean processes, this is 200,000 optimizer starts total.
   Each seed job checkpoints a CSV after every completed draw.
 USAGE
 }

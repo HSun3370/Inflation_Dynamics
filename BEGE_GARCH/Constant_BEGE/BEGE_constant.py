@@ -241,14 +241,14 @@ def run_seed(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Constant-shape BEGE random-search estimation")
     parser.add_argument("--id", type=int, default=1, help="Seed id for job-array style runs")
-    parser.add_argument("--n-draws", type=int, default=100, help="Number of random draws per mean specification")
-    parser.add_argument("--n-starts", type=int, default=20, help="MLE restarts per draw")
+    parser.add_argument("--n-draws", type=int, default=40, help="Number of random draws per mean specification")
+    parser.add_argument("--n-starts", type=int, default=25, help="MLE restarts per draw")
     parser.add_argument("--maxiter", type=int, default=1500, help="Max optimizer iterations")
     parser.add_argument("--tol", type=float, default=1e-8, help="Optimizer tolerance")
     parser.add_argument(
-        "--include-arx22",
+        "--skip-arx22",
         action="store_true",
-        help="Include ARX(2,2). Default is False to match BEGE project practice.",
+        help="Skip ARX(2,2). By default all four mean processes are estimated.",
     )
     return parser.parse_args()
 
@@ -261,5 +261,5 @@ if __name__ == "__main__":
         n_starts=args.n_starts,
         maxiter=args.maxiter,
         tol=args.tol,
-        include_arx22=args.include_arx22,
+        include_arx22=not args.skip_arx22,
     )

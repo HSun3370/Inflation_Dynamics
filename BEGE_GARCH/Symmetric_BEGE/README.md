@@ -35,9 +35,9 @@ $$
 
 The parameter bounds are chosen to be:
 
-- $0.005 < p_0, n_0 < 10$,
-- $10^{-5} < \rho < 0.999$,
-- $10^{-5} < \phi^+, \phi^- < 0.999$,
+- $0 \leq p_0, n_0 < 10$,
+- $0 \leq \rho \leq 1$,
+- $0 \leq \phi^+, \phi^- \leq 2$,
 - $10^{-5} < \sigma_p, \sigma_n < 2$.
 
 The current estimation code enforces the stability condition
@@ -51,6 +51,9 @@ and the same variance guard used by the current BEGE searches,
 $$
 \sigma_p^2 p_0 + \sigma_n^2 n_0 < 0.87.
 $$
+
+The optimizer and collector also enforce the EWMA implied-variance bounds on
+$\sigma_p^2 p_t + \sigma_n^2 n_t$ at every effective-sample observation.
 
 The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start
 optimization or reported best-model selection by default. The stabilized BEGE
@@ -80,4 +83,4 @@ Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keep
 
 When `START_ID` and `END_ID` are set, the collector only merges `draw_###.csv` files in that seed range. This prevents older seed files from entering a new smaller resubmission.
 
-`SimulationSymmetric.sh` defaults to 400 seed jobs, 10 draws per mean process, 10 optimizer starts per draw, and 300 SLSQP iterations per start. This gives 40,000 optimizer starts for each mean process. With all four mean processes, that is 160,000 optimizer starts total.
+`SimulationSymmetric.sh` defaults to 50 seed jobs, 40 draws per mean process, 25 optimizer starts per draw, and 800 SLSQP iterations per start. This gives 50,000 optimizer starts for each mean process and Symmetric BEGE specification. With all four mean processes, that is 200,000 optimizer starts total.

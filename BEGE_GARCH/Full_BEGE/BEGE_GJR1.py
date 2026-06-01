@@ -61,7 +61,7 @@ def run_seed(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Full BEGE-GARCH random-search estimation")
     parser.add_argument("--id", type=int, default=1, help="Seed id for job-array style runs")
-    parser.add_argument("--n-draws", type=int, default=1, help="Number of random draws per mean specification")
+    parser.add_argument("--n-draws", type=int, default=40, help="Number of random draws per mean specification")
     parser.add_argument("--n-starts", type=int, default=25, help="MLE restarts per draw")
     parser.add_argument("--maxiter", type=int, default=800, help="Max optimizer iterations")
     parser.add_argument("--tol", type=float, default=1e-8, help="Optimizer tolerance")

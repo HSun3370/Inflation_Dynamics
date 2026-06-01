@@ -10,8 +10,8 @@ COLLECT_SCRIPT="${SCRIPT_DIR}/collect_constant_results.py"
 
 START_ID="${START_ID:-1}"
 END_ID="${END_ID:-50}"
-N_DRAWS="${N_DRAWS:-100}"
-N_STARTS="${N_STARTS:-20}"
+N_DRAWS="${N_DRAWS:-40}"
+N_STARTS="${N_STARTS:-25}"
 MAXITER="${MAXITER:-1500}"
 TOL="${TOL:-1e-8}"
 INCLUDE_ARX22="${INCLUDE_ARX22:-1}"
@@ -66,8 +66,8 @@ EOF
 build_python_args() {
     local args
     args="--id PLACEHOLDER_ID --n-draws ${N_DRAWS} --n-starts ${N_STARTS} --maxiter ${MAXITER} --tol ${TOL}"
-    if [ "${INCLUDE_ARX22}" = "1" ]; then
-        args="${args} --include-arx22"
+    if [ "${INCLUDE_ARX22}" != "1" ]; then
+        args="${args} --skip-arx22"
     fi
     printf '%s\n' "${args}"
 }
@@ -75,7 +75,7 @@ build_python_args() {
 run_collect_now() {
     mkdir -p "${SCRIPT_DIR}/results"
     cd "${PROJECT_ROOT}"
-    python3 -u "${COLLECT_SCRIPT}"
+    START_ID="${START_ID}" END_ID="${END_ID}" python3 -u "${COLLECT_SCRIPT}"
 }
 
 submit_collector() {
@@ -107,7 +107,7 @@ echo "\$SLURM_JOB_NAME"
 echo "Collector starts \$(date)"
 start_time=\$(date +%s)
 
-python3 -u "${COLLECT_SCRIPT}"
+START_ID=${START_ID} END_ID=${END_ID} python3 -u "${COLLECT_SCRIPT}"
 
 echo "Collector ends \$(date)"
 $(elapsed_block)
