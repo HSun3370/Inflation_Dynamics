@@ -5,31 +5,6 @@
 
 
 
-#  BEGE Density
-
-BEGE density function $f_{BEGE}(\mu | p, n, \sigma_p, \sigma_n)$ is the function that calculates the density of the observation $\mu$ given the parameters $\{p, n, \sigma_p, \sigma_n\}$.
-
-To compare Justin's analytic BEGE density code with the old numerical one, I conducted an experiment using synthetic data. I generated $200$ independent observations from a standard normal distribution and fixed the BEGE parameters to
-
-$$
-p = 5, \qquad n = 7, \qquad \sigma_p = 0.8, \qquad \sigma_n = 1.2.
-$$
-
-I computed the sum of log-likelihood using two approaches:
-
-1. The *old BEGE function*, which approximates the density via numerical integration on a uniform grid, and whose accuracy depends strongly on the number of grid points; and
-2. *Justin's analytic BEGE function*.
-
-The old numerical method was evaluated over a wide range of grid resolutions (up to $50{,}000$ points), and the resulting log-likelihood sums were plotted alongside the benchmark value computed from Justin's code.
-
-![BEGE LLF Comparison](Density_Analysis/BEGELLF_comparison.png)
-
-**Findings:**
-
-- The old numerical likelihood converges toward Justin's analytic likelihood as the number of grid points increases, but the convergence is slow and requires very fine grids.
-- For small or moderate grid sizes, the numerical integration *overestimates* the log-likelihood. This explains why, for a given set of parameters, Justin's implementation produces a lower log-likelihood than the old code.
-- Justin's analytic BEGE formula provides a more accurate and more computationally efficient evaluation.
-
 
 # BEGE GARCH Family
 

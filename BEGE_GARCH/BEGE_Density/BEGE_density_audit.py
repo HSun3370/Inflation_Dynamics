@@ -19,9 +19,9 @@ PROJECT_ROOT = PACKAGE_DIR.parent
 if str(PACKAGE_DIR) not in sys.path:
     sys.path.insert(0, str(PACKAGE_DIR))
 
-from BEGE_density import BEGE_log_density as my_bege_log_density
-from BEGE_density_Justin import BEGE_log_density as justin_bege_log_density
-from BEGE_density_Numerical_Integration import loglikedgam_constant as numerical_log_density
+from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density as my_bege_log_density
+from BEGE_GARCH.BEGE_Density.BEGE_density_Justin import BEGE_log_density as justin_bege_log_density
+from BEGE_GARCH.BEGE_Density.BEGE_density_Numerical_Integration import loglikedgam_constant as numerical_log_density
 
 
 DATA_PATH = PROJECT_ROOT / "DataSummary" / "Aggregate_CPI_inflation_Quarterly.pkl"
