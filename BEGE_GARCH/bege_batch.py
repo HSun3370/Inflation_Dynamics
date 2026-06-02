@@ -20,6 +20,14 @@ MEAN_PARAM_NAMES = {
 REPORT_DROP_COLUMNS = {"message"}
 DRAW_FILE_RE = re.compile(r"draw_(\d+)\.csv$")
 DEFAULT_HIGH_SHAPE_REFERENCE = 200.0
+IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD = -150.0
+TOP_MODELS_PER_MEAN = 20
+MEAN_FILE_STEMS = {
+    "constant": "constant",
+    "ARX(1,1)": "ARX_1_1",
+    "ARX(2,1)": "ARX_2_1",
+    "ARX(2,2)": "ARX_2_2",
+}
 
 
 def model_param_names_for_family(model_family: str) -> list[str]:
@@ -897,6 +905,8 @@ def add_selection_diagnostics(
             "corrected_loglik_delta": np.nan,
             "selection_shape_reference": float(shape_reference),
             "selection_high_shape_density": False,
+            "selection_loglik_upper_threshold": float(IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD),
+            "selection_loglik_plausible": False,
             "selection_variance_bound": variance_bound_for_family(model_family),
             "selection_bounds_ok": False,
             "selection_constraints_ok": False,
@@ -938,6 +948,10 @@ def add_selection_diagnostics(
             )
             if not corrected_finite:
                 reasons.append("nonfinite corrected information criterion")
+            else:
+                diag["selection_loglik_plausible"] = bool(
+                    diag["corrected_loglik"] <= IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD
+                )
             if not np.isfinite(diag["selection_shape_max"]):
                 reasons.append("nonfinite shape path")
             elif diag["selection_shape_max"] >= shape_reference:
@@ -1024,52 +1038,197 @@ def best_by_mean(df: pd.DataFrame, metric: str = "AIC") -> list[pd.Series]:
     return rows
 
 
-def append_best_table(lines: list[str], title: str, rows: list[pd.Series]) -> None:
+def mean_file_stem(mean_type: str) -> str:
+    return MEAN_FILE_STEMS.get(mean_type, re.sub(r"[^A-Za-z0-9]+", "_", str(mean_type)).strip("_"))
+
+
+def write_mean_split_csvs(df: pd.DataFrame, results_dir: Path) -> list[Path]:
+    split_dir = results_dir / "by_mean"
+    split_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for mean_type in MEAN_TYPES:
+        path = split_dir / f"{mean_file_stem(mean_type)}.csv"
+        df.loc[df.get("mean_type") == mean_type].to_csv(path, index=False)
+        written.append(path)
+    return written
+
+
+def top_n_by_mean(df: pd.DataFrame, metric: str = "loglik", n: int = TOP_MODELS_PER_MEAN) -> list[pd.Series]:
+    valid = analysis_rows(df, metric)
+    if valid.empty or "mean_type" not in valid.columns:
+        return []
+
+    ascending = metric != "loglik"
+    rows: list[pd.Series] = []
+    for mean_type in MEAN_TYPES:
+        group = valid.loc[valid["mean_type"] == mean_type].sort_values(metric, ascending=ascending)
+        for rank, (_, row) in enumerate(group.head(n).iterrows(), start=1):
+            ranked = row.copy()
+            ranked["rank"] = rank
+            rows.append(ranked)
+    return rows
+
+
+def _math_param(row: dict, name: str) -> str:
+    estimate = row.get(f"param_{name}", np.nan)
+    se = row.get(f"se_{name}", np.nan)
+    estimate_text = format_value(estimate)
+    if pd.isna(se):
+        return estimate_text
+    return rf"\underset{{({format_value(se)})}}{{{estimate_text}}}"
+
+
+def _math_scalar(row: dict, name: str) -> str:
+    estimate = row.get(name, np.nan)
+    return format_value(estimate)
+
+
+def _mean_equation(row: dict) -> list[str]:
+    mean_type = row["mean_type"]
+    if mean_type == "constant":
+        return [
+            "$$",
+            r"\pi_{t+1} = SPF_t + u_{t+1}",
+            "$$",
+            "",
+            "No estimated mean-process coefficients.",
+        ]
+    if mean_type == "ARX(1,1)":
+        return [
+            "$$",
+            rf"\pi_{{t+1}} = {_math_param(row, 'c')} + {_math_param(row, 'rho_1')}\,\pi_t + {_math_param(row, 'phi_1')}\,SPF_t + u_{{t+1}}",
+            "$$",
+        ]
+    if mean_type == "ARX(2,1)":
+        return [
+            "$$",
+            rf"\pi_{{t+1}} = {_math_param(row, 'c')} + {_math_param(row, 'rho_1')}\,\pi_t + {_math_param(row, 'rho_2')}\,\pi_{{t-1}} + {_math_param(row, 'phi_1')}\,SPF_t + u_{{t+1}}",
+            "$$",
+        ]
+    if mean_type == "ARX(2,2)":
+        return [
+            "$$",
+            rf"\pi_{{t+1}} = {_math_param(row, 'c')} + {_math_param(row, 'rho_1')}\,\pi_t + {_math_param(row, 'rho_2')}\,\pi_{{t-1}} + {_math_param(row, 'phi_1')}\,SPF_t + {_math_param(row, 'phi_2')}\,SPF_{{t-1}} + u_{{t+1}}",
+            "$$",
+        ]
+    raise ValueError(f"Unknown mean_type {mean_type!r}.")
+
+
+def _volatility_equation(row: dict, model_family: str) -> list[str]:
+    sp = _math_param(row, "sigma_p")
+    sn = _math_param(row, "sigma_n")
+    lines = [
+        "$$",
+        r"\begin{aligned}",
+        rf"u_t &= {sp}\,\omega_{{p,t}} - {sn}\,\omega_{{n,t}},\\",
+        r"\omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).",
+        r"\end{aligned}",
+        "$$",
+        "",
+        "$$",
+        r"\begin{aligned}",
+    ]
+
+    if model_family == "badgood":
+        lines.extend(
+            [
+                rf"p_t &= {_math_param(row, 'p0')} + {_math_param(row, 'rho_p')}\,p_{{t-1}} + \frac{{{_math_param(row, 'phi_p')}}}{{2({sp})^2}}\,u_{{t-1}}^2,\\",
+                rf"n_t &= {_math_param(row, 'n0')} + {_math_param(row, 'rho_n')}\,n_{{t-1}} + \frac{{{_math_param(row, 'phi_n')}}}{{2({sn})^2}}\,u_{{t-1}}^2",
+            ]
+        )
+    elif model_family == "id":
+        lines.extend(
+            [
+                rf"p_t &= {_math_param(row, 'p0')} + {_math_param(row, 'rho_p')}\,p_{{t-1}} + \frac{{{_math_param(row, 'phi_p_plus')}}}{{2({sp})^2}}\,(u_{{t-1}}^+)^2,\\",
+                rf"n_t &= {_math_param(row, 'n0')} + {_math_param(row, 'rho_n')}\,n_{{t-1}} + \frac{{{_math_param(row, 'phi_n_minus')}}}{{2({sn})^2}}\,(u_{{t-1}}^-)^2",
+            ]
+        )
+    elif model_family == "full":
+        lines.extend(
+            [
+                rf"p_t &= {_math_param(row, 'p0')} + {_math_param(row, 'rho_p')}\,p_{{t-1}} + \frac{{{_math_param(row, 'phi_p_plus')}}}{{2({sp})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_p_minus')}}}{{2({sp})^2}}\,(u_{{t-1}}^-)^2,\\",
+                rf"n_t &= {_math_param(row, 'n0')} + {_math_param(row, 'rho_n')}\,n_{{t-1}} + \frac{{{_math_param(row, 'phi_n_plus')}}}{{2({sn})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_n_minus')}}}{{2({sn})^2}}\,(u_{{t-1}}^-)^2",
+            ]
+        )
+    elif model_family == "symmetric":
+        lines.extend(
+            [
+                rf"p_t &= {_math_param(row, 'p0')} + {_math_param(row, 'rho')}\,p_{{t-1}} + \frac{{{_math_param(row, 'phi_plus')}}}{{2({sp})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_minus')}}}{{2({sp})^2}}\,(u_{{t-1}}^-)^2,\\",
+                rf"n_t &= {_math_param(row, 'n0')} + {_math_param(row, 'rho')}\,n_{{t-1}} + \frac{{{_math_param(row, 'phi_plus')}}}{{2({sn})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_minus')}}}{{2({sn})^2}}\,(u_{{t-1}}^-)^2",
+            ]
+        )
+    else:
+        raise ValueError(f"Unknown model_family {model_family!r}.")
+
+    lines.extend([r"\end{aligned}", "$$"])
+    return lines
+
+
+def _append_parameter_table(lines: list[str], row: dict, names: list[str]) -> None:
     lines.extend(
         [
-            f"## {title}",
-            "",
-            "| Mean Type | Seed | Draw | AIC | BIC | LogLik | Max Shape | Min Sigma |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|",
+            "| Parameter | Estimate | Std. Error |",
+            "|---|---:|---:|",
         ]
     )
-    if not rows:
-        lines.append("| No eligible estimates found | NA | NA | NA | NA | NA | NA | NA |")
-    for row in rows:
+    for name in names:
         lines.append(
-            f"| {row['mean_type']} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
-            f"{format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
-            f"{format_value(row.get('loglik'))} | {format_value(row.get('selection_shape_max'))} | "
-            f"{format_value(row.get('selection_sigma_min'))} |"
+            f"| {name} | {format_value(row.get(f'param_{name}'))} | {format_value(row.get(f'se_{name}'))} |"
         )
     lines.append("")
 
 
-def append_parameter_tables(lines: list[str], rows: list[dict], model_param_names: list[str]) -> None:
-    lines.extend(["## Parameter Estimates From Best AIC Fits", ""])
+def _append_top20_section(
+    lines: list[str],
+    mean_type: str,
+    rows: list[dict],
+    *,
+    model_family: str,
+    model_param_names: list[str],
+) -> None:
+    lines.extend([f"## {mean_type}", ""])
     if not rows:
-        lines.extend(["No eligible estimates found.", ""])
+        lines.extend(["No eligible estimates found for this mean process.", ""])
         return
 
+    lines.extend(
+        [
+            f"Top {len(rows)} admissible estimates ranked by corrected log likelihood.",
+            "",
+            "| Rank | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic | SE Status |",
+            "|---:|---:|---:|---:|---:|---:|---:|---:|:---:|---|",
+        ]
+    )
     for row in rows:
-        mean_type = row["mean_type"]
-        names = MEAN_PARAM_NAMES[mean_type] + model_param_names
+        high_flag = "yes" if not bool(row.get("selection_loglik_plausible", True)) else "no"
+        lines.append(
+            f"| {format_int(row.get('rank'))} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
+            f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
+            f"{format_value(row.get('selection_shape_max'))} | {format_value(row.get('selection_cond_var_max'))} | "
+            f"{high_flag} | `{row.get('se_message', 'NA')}` |"
+        )
+    lines.append("")
+
+    names = MEAN_PARAM_NAMES[mean_type] + model_param_names
+    for row in rows:
         lines.extend(
             [
-                f"### {mean_type}",
+                f"### Rank {format_int(row.get('rank'))}: Seed {format_int(row.get('seed'))}, Draw {format_int(row.get('draw'))}",
                 "",
-                f"SE status: `{row.get('se_message', 'NA')}`",
+                f"- LogLik: `{format_value(row.get('loglik'))}`; AIC: `{format_value(row.get('AIC'))}`; BIC: `{format_value(row.get('BIC'))}`",
+                f"- Max shape path: `{format_value(row.get('selection_shape_max'))}`; max implied variance: `{format_value(row.get('selection_cond_var_max'))}`",
+                f"- Selection diagnostics: `{row.get('selection_reason', 'NA')}`",
+                f"- SE status: `{row.get('se_message', 'NA')}`",
                 "",
-                "| Parameter | Estimate | Std. Error |",
-                "|---|---:|---:|",
+                "Mean process:",
+                "",
             ]
         )
-        for name in names:
-            lines.append(
-                f"| {name} | {format_value(row.get(f'param_{name}'))} | "
-                f"{format_value(row.get(f'se_{name}'))} |"
-            )
-        lines.append("")
+        lines.extend(_mean_equation(row))
+        lines.extend(["", "BEGE volatility process:", ""])
+        lines.extend(_volatility_equation(row, model_family))
+        lines.extend(["", "Parameter table:", ""])
+        _append_parameter_table(lines, row, names)
 
 
 def write_markdown_summary(
@@ -1077,17 +1236,19 @@ def write_markdown_summary(
     summary_path: Path,
     title: str,
     model_param_names: list[str],
-    best_aic_with_se: list[dict] | None = None,
+    top_loglik_with_se: list[dict] | None = None,
+    model_family: str | None = None,
 ) -> None:
-    best_aic_with_se = best_aic_with_se or []
-    best_aic = best_by_metric(df, "AIC")
-    best_bic = best_by_metric(df, "BIC")
-    best_aic_rows = best_by_mean(df, "AIC")
-    best_bic_rows = best_by_mean(df, "BIC")
+    top_loglik_with_se = top_loglik_with_se or []
+    model_family = model_family or ""
     observed_means = set(df.get("mean_type", pd.Series(dtype=str)).dropna().unique())
     missing_means = [mean_type for mean_type in MEAN_TYPES if mean_type not in observed_means]
     eligible_count = int(df.get("selection_eligible", pd.Series(False, index=df.index)).fillna(False).sum())
     converged_count = int(strict_success_mask(df).sum())
+    high_loglik_count = int(
+        (pd.to_numeric(df.get("corrected_loglik", pd.Series(np.nan, index=df.index)), errors="coerce")
+         > IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD).sum()
+    )
 
     lines = [
         "```{raw:typst}",
@@ -1108,7 +1269,10 @@ def write_markdown_summary(
         "Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, "
         "finite positive shape paths, positive conditional variance paths, EWMA implied-variance "
         "bounds, mean-process stationarity, and documented parameter/stability/unconditional-variance "
-        "constraints.",
+        "constraints. Corrected log likelihoods above "
+        f"`{IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD:g}` are flagged for review but are not excluded by this threshold.",
+        f"Each mean-process section reports the top `{TOP_MODELS_PER_MEAN}` admissible estimates by corrected log likelihood. "
+        "Standard errors are shown below substituted equation coefficients in parentheses.",
         "",
     ]
 
@@ -1122,39 +1286,29 @@ def write_markdown_summary(
             ]
         )
 
-    if not best_aic.empty:
+    if high_loglik_count:
         lines.extend(
             [
-                "## Global Best by AIC",
-                "",
-                f"- Mean type: `{best_aic['mean_type']}`",
-                f"- Seed / draw: `{format_int(best_aic.get('seed'))}` / `{format_int(best_aic.get('draw'))}`",
-                f"- AIC: `{format_value(best_aic.get('AIC'))}`",
-                f"- BIC: `{format_value(best_aic.get('BIC'))}`",
-                f"- LogLik: `{format_value(best_aic.get('loglik'))}`",
-                f"- Max shape: `{format_value(best_aic.get('selection_shape_max'))}`",
+                "```{note}",
+                f"Flagged {high_loglik_count} estimate(s) with corrected log likelihood above "
+                f"`{IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD:g}` for manual review. These rows remain eligible if they pass the admissibility checks.",
+                "```",
                 "",
             ]
         )
 
-    if not best_bic.empty:
-        lines.extend(
-            [
-                "## Global Best by BIC",
-                "",
-                f"- Mean type: `{best_bic['mean_type']}`",
-                f"- Seed / draw: `{format_int(best_bic.get('seed'))}` / `{format_int(best_bic.get('draw'))}`",
-                f"- AIC: `{format_value(best_bic.get('AIC'))}`",
-                f"- BIC: `{format_value(best_bic.get('BIC'))}`",
-                f"- LogLik: `{format_value(best_bic.get('loglik'))}`",
-                f"- Max shape: `{format_value(best_bic.get('selection_shape_max'))}`",
-                "",
-            ]
+    rows_by_mean = {
+        mean_type: [row for row in top_loglik_with_se if row.get("mean_type") == mean_type]
+        for mean_type in MEAN_TYPES
+    }
+    for mean_type in MEAN_TYPES:
+        _append_top20_section(
+            lines,
+            mean_type,
+            rows_by_mean[mean_type],
+            model_family=model_family,
+            model_param_names=model_param_names,
         )
-
-    append_best_table(lines, "Eligible Best by Mean Type (AIC)", best_aic_rows)
-    append_best_table(lines, "Eligible Best by Mean Type (BIC)", best_bic_rows)
-    append_parameter_tables(lines, best_aic_with_se, model_param_names)
 
     summary_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -1193,6 +1347,8 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_reason",
         "selection_shape_reference",
         "selection_high_shape_density",
+        "selection_loglik_upper_threshold",
+        "selection_loglik_plausible",
         "selection_variance_bound",
         "selection_bounds_ok",
         "selection_constraints_ok",
@@ -1280,30 +1436,34 @@ def collect_results(
         project_root=script_dir.parents[1],
         model_family=model_family,
     )
-    best_aic_with_se = add_standard_errors_for_rows(
-        best_by_mean(all_results_with_diagnostics, "AIC"),
+    top_loglik_with_se = add_standard_errors_for_rows(
+        top_n_by_mean(all_results_with_diagnostics, "loglik", TOP_MODELS_PER_MEAN),
         project_root=script_dir.parents[1],
         model_family=model_family,
     )
 
-    cleaned_csv_view(all_results_with_diagnostics).to_csv(results_dir / "all_estimations.csv", index=False)
+    cleaned_results = cleaned_csv_view(all_results_with_diagnostics)
+    cleaned_results.to_csv(results_dir / "all_estimations.csv", index=False)
+    split_paths = write_mean_split_csvs(cleaned_results, results_dir)
     selection_diagnostics_view(all_results_with_diagnostics).to_csv(
         results_dir / "selection_diagnostics.csv",
         index=False,
     )
-    pd.DataFrame(best_aic_with_se).to_csv(results_dir / "best_aic_with_se.csv", index=False)
+    pd.DataFrame(top_loglik_with_se).to_csv(results_dir / "best_loglik_top20_with_se.csv", index=False)
     write_markdown_summary(
         all_results_with_diagnostics,
         results_dir / "best_model.md",
         title,
         model_param_names,
-        best_aic_with_se=best_aic_with_se,
+        top_loglik_with_se=top_loglik_with_se,
+        model_family=model_family,
     )
 
     if start_seed is not None or end_seed is not None:
         print(f"Seed file filter: START_ID={start_seed}, END_ID={end_seed}")
     print(f"Read {len(csv_files)} raw file(s).")
     print(f"Wrote {results_dir / 'all_estimations.csv'}")
+    print(f"Wrote {len(split_paths)} mean-process CSV file(s) under {results_dir / 'by_mean'}")
     print(f"Wrote {results_dir / 'selection_diagnostics.csv'}")
-    print(f"Wrote {results_dir / 'best_aic_with_se.csv'}")
+    print(f"Wrote {results_dir / 'best_loglik_top20_with_se.csv'}")
     print(f"Wrote {results_dir / 'best_model.md'}")

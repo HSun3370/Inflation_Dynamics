@@ -54,14 +54,18 @@ $p_t$ or $n_t$ is large. Exact high-precision `hyperu` checks can still be
 forced with `hyperu_method="mpmath"` or the estimator-specific
 `density_hyperu_method="mpmath"`.
 
-For the multi-start BEGE estimators, robust numerical standard errors are optional through `compute_se`. The default is `compute_se=False` for fast model search; the result collectors recompute standard errors for the reported best AIC rows after selection.
+For the multi-start BEGE estimators, robust numerical standard errors are optional through `compute_se`. The default is `compute_se=False` for fast model search; the result collectors recompute standard errors for the reported top log-likelihood rows after selection.
 
 ## Best-Model Reporting Screen
 
 Raw BEGE search outputs are kept in `output/raw/draw_###.csv`. The collectors
 recompute the likelihood from each stored parameter vector using the stabilized
 BEGE density before writing `results/all_estimations.csv`, so stale likelihoods
-from earlier density code do not determine the best model. Reported best-model
+from earlier density code do not determine the best model. The cleaned
+estimations are also split by mean process under `results/by_mean/` as
+`constant.csv`, `ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`.
+
+Reported best-model
 tables require finite corrected likelihood criteria, successful optimizer
 convergence, finite positive shape paths, positive conditional variance paths,
 mean-process stationarity, the documented parameter/stability constraints, and
@@ -86,6 +90,14 @@ selection exclusion rule. The companion `results/selection_diagnostics.csv`
 records stored versus corrected likelihood criteria, high-shape density usage,
 implied persistence, minimum scale, maximum shape path, implied-variance-bound
 status, mean stationarity status, and the exclusion reason for each saved
-estimation row. The reported best-AIC rows with standard errors are written to
-`results/best_aic_with_se.csv`.
+estimation row. A log-likelihood value above `-150` is recorded as a manual
+review diagnostic but is not a selection exclusion rule.
+
+Each `results/best_model.md` reports the top 20 admissible rows by corrected
+log likelihood within each mean process. For every reported row, the markdown
+first shows the relevant mean-process equation and BEGE volatility-process
+equation with the estimated parameters substituted directly into the equations;
+standard errors appear below the substituted estimates in parentheses. The same
+top-20 rows with standard errors are written to
+`results/best_loglik_top20_with_se.csv`.
  

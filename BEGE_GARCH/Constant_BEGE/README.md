@@ -34,3 +34,15 @@ $$
 
 is screened against the same project EWMA lower and upper bounds used by the
 dynamic BEGE specifications during optimization and result collection.
+
+## Result Collection
+
+`collect_constant_results.py` merges the raw seed files, writes the cleaned
+combined output to `results/all_estimations.csv`, and splits the same cleaned
+output by mean process under `results/by_mean/` as `constant.csv`,
+`ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`. It ranks admissible estimates
+by log likelihood within each mean process, computes standard errors for the
+top 20 rows per mean process in `results/best_loglik_top20_with_se.csv`, and
+writes `results/best_model.md` with substituted mean and fixed-shape BEGE
+equations. Standard errors are shown below the parameter values in those
+reported equations.

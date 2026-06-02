@@ -44,9 +44,10 @@ Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keep
 `collect_bg_results.py` merges the raw seed files and writes:
 
 - `results/all_estimations.csv`, without standard-error columns or optimizer messages.
+- `results/by_mean/constant.csv`, `results/by_mean/ARX_1_1.csv`, `results/by_mean/ARX_2_1.csv`, and `results/by_mean/ARX_2_2.csv`, which split the cleaned estimations by mean process.
 - `results/selection_diagnostics.csv`, with stored and corrected likelihood criteria plus selection diagnostics.
-- `results/best_aic_with_se.csv`, with standard errors for the corrected best AIC fit in each eligible mean process.
-- `results/best_model.md`, with the corrected best AIC/BIC models and reported parameter standard errors.
+- `results/best_loglik_top20_with_se.csv`, with standard errors for the top 20 corrected log-likelihood fits in each eligible mean process.
+- `results/best_model.md`, with the top 20 corrected log-likelihood fits for each mean process, reported as substituted mean and BEGE volatility equations with standard errors shown below the parameter values.
 
 When `START_ID` and `END_ID` are set, the collector only merges `draw_###.csv` files in that seed range. This prevents older seed files from entering a new smaller resubmission.
 
