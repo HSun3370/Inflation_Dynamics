@@ -21,7 +21,7 @@ REPORT_DROP_COLUMNS = {"message"}
 DRAW_FILE_RE = re.compile(r"draw_(\d+)\.csv$")
 DEFAULT_HIGH_SHAPE_REFERENCE = 200.0
 IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD = -150.0
-TOP_MODELS_PER_MEAN = 20
+TOP_MODELS_PER_MEAN = 5
 MEAN_FILE_STEMS = {
     "constant": "constant",
     "ARX(1,1)": "ARX_1_1",
@@ -322,6 +322,16 @@ def strict_success_mask(df: pd.DataFrame) -> pd.Series:
     return success_mask(df) & optimizer_success_mask(df)
 
 
+def selection_eligible_mask(df: pd.DataFrame) -> pd.Series:
+    if "selection_eligible" not in df.columns:
+        return pd.Series(False, index=df.index)
+
+    values = df["selection_eligible"]
+    if pd.api.types.is_bool_dtype(values):
+        return values.fillna(False)
+    return values.astype(str).str.lower().isin(["true", "1", "yes"])
+
+
 def _finite_metric_mask(df: pd.DataFrame) -> pd.Series:
     cols = [col for col in ("loglik", "AIC", "BIC") if col in df.columns]
     if not cols:
@@ -361,7 +371,7 @@ def _selection_metrics_for_row(
 ) -> dict[str, float]:
     from BEGE_GARCH.BEGE_GARCH import gjr_recursion
     from BEGE_GARCH.BEGE_GARCH import bege_variance_bounds_ok
-    from BEGE_GARCH.BEGE_density import BEGE_log_density
+    from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
 
     residuals = _mean_residuals_from_row(row, specs_by_mean)
 
@@ -704,7 +714,7 @@ def _row_likelihood_functions(
     big_vec_penalty: float = 1e6,
 ):
     from BEGE_GARCH.BEGE_GARCH import _make_residual_function, bege_variance_bounds_ok
-    from BEGE_GARCH.BEGE_density import BEGE_log_density
+    from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
 
     residual_function = _make_residual_function(spec["Y"], spec["X"], mean_type)
     n_obs = int(np.asarray(spec["Y"], dtype=float).shape[0])
@@ -1053,6 +1063,10 @@ def write_mean_split_csvs(df: pd.DataFrame, results_dir: Path) -> list[Path]:
     return written
 
 
+def eligible_result_rows(df: pd.DataFrame) -> pd.DataFrame:
+    return df.loc[optimizer_success_mask(df) & selection_eligible_mask(df)].copy()
+
+
 def top_n_by_mean(df: pd.DataFrame, metric: str = "loglik", n: int = TOP_MODELS_PER_MEAN) -> list[pd.Series]:
     valid = analysis_rows(df, metric)
     if valid.empty or "mean_type" not in valid.columns:
@@ -1167,14 +1181,12 @@ def _volatility_equation(row: dict, model_family: str) -> list[str]:
 def _append_parameter_table(lines: list[str], row: dict, names: list[str]) -> None:
     lines.extend(
         [
-            "| Parameter | Estimate | Std. Error |",
-            "|---|---:|---:|",
+            "| Parameter | Estimate |",
+            "|---|---:|",
         ]
     )
     for name in names:
-        lines.append(
-            f"| {name} | {format_value(row.get(f'param_{name}'))} | {format_value(row.get(f'se_{name}'))} |"
-        )
+        lines.append(f"| {name} | {format_value(row.get(f'param_{name}'))} |")
     lines.append("")
 
 
@@ -1195,8 +1207,8 @@ def _append_top20_section(
         [
             f"Top {len(rows)} admissible estimates ranked by corrected log likelihood.",
             "",
-            "| Rank | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic | SE Status |",
-            "|---:|---:|---:|---:|---:|---:|---:|---:|:---:|---|",
+            "| Rank | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |",
+            "|---:|---:|---:|---:|---:|---:|---:|---:|:---:|",
         ]
     )
     for row in rows:
@@ -1205,7 +1217,7 @@ def _append_top20_section(
             f"| {format_int(row.get('rank'))} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
             f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
             f"{format_value(row.get('selection_shape_max'))} | {format_value(row.get('selection_cond_var_max'))} | "
-            f"{high_flag} | `{row.get('se_message', 'NA')}` |"
+            f"{high_flag} |"
         )
     lines.append("")
 
@@ -1218,7 +1230,6 @@ def _append_top20_section(
                 f"- LogLik: `{format_value(row.get('loglik'))}`; AIC: `{format_value(row.get('AIC'))}`; BIC: `{format_value(row.get('BIC'))}`",
                 f"- Max shape path: `{format_value(row.get('selection_shape_max'))}`; max implied variance: `{format_value(row.get('selection_cond_var_max'))}`",
                 f"- Selection diagnostics: `{row.get('selection_reason', 'NA')}`",
-                f"- SE status: `{row.get('se_message', 'NA')}`",
                 "",
                 "Mean process:",
                 "",
@@ -1236,10 +1247,10 @@ def write_markdown_summary(
     summary_path: Path,
     title: str,
     model_param_names: list[str],
-    top_loglik_with_se: list[dict] | None = None,
+    top_loglik_rows: list[dict] | None = None,
     model_family: str | None = None,
 ) -> None:
-    top_loglik_with_se = top_loglik_with_se or []
+    top_loglik_rows = top_loglik_rows or []
     model_family = model_family or ""
     observed_means = set(df.get("mean_type", pd.Series(dtype=str)).dropna().unique())
     missing_means = [mean_type for mean_type in MEAN_TYPES if mean_type not in observed_means]
@@ -1271,8 +1282,7 @@ def write_markdown_summary(
         "bounds, mean-process stationarity, and documented parameter/stability/unconditional-variance "
         "constraints. Corrected log likelihoods above "
         f"`{IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD:g}` are flagged for review but are not excluded by this threshold.",
-        f"Each mean-process section reports the top `{TOP_MODELS_PER_MEAN}` admissible estimates by corrected log likelihood. "
-        "Standard errors are shown below substituted equation coefficients in parentheses.",
+        f"Each mean-process section reports the top `{TOP_MODELS_PER_MEAN}` admissible estimates by corrected log likelihood.",
         "",
     ]
 
@@ -1298,7 +1308,7 @@ def write_markdown_summary(
         )
 
     rows_by_mean = {
-        mean_type: [row for row in top_loglik_with_se if row.get("mean_type") == mean_type]
+        mean_type: [row for row in top_loglik_rows if row.get("mean_type") == mean_type]
         for mean_type in MEAN_TYPES
     }
     for mean_type in MEAN_TYPES:
@@ -1436,26 +1446,28 @@ def collect_results(
         project_root=script_dir.parents[1],
         model_family=model_family,
     )
-    top_loglik_with_se = add_standard_errors_for_rows(
-        top_n_by_mean(all_results_with_diagnostics, "loglik", TOP_MODELS_PER_MEAN),
-        project_root=script_dir.parents[1],
-        model_family=model_family,
-    )
+    top_loglik_rows = [
+        row.to_dict()
+        for row in top_n_by_mean(all_results_with_diagnostics, "loglik", TOP_MODELS_PER_MEAN)
+    ]
 
     cleaned_results = cleaned_csv_view(all_results_with_diagnostics)
     cleaned_results.to_csv(results_dir / "all_estimations.csv", index=False)
-    split_paths = write_mean_split_csvs(cleaned_results, results_dir)
+    by_mean_results = cleaned_csv_view(eligible_result_rows(all_results_with_diagnostics))
+    split_paths = write_mean_split_csvs(by_mean_results, results_dir)
     selection_diagnostics_view(all_results_with_diagnostics).to_csv(
         results_dir / "selection_diagnostics.csv",
         index=False,
     )
-    pd.DataFrame(top_loglik_with_se).to_csv(results_dir / "best_loglik_top20_with_se.csv", index=False)
+    stale_se_path = results_dir / "best_loglik_top20_with_se.csv"
+    if stale_se_path.exists():
+        stale_se_path.unlink()
     write_markdown_summary(
         all_results_with_diagnostics,
         results_dir / "best_model.md",
         title,
         model_param_names,
-        top_loglik_with_se=top_loglik_with_se,
+        top_loglik_rows=top_loglik_rows,
         model_family=model_family,
     )
 
@@ -1465,5 +1477,4 @@ def collect_results(
     print(f"Wrote {results_dir / 'all_estimations.csv'}")
     print(f"Wrote {len(split_paths)} mean-process CSV file(s) under {results_dir / 'by_mean'}")
     print(f"Wrote {results_dir / 'selection_diagnostics.csv'}")
-    print(f"Wrote {results_dir / 'best_loglik_top20_with_se.csv'}")
     print(f"Wrote {results_dir / 'best_model.md'}")

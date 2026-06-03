@@ -145,22 +145,18 @@ When summarizing BEGE results across random-start jobs:
 
 * Aggregate all valid estimates across the 50 jobs for the same mean process and BEGE specification.
 * Rank admissible estimates by maximized log likelihood within each mean process.
-* Do not reject estimates solely because the log likelihood is above an investigatory threshold such as `-150`; such thresholds may be recorded as diagnostics for manual review, but they are not admissibility rules unless the user explicitly requests that change.
-* In addition to any combined result table kept for compatibility, write cleaned estimation outputs split by mean process under `results/by_mean/`, using stable filenames:
+* Write cleaned estimation outputs split by mean process under `results/`, using stable filenames:
   * `constant.csv`
   * `ARX_1_1.csv`
   * `ARX_2_1.csv`
   * `ARX_2_2.csv`
-* In `results/best_model.md`, report the top 20 admissible estimates for each mean process, ranked by maximized log likelihood.
-* For every reported top-20 BEGE estimate, present the relevant mean-process equation and BEGE volatility-process equation before any plain parameter table. Substitute the estimated parameter values directly into the equations.
-* For substituted equation coefficients, put the standard error directly below the parameter value, for example using a display-math form like `\underset{(0.012345)}{0.123456}`.
-* Compute standard errors only at the result-reporting stage for the reported top-20 estimates; do not compute standard errors in server-side raw search jobs unless the user explicitly requests it.
+* In `results/best_model.md`, report the top 5 admissible estimates for each mean process, ranked by maximized log likelihood.
+* Compute standard errors only at the result-reporting stage for the reported top-5 estimates; do not compute standard errors in server-side raw search jobs unless the user explicitly requests it.
 * Report whether the selected estimate passed:
 
   * optimizer convergence checks,
   * parameter-bound checks,
   * BEGE stability checks,
-  * shape upper-cap checks,
   * implied variance-bound checks,
   * and mean-process stationarity checks.
 * If the likelihood-best estimate fails an admissibility check, select the best admissible estimate and clearly record why the likelihood-best estimate was rejected or flagged.

@@ -23,7 +23,9 @@ from BEGE_GARCH.bege_batch import (
     _safe_inv_with_ridge,
     _sym_matrix,
     build_model_specs,
+    eligible_result_rows,
     load_effective_sample,
+    optimizer_success_mask,
     write_mean_split_csvs,
 )
 
@@ -93,6 +95,11 @@ def _analysis_rows(df: pd.DataFrame, metric: str) -> pd.DataFrame:
         if not successful.empty:
             valid = successful
 
+    if "optimizer_success" in valid.columns:
+        optimizer_successful = valid.loc[optimizer_success_mask(valid)].copy()
+        if not optimizer_successful.empty:
+            valid = optimizer_successful
+
     artifacts = numerical_artifact_mask(valid)
     if artifacts.any():
         valid = valid.loc[~artifacts].copy()
@@ -111,6 +118,13 @@ def success_mask(df: pd.DataFrame) -> pd.Series:
     if pd.api.types.is_bool_dtype(values):
         return values.fillna(False)
     return values.astype(str).str.lower().isin(["true", "1", "yes"])
+
+
+def ensure_optimizer_success(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    if "optimizer_success" not in out.columns:
+        out["optimizer_success"] = success_mask(out)
+    return out
 
 
 def best_by_mean(df: pd.DataFrame) -> list[pd.Series]:
@@ -322,7 +336,8 @@ def add_selection_diagnostics(df: pd.DataFrame, project_root: Path) -> pd.DataFr
             "selection_cond_var_upper_max": np.nan,
         }
         reasons = []
-        if not bool(success_mask(pd.DataFrame([row])).iloc[0]):
+        row_df = pd.DataFrame([row])
+        if not bool(success_mask(row_df).iloc[0]) or not bool(optimizer_success_mask(row_df).iloc[0]):
             reasons.append("optimizer did not converge")
 
         try:
@@ -465,11 +480,9 @@ def _constant_volatility_equation(row: dict) -> list[str]:
 
 
 def _append_parameter_table(lines: list[str], row: dict, names: list[str]) -> None:
-    lines.extend(["| Parameter | Estimate | Std. Error |", "|---|---:|---:|"])
+    lines.extend(["| Parameter | Estimate |", "|---|---:|"])
     for name in names:
-        lines.append(
-            f"| {name} | {format_value(row.get(f'param_{name}'))} | {format_value(row.get(f'se_{name}'))} |"
-        )
+        lines.append(f"| {name} | {format_value(row.get(f'param_{name}'))} |")
     lines.append("")
 
 
@@ -483,8 +496,8 @@ def _append_top20_section(lines: list[str], mean_type: str, rows: list[dict]) ->
         [
             f"Top {len(rows)} admissible estimates ranked by log likelihood.",
             "",
-            "| Rank | Seed | Draw | LogLik | AIC | BIC | Implied Var | Above -150 Diagnostic | SE Status |",
-            "|---:|---:|---:|---:|---:|---:|---:|:---:|---|",
+            "| Rank | Seed | Draw | LogLik | AIC | BIC | Implied Var | Above -150 Diagnostic |",
+            "|---:|---:|---:|---:|---:|---:|---:|:---:|",
         ]
     )
     for row in rows:
@@ -492,7 +505,7 @@ def _append_top20_section(lines: list[str], mean_type: str, rows: list[dict]) ->
         lines.append(
             f"| {format_int(row.get('rank'))} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
             f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
-            f"{format_value(row.get('selection_cond_var_max'))} | {high_flag} | `{row.get('se_message', 'NA')}` |"
+            f"{format_value(row.get('selection_cond_var_max'))} | {high_flag} |"
         )
     lines.append("")
 
@@ -504,7 +517,6 @@ def _append_top20_section(lines: list[str], mean_type: str, rows: list[dict]) ->
                 f"- LogLik: `{format_value(row.get('loglik'))}`; AIC: `{format_value(row.get('AIC'))}`; BIC: `{format_value(row.get('BIC'))}`",
                 f"- Implied variance: `{format_value(row.get('selection_cond_var_max'))}`",
                 f"- Selection diagnostics: `{row.get('selection_reason', 'NA')}`",
-                f"- SE status: `{row.get('se_message', 'NA')}`",
                 "",
                 "Mean process:",
                 "",
@@ -520,9 +532,9 @@ def _append_top20_section(lines: list[str], mean_type: str, rows: list[dict]) ->
 def write_markdown_summary(
     df: pd.DataFrame,
     summary_path: Path,
-    top_loglik_with_se: list[dict] | None = None,
+    top_loglik_rows: list[dict] | None = None,
 ) -> None:
-    top_loglik_with_se = top_loglik_with_se or []
+    top_loglik_rows = top_loglik_rows or []
     observed_means = set(df.get("mean_type", pd.Series(dtype=str)).dropna().unique())
     missing_means = [mean_type for mean_type in MEAN_TYPES if mean_type not in observed_means]
     selection_artifacts = success_mask(df) & numerical_artifact_mask(df)
@@ -547,8 +559,7 @@ def write_markdown_summary(
         "documented parameter bounds, EWMA implied-variance bounds, positive conditional variance, "
         "and mean-process stationarity. Log likelihoods above "
         f"`{IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD:g}` are flagged for review but are not excluded by this threshold.",
-        f"Each mean-process section reports the top `{TOP_MODELS_PER_MEAN}` admissible estimates by log likelihood. "
-        "Standard errors are shown below substituted equation coefficients in parentheses.",
+        f"Each mean-process section reports the top `{TOP_MODELS_PER_MEAN}` admissible estimates by log likelihood.",
         "",
     ]
 
@@ -591,7 +602,7 @@ def write_markdown_summary(
         )
 
     rows_by_mean = {
-        mean_type: [row for row in top_loglik_with_se if row.get("mean_type") == mean_type]
+        mean_type: [row for row in top_loglik_rows if row.get("mean_type") == mean_type]
         for mean_type in MEAN_TYPES
     }
     for mean_type in MEAN_TYPES:
@@ -615,6 +626,7 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "draw",
         "mean_type",
         "success",
+        "optimizer_success",
         "loglik",
         "AIC",
         "BIC",
@@ -691,30 +703,32 @@ def main() -> None:
 
     all_results = all_results.sort_values(["mean_type", "seed", "draw"]).reset_index(drop=True)
 
+    all_results = ensure_optimizer_success(all_results)
     all_results_with_diagnostics = add_selection_diagnostics(all_results, script_dir.parents[1])
-    top_loglik_with_se = add_standard_errors_for_rows(
-        top_n_by_mean(all_results_with_diagnostics, TOP_MODELS_PER_MEAN),
-        project_root=script_dir.parents[1],
-    )
+    top_loglik_rows = [
+        row.to_dict()
+        for row in top_n_by_mean(all_results_with_diagnostics, TOP_MODELS_PER_MEAN)
+    ]
 
     out_csv = results_dir / "all_estimations.csv"
     out_diag = results_dir / "selection_diagnostics.csv"
-    out_se = results_dir / "best_loglik_top20_with_se.csv"
     out_md = results_dir / "best_model.md"
 
     cleaned_results = cleaned_csv_view(all_results_with_diagnostics)
     cleaned_results.to_csv(out_csv, index=False)
-    split_paths = write_mean_split_csvs(cleaned_results, results_dir)
+    by_mean_results = cleaned_csv_view(eligible_result_rows(all_results_with_diagnostics))
+    split_paths = write_mean_split_csvs(by_mean_results, results_dir)
     selection_diagnostics_view(all_results_with_diagnostics).to_csv(out_diag, index=False)
-    pd.DataFrame(top_loglik_with_se).to_csv(out_se, index=False)
-    write_markdown_summary(all_results_with_diagnostics, out_md, top_loglik_with_se=top_loglik_with_se)
+    stale_se_path = results_dir / "best_loglik_top20_with_se.csv"
+    if stale_se_path.exists():
+        stale_se_path.unlink()
+    write_markdown_summary(all_results_with_diagnostics, out_md, top_loglik_rows=top_loglik_rows)
 
     if start_seed is not None or end_seed is not None:
         print(f"Seed file filter: START_ID={start_seed}, END_ID={end_seed}")
     print(f"Merged {len(csv_files)} seed files into: {out_csv}")
     print(f"Wrote {len(split_paths)} mean-process CSV file(s) under {results_dir / 'by_mean'}")
     print(f"Wrote selection diagnostics: {out_diag}")
-    print(f"Wrote top-20 estimates with SE: {out_se}")
     print(f"Wrote summary markdown: {out_md}")
 
 

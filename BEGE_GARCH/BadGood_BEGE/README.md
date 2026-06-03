@@ -49,6 +49,10 @@ Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keep
 - `results/best_loglik_top20_with_se.csv`, with standard errors for the top 20 corrected log-likelihood fits in each eligible mean process.
 - `results/best_model.md`, with the top 20 corrected log-likelihood fits for each mean process, reported as substituted mean and BEGE volatility equations with standard errors shown below the parameter values.
 
+The by-mean CSV files keep only estimates with `optimizer_success=True` and
+`selection_eligible=True`; excluded raw-search rows remain in
+`results/all_estimations.csv` and `results/selection_diagnostics.csv`.
+
 When `START_ID` and `END_ID` are set, the collector only merges `draw_###.csv` files in that seed range. This prevents older seed files from entering a new smaller resubmission.
 
 `SimulationBG.sh` defaults to 50 seed jobs, 40 draws per mean process, 25 optimizer starts per draw, and 800 SLSQP iterations per start. This gives 50,000 optimizer starts for each mean process and BadGood BEGE specification. With all four mean processes, that is 200,000 optimizer starts total. The `estimate` action prints a rough per-seed time estimate before submitting jobs.

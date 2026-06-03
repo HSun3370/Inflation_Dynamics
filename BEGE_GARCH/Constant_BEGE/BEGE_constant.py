@@ -150,7 +150,9 @@ def _result_to_row(result: dict, mean_type: str, draw: int, seed: int, random_st
     }
 
     opt = result.get("opt")
-    row["success"] = bool(getattr(opt, "success", False))
+    optimizer_success = bool(getattr(opt, "success", False))
+    row["success"] = optimizer_success
+    row["optimizer_success"] = optimizer_success
     row["status"] = int(getattr(opt, "status", -1))
     row["message"] = str(getattr(opt, "message", ""))
 
@@ -222,6 +224,7 @@ def run_seed(
                     "random_state": rs,
                     "mean_type": mean_type,
                     "success": False,
+                    "optimizer_success": False,
                     "status": -999,
                     "message": f"{type(exc).__name__}: {exc}",
                     "loglik": np.nan,

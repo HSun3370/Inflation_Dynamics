@@ -38,7 +38,9 @@ recompute the likelihood from each stored parameter vector using the stabilized
 BEGE density before writing `results/all_estimations.csv`, so stale likelihoods
 from earlier density code do not determine the best model. The cleaned
 estimations are also split by mean process under `results/by_mean/` as
-`constant.csv`, `ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`.
+`constant.csv`, `ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`; these
+by-mean files keep only rows with successful optimizer status and
+`selection_eligible=True`.
 
 Reported best-model
 tables require finite corrected likelihood criteria, successful optimizer

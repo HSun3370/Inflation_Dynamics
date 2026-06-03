@@ -51,9 +51,10 @@ each model fit so partial jobs leave recoverable output. Each seed uses 40
 draws per mean process and 25 optimizer starts per draw, giving 50,000
 optimizer starts for each mean process and Inflation/Deflation BEGE
 specification. The collector merges the raw CSV files, writes the cleaned
-combined output to `results/all_estimations.csv`, and splits the same cleaned
-output by mean process under `results/by_mean/` as `constant.csv`,
-`ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`. It ranks admissible estimates
+combined output to `results/all_estimations.csv`, and writes admissible cleaned
+outputs split by mean process under `results/by_mean/` as `constant.csv`,
+`ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`. The by-mean CSV files keep
+only rows with `optimizer_success=True` and `selection_eligible=True`. It ranks admissible estimates
 by corrected log likelihood within each mean process, computes standard errors
 for the top 20 rows per mean process in `results/best_loglik_top20_with_se.csv`,
 and writes `results/best_model.md` with substituted mean and BEGE volatility
