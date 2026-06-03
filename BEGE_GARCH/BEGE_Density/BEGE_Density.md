@@ -58,13 +58,13 @@ The log likelihood and timing comparison uses the following five BadGood-based p
 - My improved code provides an equavalent accurate and more computationally efficient evaluation.
 
 
-![Numerical integration convergence](Density_Analysis/results/BEGE_Density_numerical_convergence.png)
+![Numerical integration convergence](results/BEGE_Density_numerical_convergence.png)
 
 ## Shape Tail Consistency
 
 Holding the other parameters at the BadGood medians (`p=2.8130`, `n=0.3320`, `sigma_p=0.2355`, `sigma_n=0.5555`), I vary either `p` or `n` up to 5000 and compare the three density functions. The numerical integration line uses 5,000 grid points.
 
-![Shape consistency](Density_Analysis/results/BEGE_Density_shape_consistency.png)
+![Shape consistency](results/BEGE_Density_shape_consistency.png)
 
 ## Findings
 

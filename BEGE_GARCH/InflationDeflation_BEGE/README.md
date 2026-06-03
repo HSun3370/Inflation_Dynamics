@@ -55,8 +55,8 @@ combined output to `results/all_estimations.csv`, and writes admissible cleaned
 outputs split by mean process under `results/by_mean/` as `constant.csv`,
 `ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`. The by-mean CSV files keep
 only rows with `optimizer_success=True` and `selection_eligible=True`. It ranks admissible estimates
-by corrected log likelihood within each mean process, computes standard errors
-for the top 20 rows per mean process in `results/best_loglik_top20_with_se.csv`,
-and writes `results/best_model.md` with substituted mean and BEGE volatility
-equations. Standard errors are shown below the parameter values in those
-reported equations.
+by corrected log likelihood, computes standard errors for the likelihood-best
+admissible fit in `results/best_loglik_with_se.csv`, and writes
+`results/best_model.md` with only that selected fit as substituted mean and BEGE
+volatility equations. Standard errors are shown below the parameter values in
+those reported equations.

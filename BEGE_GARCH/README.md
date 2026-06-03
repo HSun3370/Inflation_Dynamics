@@ -70,11 +70,10 @@ status, mean stationarity status, and the exclusion reason for each saved
 estimation row. A log-likelihood value above `-150` is recorded as a manual
 review diagnostic but is not a selection exclusion rule.
 
-Each `results/best_model.md` reports the top 20 admissible rows by corrected
-log likelihood within each mean process. For every reported row, the markdown
-first shows the relevant mean-process equation and BEGE volatility-process
-equation with the estimated parameters substituted directly into the equations;
-standard errors appear below the substituted estimates in parentheses. The same
-top-20 rows with standard errors are written to
-`results/best_loglik_top20_with_se.csv`.
+Each `results/best_model.md` reports only the single likelihood-best admissible
+row for that BEGE specification. The markdown first shows the selected
+mean-process equation and BEGE volatility-process equation with the estimated
+parameters substituted directly into the equations; standard errors appear
+below the substituted estimates in parentheses. The same selected row with
+standard errors is written to `results/best_loglik_with_se.csv`.
  
