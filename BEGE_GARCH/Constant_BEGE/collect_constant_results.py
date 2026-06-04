@@ -60,7 +60,7 @@ PARAMETER_NAMES = {
 def format_value(val: float) -> str:
     if pd.isna(val):
         return "NA"
-    return f"{val:.6f}"
+    return f"{val:.4f}"
 
 
 def format_int(val: float) -> str:

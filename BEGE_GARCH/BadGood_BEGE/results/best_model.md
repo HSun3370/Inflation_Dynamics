@@ -24,7 +24,7 @@ Best admissible estimate ranked by corrected log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |
 |---|---:|---:|---:|---:|---:|---:|---:|:---:|
-| ARX(1,1) | 16 | 24 | 134.033609 | -246.067218 | -208.990199 | 3024.746008 | 11.591510 | yes |
+| ARX(1,1) | 16 | 24 | 134.0336 | -246.0672 | -208.9902 | 3024.7460 | 11.5915 | yes |
 
 Selection checks:
 
@@ -40,22 +40,22 @@ Selection checks:
 Mean process:
 
 $$
-\pi_{t+1} = \underset{(0.166260)}{0.378918} + \underset{(0.168886)}{0.445463}\,\pi_t + \underset{(0.363141)}{1.135712}\,SPF_t + u_{t+1}
+\pi_{t+1} = \underset{(0.1663)}{0.3789} + \underset{(0.1689)}{0.4455}\,\pi_t + \underset{(0.3631)}{1.1357}\,SPF_t + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(3.399730)}{0.271844}\,\omega_{p,t} - \underset{(0.000202)}{0.048968}\,\omega_{n,t},\\
+u_t &= \underset{(3.3997)}{0.2718}\,\omega_{p,t} - \underset{(0.0002)}{0.0490}\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= \underset{(3.251517)}{4.246196} + \underset{(0.000002)}{0.921285}\,p_{t-1} + \frac{\underset{(0.131530)}{0.022016}}{2(\underset{(3.399730)}{0.271844})^2}\,u_{t-1}^2,\\
-n_t &= \underset{(610.059564)}{9.681746} + \underset{(0.000010)}{0.232777}\,n_{t-1} + \frac{\underset{(2.932198)}{0.626957}}{2(\underset{(0.000202)}{0.048968})^2}\,u_{t-1}^2
+p_t &= \underset{(3.2515)}{4.2462} + \underset{(0.0000)}{0.9213}\,p_{t-1} + \frac{\underset{(0.1315)}{0.0220}}{2(\underset{(3.3997)}{0.2718})^2}\,u_{t-1}^2,\\
+n_t &= \underset{(610.0596)}{9.6817} + \underset{(0.0000)}{0.2328}\,n_{t-1} + \frac{\underset{(2.9322)}{0.6270}}{2(\underset{(0.0002)}{0.0490})^2}\,u_{t-1}^2
 \end{aligned}
 $$
 
@@ -63,14 +63,14 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| c | 0.378918 | 0.166260 |
-| rho_1 | 0.445463 | 0.168886 |
-| phi_1 | 1.135712 | 0.363141 |
-| p0 | 4.246196 | 3.251517 |
-| n0 | 9.681746 | 610.059564 |
-| rho_p | 0.921285 | 0.000002 |
-| rho_n | 0.232777 | 0.000010 |
-| phi_p | 0.022016 | 0.131530 |
-| phi_n | 0.626957 | 2.932198 |
-| sigma_p | 0.271844 | 3.399730 |
-| sigma_n | 0.048968 | 0.000202 |
+| c | 0.3789 | 0.1663 |
+| rho_1 | 0.4455 | 0.1689 |
+| phi_1 | 1.1357 | 0.3631 |
+| p0 | 4.2462 | 3.2515 |
+| n0 | 9.6817 | 610.0596 |
+| rho_p | 0.9213 | 0.0000 |
+| rho_n | 0.2328 | 0.0000 |
+| phi_p | 0.0220 | 0.1315 |
+| phi_n | 0.6270 | 2.9322 |
+| sigma_p | 0.2718 | 3.3997 |
+| sigma_n | 0.0490 | 0.0002 |

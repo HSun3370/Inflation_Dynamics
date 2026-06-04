@@ -43,23 +43,11 @@ The parameter bounds are chosen to be:
 The current estimation code enforces the stability condition
 
 $$
-\rho + \frac{\phi^+}{2} + \frac{\phi^-}{2} < 1,
+\rho + \frac{\phi^+}{2} + \frac{\phi^-}{2} < 1.
 $$
-
-and the same variance guard used by the current BEGE searches,
-
-$$
-\sigma_p^2 p_0 + \sigma_n^2 n_0 < 0.87.
-$$
-
+ 
 The optimizer and collector also enforce the EWMA implied-variance bounds on
 $\sigma_p^2 p_t + \sigma_n^2 n_t$ at every effective-sample observation.
-
-The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start
-optimization or reported best-model selection by default. The stabilized BEGE
-density is evaluated directly as long as the recursive shape series are finite;
-large shape states use the saddlepoint density backend. The collector writes
-the maximum shape path as a diagnostic in `results/selection_diagnostics.csv`.
 
 ## Batch Estimation
 

@@ -24,7 +24,7 @@ Best admissible estimate ranked by corrected log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |
 |---|---:|---:|---:|---:|---:|---:|---:|:---:|
-| ARX(2,1) | 21 | 40 | 253.476194 | -484.952389 | -447.875370 | 271.160360 | 23.471739 | yes |
+| ARX(2,1) | 21 | 40 | 253.4762 | -484.9524 | -447.8754 | 271.1604 | 23.4717 | yes |
 
 Selection checks:
 
@@ -40,22 +40,22 @@ Selection checks:
 Mean process:
 
 $$
-\pi_{t+1} = \underset{(30.151503)}{-0.027867} + \underset{(1.229643)}{0.408254}\,\pi_t + \underset{(20.430019)}{-0.033101}\,\pi_{t-1} + \underset{(26.729075)}{0.665318}\,SPF_t + u_{t+1}
+\pi_{t+1} = \underset{(30.1515)}{-0.0279} + \underset{(1.2296)}{0.4083}\,\pi_t + \underset{(20.4300)}{-0.0331}\,\pi_{t-1} + \underset{(26.7291)}{0.6653}\,SPF_t + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(1.234846)}{0.076122}\,\omega_{p,t} - \underset{(4.391602)}{0.495743}\,\omega_{n,t},\\
+u_t &= \underset{(1.2348)}{0.0761}\,\omega_{p,t} - \underset{(4.3916)}{0.4957}\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= \underset{(66.657177)}{8.161163} + \underset{(0.000000)}{0.939951}\,p_{t-1} + \frac{\underset{(0.069776)}{0.050597}}{2(\underset{(1.234846)}{0.076122})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(1.164779)}{0.009308}}{2(\underset{(1.234846)}{0.076122})^2}\,(u_{t-1}^-)^2,\\
-n_t &= \underset{(6.957336)}{2.682046} + \underset{(0.000000)}{0.939951}\,n_{t-1} + \frac{\underset{(0.069776)}{0.050597}}{2(\underset{(4.391602)}{0.495743})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(1.164779)}{0.009308}}{2(\underset{(4.391602)}{0.495743})^2}\,(u_{t-1}^-)^2
+p_t &= \underset{(66.6572)}{8.1612} + \underset{(0.0000)}{0.9400}\,p_{t-1} + \frac{\underset{(0.0698)}{0.0506}}{2(\underset{(1.2348)}{0.0761})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(1.1648)}{0.0093}}{2(\underset{(1.2348)}{0.0761})^2}\,(u_{t-1}^-)^2,\\
+n_t &= \underset{(6.9573)}{2.6820} + \underset{(0.0000)}{0.9400}\,n_{t-1} + \frac{\underset{(0.0698)}{0.0506}}{2(\underset{(4.3916)}{0.4957})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(1.1648)}{0.0093}}{2(\underset{(4.3916)}{0.4957})^2}\,(u_{t-1}^-)^2
 \end{aligned}
 $$
 
@@ -63,14 +63,14 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| c | -0.027867 | 30.151503 |
-| rho_1 | 0.408254 | 1.229643 |
-| rho_2 | -0.033101 | 20.430019 |
-| phi_1 | 0.665318 | 26.729075 |
-| p0 | 8.161163 | 66.657177 |
-| n0 | 2.682046 | 6.957336 |
-| rho | 0.939951 | 0.000000 |
-| phi_plus | 0.050597 | 0.069776 |
-| phi_minus | 0.009308 | 1.164779 |
-| sigma_p | 0.076122 | 1.234846 |
-| sigma_n | 0.495743 | 4.391602 |
+| c | -0.0279 | 30.1515 |
+| rho_1 | 0.4083 | 1.2296 |
+| rho_2 | -0.0331 | 20.4300 |
+| phi_1 | 0.6653 | 26.7291 |
+| p0 | 8.1612 | 66.6572 |
+| n0 | 2.6820 | 6.9573 |
+| rho | 0.9400 | 0.0000 |
+| phi_plus | 0.0506 | 0.0698 |
+| phi_minus | 0.0093 | 1.1648 |
+| sigma_p | 0.0761 | 1.2348 |
+| sigma_n | 0.4957 | 4.3916 |

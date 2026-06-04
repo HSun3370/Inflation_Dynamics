@@ -24,7 +24,7 @@ Best admissible estimate ranked by corrected log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |
 |---|---:|---:|---:|---:|---:|---:|---:|:---:|
-| ARX(2,2) | 4 | 20 | -37.452490 | 100.904979 | 144.723274 | 380.815763 | 97.559272 | yes |
+| ARX(2,2) | 4 | 20 | -37.4525 | 100.9050 | 144.7233 | 380.8158 | 97.5593 | yes |
 
 Selection checks:
 
@@ -40,22 +40,22 @@ Selection checks:
 Mean process:
 
 $$
-\pi_{t+1} = \underset{(0.000002)}{0.001828} + \underset{(0.000003)}{0.239259}\,\pi_t + \underset{(0.000002)}{0.310740}\,\pi_{t-1} + \underset{(0.005442)}{-0.463672}\,SPF_t + \underset{(0.005442)}{0.053363}\,SPF_{t-1} + u_{t+1}
+\pi_{t+1} = \underset{(0.0000)}{0.0018} + \underset{(0.0000)}{0.2393}\,\pi_t + \underset{(0.0000)}{0.3107}\,\pi_{t-1} + \underset{(0.0054)}{-0.4637}\,SPF_t + \underset{(0.0054)}{0.0534}\,SPF_{t-1} + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(0.000006)}{0.180775}\,\omega_{p,t} - \underset{(0.000001)}{1.899770}\,\omega_{n,t},\\
+u_t &= \underset{(0.0000)}{0.1808}\,\omega_{p,t} - \underset{(0.0000)}{1.8998}\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= \underset{(0.000002)}{6.451490} + \underset{(0.000005)}{0.955084}\,p_{t-1} + \frac{\underset{(0.000004)}{0.055950}}{2(\underset{(0.000006)}{0.180775})^2}\,(u_{t-1}^+)^2,\\
-n_t &= \underset{(0.000006)}{0.134824} + \underset{(0.000003)}{0.994276}\,n_{t-1} + \frac{\underset{(0.000002)}{0.000015}}{2(\underset{(0.000001)}{1.899770})^2}\,(u_{t-1}^-)^2
+p_t &= \underset{(0.0000)}{6.4515} + \underset{(0.0000)}{0.9551}\,p_{t-1} + \frac{\underset{(0.0000)}{0.0559}}{2(\underset{(0.0000)}{0.1808})^2}\,(u_{t-1}^+)^2,\\
+n_t &= \underset{(0.0000)}{0.1348} + \underset{(0.0000)}{0.9943}\,n_{t-1} + \frac{\underset{(0.0000)}{0.0000}}{2(\underset{(0.0000)}{1.8998})^2}\,(u_{t-1}^-)^2
 \end{aligned}
 $$
 
@@ -63,16 +63,16 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| c | 0.001828 | 0.000002 |
-| rho_1 | 0.239259 | 0.000003 |
-| rho_2 | 0.310740 | 0.000002 |
-| phi_1 | -0.463672 | 0.005442 |
-| phi_2 | 0.053363 | 0.005442 |
-| p0 | 6.451490 | 0.000002 |
-| n0 | 0.134824 | 0.000006 |
-| rho_p | 0.955084 | 0.000005 |
-| rho_n | 0.994276 | 0.000003 |
-| phi_p_plus | 0.055950 | 0.000004 |
-| phi_n_minus | 0.000015 | 0.000002 |
-| sigma_p | 0.180775 | 0.000006 |
-| sigma_n | 1.899770 | 0.000001 |
+| c | 0.0018 | 0.0000 |
+| rho_1 | 0.2393 | 0.0000 |
+| rho_2 | 0.3107 | 0.0000 |
+| phi_1 | -0.4637 | 0.0054 |
+| phi_2 | 0.0534 | 0.0054 |
+| p0 | 6.4515 | 0.0000 |
+| n0 | 0.1348 | 0.0000 |
+| rho_p | 0.9551 | 0.0000 |
+| rho_n | 0.9943 | 0.0000 |
+| phi_p_plus | 0.0559 | 0.0000 |
+| phi_n_minus | 0.0000 | 0.0000 |
+| sigma_p | 0.1808 | 0.0000 |
+| sigma_n | 1.8998 | 0.0000 |

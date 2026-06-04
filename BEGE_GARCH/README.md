@@ -2,32 +2,21 @@
 ```{raw:typst}
 #set page(margin: auto)
 ```
-
-
-
-
+ 
 # BEGE GARCH Family
-
+ 
 To start the random search of initial mean parameters, I draw uniform samples from $(\mu - 2\sigma,\ \mu + 2\sigma)$ where $\mu$ and $\sigma$ are mean and standard deviation from OLS regression. I also set the AR coefficient bound to avoid the AR process to explode. We have four types of mean processes.
 
-**Table 1: Parameter Bounds for Mean Process Specifications**
+## Implied Moment Dynamics
+The BEGE GARCH models have nice properties
 
-| Model     | $c$                         | $\rho_1$            | $\rho_2$            | $\phi_1$       | $\phi_2$       |
-|-----------|-----------------------------|---------------------|---------------------|----------------|----------------|
-| Constant  | ---                         | ---                 | ---                 | ---            | ---            |
-| ARX(1,1)  | $(\min \pi_t,\ \max \pi_t)$ | $(-0.999,\ 0.999)$  | ---                 | $(-10,\ 10)$   | ---            |
-| ARX(2,1)  | $(\min \pi_t,\ \max \pi_t)$ | $(-1.999,\ 1.999)$  | $(-0.999,\ 0.999)$  | $(-10,\ 10)$   | ---            |
-| ARX(2,2)  | $(\min \pi_t,\ \max \pi_t)$ | $(-1.999,\ 1.999)$  | $(-0.999,\ 0.999)$  | $(-10,\ 10)$   | $(-10,\ 10)$   |
+- conditional variance: $\sigma_t^2 = \sigma^2_p p_t + \sigma^2_n n_t$,
+- conditional skewness: $s_t^2 = 2 (\sigma^3_p p_t - \sigma^3_n n_t)$,
+- conditional excess kurtosis: $k_t^2 = 6(\sigma^4_p p_t + \sigma^4_n n_t)$.
 
-## Estimation Speed Controls
+**Used for recursive constraints!!**
 
-The BEGE likelihood now uses the analytic hypergeometric-$U$ density for
-moderate shape paths and a cumulant-generating-function saddlepoint density for
-large recursive shape states. This avoids the numerical overflow/cancellation
-that can make direct `hyperu` evaluation report impossible log densities when
-$p_t$ or $n_t$ is large. Exact high-precision `hyperu` checks can still be
-forced with `hyperu_method="mpmath"` or the estimator-specific
-`density_hyperu_method="mpmath"`.
+## Random Search
 
 For the multi-start BEGE estimators, robust numerical standard errors are optional through `compute_se`. The default is `compute_se=False` for fast model search; the result collectors recompute standard errors for the reported top log-likelihood rows after selection.
 

@@ -150,8 +150,9 @@ When summarizing BEGE results across random-start jobs:
   * `ARX_1_1.csv`
   * `ARX_2_1.csv`
   * `ARX_2_2.csv`
-* In `results/best_model.md`, report the top 5 admissible estimates for each mean process, ranked by maximized log likelihood.
-* Compute standard errors only at the result-reporting stage for the reported top-5 estimates; do not compute standard errors in server-side raw search jobs unless the user explicitly requests it.
+* In `results/best_model.md`, report only the single best admissible estimate for each BEGE specification, ranked by maximized log likelihood.
+* Compute standard errors only at the result-reporting stage for the reported best estimate; do not compute standard errors in server-side raw search jobs unless the user explicitly requests it.
+* In generated `results/best_model.md` markdown, format reported numeric estimates, standard errors, likelihood criteria, and diagnostic table values with exactly four digits after the decimal point.
 * Report whether the selected estimate passed:
 
   * optimizer convergence checks,

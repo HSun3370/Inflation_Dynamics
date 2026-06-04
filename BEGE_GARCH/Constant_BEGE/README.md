@@ -23,8 +23,8 @@ $$
 
 $\bar{p}$ and $\bar{n}$ are unconditional shape parameters. The random search and bounds are set to be:
 
-- $0.05 < \sigma_p, \sigma_n < 2$
-- $0.1 < p, n < 10$
+- $10^{-5} < \sigma_p, \sigma_n < 2$,
+- $0.1 < p, n < 10$.
 
 The constant implied variance path
 

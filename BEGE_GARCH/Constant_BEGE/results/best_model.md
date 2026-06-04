@@ -18,7 +18,7 @@ Best admissible estimate ranked by log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC | Implied Var | Above -150 Diagnostic |
 |---|---:|---:|---:|---:|---:|---:|:---:|
-| ARX(2,2) | 18 | 1 | -181.688415 | 381.376830 | 411.712572 | 0.395222 | no |
+| ARX(2,2) | 18 | 1 | -181.6884 | 381.3768 | 411.7126 | 0.3952 | no |
 
 Selection checks:
 
@@ -34,17 +34,17 @@ Selection checks:
 Mean process:
 
 $$
-\pi_{t+1} = \underset{(0.108204)}{0.004171} + \underset{(0.119603)}{0.323173}\,\pi_t + \underset{(0.083407)}{0.163315}\,\pi_{t-1} + \underset{(0.306386)}{0.410717}\,SPF_t + \underset{(0.289064)}{0.194172}\,SPF_{t-1} + u_{t+1}
+\pi_{t+1} = \underset{(0.1082)}{0.0042} + \underset{(0.1196)}{0.3232}\,\pi_t + \underset{(0.0834)}{0.1633}\,\pi_{t-1} + \underset{(0.3064)}{0.4107}\,SPF_t + \underset{(0.2891)}{0.1942}\,SPF_{t-1} + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(0.036800)}{0.271204}\,\omega_{p,t} - \underset{(0.348411)}{0.840368}\,\omega_{n,t},\\
+u_t &= \underset{(0.0368)}{0.2712}\,\omega_{p,t} - \underset{(0.3484)}{0.8404}\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(\bar{p},1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(\bar{n},1),\\
-\bar{p} &= \underset{(0.467080)}{2.664771},\qquad \bar{n} = \underset{(0.160632)}{0.282099},\\
-\operatorname{Var}_t(u_t) &= (\underset{(0.036800)}{0.271204})^2\,\underset{(0.467080)}{2.664771} + (\underset{(0.348411)}{0.840368})^2\,\underset{(0.160632)}{0.282099}.
+\bar{p} &= \underset{(0.4671)}{2.6648},\qquad \bar{n} = \underset{(0.1606)}{0.2821},\\
+\operatorname{Var}_t(u_t) &= (\underset{(0.0368)}{0.2712})^2\,\underset{(0.4671)}{2.6648} + (\underset{(0.3484)}{0.8404})^2\,\underset{(0.1606)}{0.2821}.
 \end{aligned}
 $$
 
@@ -52,12 +52,12 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| c | 0.004171 | 0.108204 |
-| rho_1 | 0.323173 | 0.119603 |
-| rho_2 | 0.163315 | 0.083407 |
-| phi_1 | 0.410717 | 0.306386 |
-| phi_2 | 0.194172 | 0.289064 |
-| shape_p | 2.664771 | 0.467080 |
-| shape_n | 0.282099 | 0.160632 |
-| sigma_p | 0.271204 | 0.036800 |
-| sigma_n | 0.840368 | 0.348411 |
+| c | 0.0042 | 0.1082 |
+| rho_1 | 0.3232 | 0.1196 |
+| rho_2 | 0.1633 | 0.0834 |
+| phi_1 | 0.4107 | 0.3064 |
+| phi_2 | 0.1942 | 0.2891 |
+| shape_p | 2.6648 | 0.4671 |
+| shape_n | 0.2821 | 0.1606 |
+| sigma_p | 0.2712 | 0.0368 |
+| sigma_n | 0.8404 | 0.3484 |
