@@ -1,611 +1,737 @@
+from __future__ import annotations
 
 import argparse
-import pandas as pd
-from pathlib import Path
+from dataclasses import dataclass
 from datetime import datetime
-from BEGE_GARCH.BEGE_GARCH import *
-from BEGE_GARCH.BEGE_Density.BEGE_density import *
+from pathlib import Path
+import sys
+
 import numpy as np
-from numpy.random import default_rng
-from scipy.stats import gamma as _gamma
+import pandas as pd
 from scipy.optimize import minimize
- 
-from statsmodels.tools.numdiff import approx_hess
 
-import os
-  
-parser = argparse.ArgumentParser(description="seed sets")
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-parser.add_argument("--id", type=int, default=1) 
-args = parser.parse_args()  # <<< after all arguments are added
-seed = args.id  
+from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
+from BEGE_GARCH.BEGE_GARCH import (
+    _make_residual_function,
+    bege_implied_variance,
+    bege_variance_bounds,
+    gjr_recursion,
+)
 
-  
-def simulate_bege_full(
-    T,
-    mean_type='constant',
-    mean_params_true=None,   # for 'constant': {}, for 'ARX(1,1)': {'const':..., 'phi1':..., 'theta1':...}
-    vol_params_true=None,    # dict with keys: p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign
-    rng_seed=123,
-    max_shape_cap=5_000.0
-):
+
+PARAM_NAMES = [
+    "const",
+    "Inflation_lag_1",
+    "SPF",
+    "p0",
+    "n0",
+    "rho_p",
+    "rho_n",
+    "phi_p_plus",
+    "phi_p_minus",
+    "phi_n_plus",
+    "phi_n_minus",
+    "sigma_p",
+    "sigma_n",
+]
+
+
+TRUE_PARAMS = {
+    "const": 0.08,
+    "Inflation_lag_1": 0.25,
+    "SPF": 0.70,
+    "p0": 1.50,
+    "n0": 1.30,
+    "rho_p": 0.10,
+    "rho_n": 0.12,
+    "phi_p_plus": 0.24,
+    "phi_p_minus": 0.10,
+    "phi_n_plus": 0.09,
+    "phi_n_minus": 0.23,
+    "sigma_p": 0.25,
+    "sigma_n": 0.35,
+}
+
+
+@dataclass(frozen=True)
+class SyntheticData:
+    Y: np.ndarray
+    X: dict[str, np.ndarray]
+    residuals: np.ndarray
+    pseries: np.ndarray
+    nseries: np.ndarray
+    spf: np.ndarray
+    inflation_lag_1: np.ndarray
+
+
+def pack_params(params: dict[str, float]) -> np.ndarray:
+    return np.array([params[name] for name in PARAM_NAMES], dtype=float)
+
+
+def unpack_vol(theta: np.ndarray) -> tuple[float, ...]:
+    return tuple(float(v) for v in theta[3:])
+
+
+def stability_margins(theta: np.ndarray, variance_bound: float) -> dict[str, float]:
+    (
+        p0,
+        n0,
+        rho_p,
+        rho_n,
+        phi_p_plus,
+        phi_p_minus,
+        phi_n_plus,
+        phi_n_minus,
+        sigma_p,
+        sigma_n,
+    ) = unpack_vol(theta)
+    return {
+        "p_stability_margin": 1.0 - (rho_p + 0.5 * (phi_p_plus + phi_p_minus)),
+        "n_stability_margin": 1.0 - (rho_n + 0.5 * (phi_n_plus + phi_n_minus)),
+        "unconditional_variance_margin": variance_bound
+        - (sigma_p * sigma_p * p0 + sigma_n * sigma_n * n0),
+    }
+
+
+def constraints_ok(theta: np.ndarray, variance_bound: float, floor_eps: float = 1e-8) -> bool:
+    if not np.all(np.isfinite(theta)):
+        return False
+    margins = stability_margins(theta, variance_bound)
+    return (
+        margins["p_stability_margin"] > floor_eps
+        and margins["n_stability_margin"] > floor_eps
+        and margins["unconditional_variance_margin"] >= -floor_eps
+    )
+
+
+def simulate_full_bege_arx11(
+    n_obs: int,
+    burn_in: int,
+    seed: int,
+    true_params: dict[str, float],
+) -> SyntheticData:
     """
-    Simulate BEGE with FULL GJR recursions (separate p_t and n_t parameters).
+    Simulate pi_t from an ARX(1,1) mean with Full BEGE residuals.
 
-    u_t = sigp*(Gamma(p_t)-p_t) - sign*(Gamma(n_t)-n_t)
-    p_t = p0 + rho_p*p_{t-1} + (phi_p_plus/(2*sigp^2))*(u_{t-1}^+)^2 + (phi_p_minus/(2*sigp^2))*(u_{t-1}^-)^2
-    n_t = n0 + rho_n*n_{t-1} + (phi_n_plus/(2*sign^2))*(u_{t-1}^+)^2 + (phi_n_minus/(2*sign^2))*(u_{t-1}^-)^2
-
-    Returns:
-      Y, X (if needed; else None), dict with pseries, nseries, u, and components
+    The returned sample is already burn-in trimmed and includes precomputed
+    lag columns, so the estimator does not drop any additional observations.
     """
-    assert vol_params_true is not None, "vol_params_true must be provided"
+    rng = np.random.default_rng(seed)
+    total = int(n_obs) + int(burn_in)
+    theta = pack_params(true_params)
+    (
+        p0,
+        n0,
+        rho_p,
+        rho_n,
+        phi_p_plus,
+        phi_p_minus,
+        phi_n_plus,
+        phi_n_minus,
+        sigma_p,
+        sigma_n,
+    ) = unpack_vol(theta)
 
-    p0   = float(vol_params_true['p0'])
-    n0   = float(vol_params_true['n0'])
-    rho_p = float(vol_params_true['rho_p'])
-    rho_n = float(vol_params_true['rho_n'])
-    phi_p_plus = float(vol_params_true['phi_p_plus'])
-    phi_p_minus= float(vol_params_true['phi_p_minus'])
-    phi_n_plus = float(vol_params_true['phi_n_plus'])
-    phi_n_minus= float(vol_params_true['phi_n_minus'])
-    sigp = float(vol_params_true['sigp'])
-    sign = float(vol_params_true['sign'])
+    denom_p = 1.0 - rho_p - 0.5 * (phi_p_plus + phi_p_minus)
+    denom_n = 1.0 - rho_n - 0.5 * (phi_n_plus + phi_n_minus)
+    if denom_p <= 0.0 or denom_n <= 0.0:
+        raise ValueError("True parameters are not stable.")
 
-    rng = default_rng(rng_seed)
+    spf_mean = 0.80
+    spf_ar = 0.65
+    spf_sd = 0.12
+    spf = np.empty(total + 1, dtype=float)
+    spf[0] = spf_mean
+    for t in range(1, total + 1):
+        spf[t] = spf_mean + spf_ar * (spf[t - 1] - spf_mean) + rng.normal(0.0, spf_sd)
 
-    # Mean process
-    if mean_type == 'constant':
-        const = mean_params_true.get('const', 0.0) if mean_params_true else 0.0
-        # no X
-        def mean_gen(u):
-            return const + u
-        X = None
-    elif mean_type == 'ARX(1,1)':
-        # Expect mean_params_true: {'const': c0, 'phi1': φ, 'theta1': θ} and an exogenous series X_t
-        assert mean_params_true is not None and 'const' in mean_params_true and 'phi1' in mean_params_true and 'theta1' in mean_params_true and 'X' in mean_params_true
-        c0   = float(mean_params_true['const'])
-        phi1 = float(mean_params_true['phi1'])
-        theta1 = float(mean_params_true['theta1'])
-        X    = np.asarray(mean_params_true['X'], float)
-        T    = min(T, len(X))
-        def mean_gen(u):
-            Y = np.empty(T, float)
-            # simple ARX(1,1): Y_t = c0 + phi1*Y_{t-1} + theta1*X_{t-1} + u_t
-            Y[0] = c0 + u[0]
-            for t in range(1, T):
-                Y[t] = c0 + phi1*Y[t-1] + theta1*X[t-1] + u[t]
-            return Y
-    else:
-        raise ValueError("mean_type must be 'constant' or 'ARX(1,1)' for this simulator")
+    pseries = np.empty(total + 1, dtype=float)
+    nseries = np.empty(total + 1, dtype=float)
+    residuals = np.empty(total + 1, dtype=float)
+    inflation = np.empty(total + 1, dtype=float)
 
-    # Allocate
-    u = np.zeros(T, dtype=float)
-    pseries = np.zeros(T, dtype=float)
-    nseries = np.zeros(T, dtype=float)
+    pseries[0] = p0 / denom_p
+    nseries[0] = n0 / denom_n
+    inflation[0] = (true_params["const"] + true_params["SPF"] * spf_mean) / (
+        1.0 - true_params["Inflation_lag_1"]
+    )
 
-    # GJR backcasts
-    denom_p = max(1e-8, 1.0 - rho_p - 0.5*(phi_p_plus + phi_p_minus))
-    denom_n = max(1e-8, 1.0 - rho_n - 0.5*(phi_n_plus + phi_n_minus))
-    pseries[0] = max(p0/denom_p, 1e-4)
-    nseries[0] = max(n0/denom_n, 1e-4)
+    for t in range(total + 1):
+        if t > 0:
+            u_prev = residuals[t - 1]
+            u_plus = max(u_prev, 0.0)
+            u_minus = min(u_prev, 0.0)
+            pseries[t] = (
+                p0
+                + rho_p * pseries[t - 1]
+                + phi_p_plus * u_plus * u_plus / (2.0 * sigma_p * sigma_p)
+                + phi_p_minus * u_minus * u_minus / (2.0 * sigma_p * sigma_p)
+            )
+            nseries[t] = (
+                n0
+                + rho_n * nseries[t - 1]
+                + phi_n_plus * u_plus * u_plus / (2.0 * sigma_n * sigma_n)
+                + phi_n_minus * u_minus * u_minus / (2.0 * sigma_n * sigma_n)
+            )
 
-    # Initial shock via gamma difference
-    gp0 = _gamma.rvs(a=pseries[0], scale=1.0, random_state=rng)
-    gn0 = _gamma.rvs(a=nseries[0], scale=1.0, random_state=rng)
-    u[0] = sigp*(gp0 - pseries[0]) - sign*(gn0 - nseries[0])
+        gamma_p = rng.gamma(shape=pseries[t], scale=1.0)
+        gamma_n = rng.gamma(shape=nseries[t], scale=1.0)
+        residuals[t] = sigma_p * (gamma_p - pseries[t]) - sigma_n * (gamma_n - nseries[t])
 
-    inv2p = 1.0/(2.0*sigp*sigp)
-    inv2n = 1.0/(2.0*sign*sign)
+        if t > 0:
+            inflation[t] = (
+                true_params["const"]
+                + true_params["Inflation_lag_1"] * inflation[t - 1]
+                + true_params["SPF"] * spf[t]
+                + residuals[t]
+            )
 
-    for t in range(1, T):
-        up = max(u[t-1], 0.0)
-        un = min(u[t-1], 0.0)
+    start = int(burn_in) + 1
+    stop = start + int(n_obs)
+    Y = inflation[start:stop].copy()
+    inflation_lag_1 = inflation[start - 1 : stop - 1].copy()
+    spf_trimmed = spf[start:stop].copy()
+    X = {
+        "Inflation_lag_1": inflation_lag_1,
+        "SPF": spf_trimmed,
+    }
 
-        p_t = p0 + rho_p*pseries[t-1] + phi_p_plus*inv2p*(up**2) + phi_p_minus*inv2p*(un**2)
-        n_t = n0 + rho_n*nseries[t-1] + phi_n_plus*inv2n*(up**2) + phi_n_minus*inv2n*(un**2)
-
-        if max_shape_cap is not None:
-            p_t = float(np.clip(p_t, 1e-4, max_shape_cap))
-            n_t = float(np.clip(n_t, 1e-4, max_shape_cap))
-        else:
-            p_t = max(p_t, 1e-4)
-            n_t = max(n_t, 1e-4)
-
-        pseries[t] = p_t
-        nseries[t] = n_t
-
-        gp = _gamma.rvs(a=p_t, scale=1.0, random_state=rng)
-        gn = _gamma.rvs(a=n_t, scale=1.0, random_state=rng)
-        u[t] = sigp*(gp - p_t) - sign*(gn - n_t)
-
-    Y = mean_gen(u)  # add mean structure
-    extras = dict(pseries=pseries, nseries=nseries, u=u)
-    return Y, (X if mean_type!='constant' else None), extras
-
-# --- tiny helpers you already effectively have in your code base ---
-def _sym(A): return 0.5*(A + A.T)
-
-def _safe_inv_with_ridge(A, ridge0=1e-8, max_tries=6):
-    A = _sym(A)
-    I = np.eye(A.shape[0])
-    ridge = float(ridge0)
-    for _ in range(max_tries):
-        try:
-            return np.linalg.inv(A + ridge*I), ridge, False
-        except np.linalg.LinAlgError:
-            ridge *= 10.0
-    return np.linalg.pinv(A), ridge, True
-
-def _project_to_bounds(x, bounds):
-    x = np.array(x, float); tiny = 1e-12
-    for j, (lo, hi) in enumerate(bounds):
-        if lo is not None: x[j] = max(x[j], lo + tiny)
-        if hi is not None: x[j] = min(x[j], hi - tiny)
-    return x
-
-def _central_diff_scores(theta, f_per_obs, bounds, rel=1e-4, absmin=1e-6):
-    theta = np.asarray(theta, float)
-    f0 = f_per_obs(theta)                 # (N,)
-    N = f0.size
-    k = theta.size
-    J = np.empty((N, k), float)
-    h = np.maximum(absmin, rel*np.maximum(1.0, np.abs(theta)))
-    for j in range(k):
-        thp = theta.copy(); thp[j] += h[j]; thp = _project_to_bounds(thp, bounds)
-        thm = theta.copy(); thm[j] -= h[j]; thm = _project_to_bounds(thm, bounds)
-        fp = np.asarray(f_per_obs(thp), float).reshape(-1); 
-        fm = np.asarray(f_per_obs(thm), float).reshape(-1)
-        if fp.size != N: fp = np.full(N, float(fp.ravel()[0]))
-        if fm.size != N: fm = np.full(N, float(fm.ravel()[0]))
-        denom = float(thp[j] - thm[j])
-        if denom == 0.0:
-            thp = theta.copy(); thp[j] += h[j]; thp = _project_to_bounds(thp, bounds)
-            fp = np.asarray(f_per_obs(thp), float).reshape(-1)
-            if fp.size != N: fp = np.full(N, float(fp.ravel()[0]))
-            fm = f0
-            denom = float(thp[j] - theta[j])
-        J[:, j] = (fp - fm)/denom
-    return J
+    return SyntheticData(
+        Y=Y,
+        X=X,
+        residuals=residuals[start:stop].copy(),
+        pseries=pseries[start:stop].copy(),
+        nseries=nseries[start:stop].copy(),
+        spf=spf_trimmed,
+        inflation_lag_1=inflation_lag_1,
+    )
 
 
-# =========================
-# NEAR-START FULL-GJR MLE
-# =========================
-def BEGE_FullGJR_MLE_nearstarts(
-    Y, X=None, mean_type='constant',
-    # --- center for draws (ordered exactly like BEGE_FullGJR_MLE 'names') ---
-    center_params=None,           # list/array: [mean..., p0,n0,rho_p,rho_n,phi_p+,phi_p-,phi_n+,phi_n-,sigp,sign]
-    # --- narrow perturbations around center ---
-    jitter_rel=0.05,              # 5% around center (applied to |center|); see jitter_abs for near-zero centers
-    jitter_abs=1e-3,              # absolute epsilon around small centers
-    n_starts=100,                  # how many near-starts to try (one will be the exact center)
-    maxiter=800, tol=1e-8, random_state=None,
-    # --- wide bounds (same as before) ---
-    sigma_bounds=(1e-5, 2.0),
-    p0n0_bounds=(0.005, 10.0),
-    rho_bounds=(1e-5, 0.999),
-    phi_bounds=(1e-5, 1.5),
-    # --- hard overflow guard (no stability checks; just cap) ---
-    cap_pn=120.0,
-    big_penalty=1e12,
-    big_vec_penalty=1e6,
-    print_summary=True
-):
-    """
-    Full BEGE (separate p_t and n_t) MLE with multi-starts drawn narrowly around a provided center.
-    Bounds remain wide; only the initial guesses are 'near' center.
-    """
-    import numpy as np
-
-    rng = default_rng(random_state)
-    Y = np.asarray(Y, float)
-    N_obs = Y.size
-    if X is not None:
-        n = min(len(Y), len(X)); Y = Y[:n]; X = np.asarray(X, float)[:n]; N_obs = n
-
-    # --- mean spec (use your existing mean models; only wiring) ---
-    def _get_mean_spec(Y, mean_type):
-        ymin, ymax = float(np.min(Y)), float(np.max(Y))
-        if mean_type == 'constant':
-            mean_model, num_m = mean_const, 0
-            bounds_mean, names_mean = [], []
-        elif mean_type == 'ARX(1,1)':
-            mean_model, num_m = mean_ARX11, 3
-            bounds_mean, names_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)], ['const', 'Infl(1)', 'SPF']
-        elif mean_type == 'ARX(2,1)':
-            mean_model, num_m = mean_ARX21, 4
-            bounds_mean, names_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)], ['const','Infl(1)','Infl(2)','SPF']
-        elif mean_type == 'ARX(2,2)':
-            mean_model, num_m = mean_ARX22, 5
-            bounds_mean, names_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)], ['const','Infl(1)','Infl(2)','SPF','SPF.lag(1)']
-        else:
-            raise ValueError("Invalid mean_type")
-        return mean_model, num_m, bounds_mean, names_mean
-
-    mean_model, num_m, bounds_mean, names_mean = _get_mean_spec(Y, mean_type)
-
-    # --- bounds & names (Full GJR) ---
-    (sig_lo, sig_hi) = sigma_bounds
-    (p0_lo,  p0_hi)  = p0n0_bounds
-    (rho_lo, rho_hi) = rho_bounds
-    (phi_lo, phi_hi) = phi_bounds
-
-    bounds_vol = [
-        (p0_lo, p0_hi),     # p0
-        (p0_lo, p0_hi),     # n0
-        (rho_lo, rho_hi),   # rho_p
-        (rho_lo, rho_hi),   # rho_n
-        (phi_lo, phi_hi),   # phi_p_plus
-        (phi_lo, phi_hi),   # phi_p_minus
-        (phi_lo, phi_hi),   # phi_n_plus
-        (phi_lo, phi_hi),   # phi_n_minus
-        (sig_lo, sig_hi),   # sigma_p
-        (sig_lo, sig_hi),   # sigma_n
+def parameter_bounds(Y: np.ndarray) -> list[tuple[float, float]]:
+    ymin = float(np.min(Y))
+    ymax = float(np.max(Y))
+    return [
+        (ymin, ymax),
+        (-0.999, 0.999),
+        (-10.0, 10.0),
+        (1e-4, 10.0),
+        (1e-4, 10.0),
+        (1e-5, 0.999),
+        (1e-5, 0.999),
+        (1e-6, 2.0),
+        (1e-6, 2.0),
+        (1e-6, 2.0),
+        (1e-6, 2.0),
+        (1e-4, 2.0),
+        (1e-4, 2.0),
     ]
-    names_vol  = ['p0','n0','rho_p','rho_n','phi_p⁺','phi_p⁻','phi_n⁺','phi_n⁻','σ₊','σ₋']
-    bounds_full = bounds_mean + bounds_vol
-    names_full  = names_mean + names_vol
 
-    k = len(bounds_full)
 
-    # --- objective (Justin's BEGE density; no stability check, just cap) ---
-    def _negloglik(theta):
-        pm = theta[:num_m]
-        p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
-        res = mean_model(Y, X, pm)
-        pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
-        nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
-            return float(big_penalty)
-        ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
-        val = -float(np.sum(ll))
-        if not np.isfinite(val): return float(big_penalty)
-        return val
+def project_to_bounds(theta: np.ndarray, bounds: list[tuple[float, float]]) -> np.ndarray:
+    out = np.array(theta, dtype=float, copy=True)
+    for idx, (lo, hi) in enumerate(bounds):
+        out[idx] = min(max(out[idx], lo + 1e-12), hi - 1e-12)
+    return out
 
-    def _ind_negloglik_vec(theta):
-        pm = theta[:num_m]
-        p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
-        res = mean_model(Y, X, pm)
-        pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
-        nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
-            return np.full(N_obs, float(big_vec_penalty), float)
-        v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
-        v = np.asarray(v, float).reshape(-1)
-        if v.size != N_obs: v = np.full(N_obs, float(v.ravel()[0]))
-        if not np.all(np.isfinite(v)): v = np.full(N_obs, float(big_vec_penalty))
-        return v
 
-    # --- near-start sampler around center ---
-    if center_params is None:
-        raise ValueError("Provide center_params (true or benchmark vector) to draw near-starts.")
+def draw_near_start(
+    center: np.ndarray,
+    bounds: list[tuple[float, float]],
+    rng: np.random.Generator,
+    jitter_scale: float,
+    variance_bound: float,
+) -> np.ndarray:
+    width = float(jitter_scale) * np.maximum(1.0, np.abs(center))
+    for shrink in (1.0, 0.5, 0.25, 0.1, 0.05, 0.02):
+        candidate = center + rng.uniform(-width * shrink, width * shrink)
+        candidate = project_to_bounds(candidate, bounds)
+        if constraints_ok(candidate, variance_bound):
+            return candidate
+    return project_to_bounds(center, bounds)
 
-    center_params = np.asarray(center_params, float)
-    if center_params.size != k:
-        raise ValueError(f"center_params length {center_params.size} != expected {k}")
 
-    def _one_near_start():
-        # add *bounded* uniform noise around center coordinate-wise
-        lo = np.array([b[0] for b in bounds_full], float)
-        hi = np.array([b[1] for b in bounds_full], float)
-        width = np.maximum(jitter_abs, jitter_rel*np.maximum(1.0, np.abs(center_params)))
-        # sample δ ~ U[-width, +width]
-        delta = (2.0*default_rng().random(center_params.shape) - 1.0)*width
-        start = center_params + delta
-        # clip to [center-width, center+width] ∩ [bounds]
-        lo_near = np.maximum(center_params - width, lo)
-        hi_near = np.minimum(center_params + width, hi)
-        start = np.minimum(np.maximum(start, lo_near), hi_near)
-        # final projection to hard bounds
-        return _project_to_bounds(start, bounds_full)
+def estimate_full_bege_arx11(
+    Y: np.ndarray,
+    X: dict[str, np.ndarray],
+    center_params: np.ndarray,
+    n_starts: int,
+    jitter_scale: float,
+    seed: int,
+    maxiter: int,
+    tol: float,
+    density_hyperu_method: str,
+    variance_bound: float,
+    enforce_variance_bounds: bool,
+    optimizer_method: str,
+    include_center_start: bool,
+    print_summary: bool,
+) -> dict[str, object]:
+    bounds = parameter_bounds(Y)
+    residual_function = _make_residual_function(Y, X, "ARX(1,1)")
+    rng = np.random.default_rng(seed)
+    big_penalty = 1e12
 
-    # --- optimization loop (include exact center as one start) ---
-    best, best_fun = None, np.inf
+    def objective(theta: np.ndarray) -> float:
+        theta = np.asarray(theta, dtype=float)
+        if not constraints_ok(theta, variance_bound):
+            return big_penalty
 
-    # start 0 = exact center (projected)
-    s0 = _project_to_bounds(center_params, bounds_full)
-    try:
-        opt0 = minimize(_negloglik, s0, method='L-BFGS-B',
-                        bounds=bounds_full, options={'maxiter': int(maxiter), 'ftol': float(tol)})
-        if np.isfinite(opt0.fun) and opt0.fun < best_fun:
-            best, best_fun = opt0, opt0.fun
-    except Exception:
-        pass
+        residuals = residual_function(theta[:3])
+        (
+            p0,
+            n0,
+            rho_p,
+            rho_n,
+            phi_p_plus,
+            phi_p_minus,
+            phi_n_plus,
+            phi_n_minus,
+            sigma_p,
+            sigma_n,
+        ) = unpack_vol(theta)
 
-    for _ in range(int(n_starts)-1):
-        init = _one_near_start()
-        try:
-            opt = minimize(_negloglik, init, method='L-BFGS-B',
-                           bounds=bounds_full, options={'maxiter': int(maxiter), 'ftol': float(tol)})
-            if np.isfinite(opt.fun) and opt.fun < best_fun:
-                best, best_fun = opt, opt.fun
-        except Exception:
-            continue
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p_plus, phi_p_minus), sigma_p)
+        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n_plus, phi_n_minus), sigma_n)
+        if (
+            not np.all(np.isfinite(pseries))
+            or not np.all(np.isfinite(nseries))
+            or np.any(pseries <= 0.0)
+            or np.any(nseries <= 0.0)
+        ):
+            return big_penalty
 
-    if best is None:
-        raise RuntimeError("All near-starts failed. Try loosening jitter_abs/jitter_rel or cap_pn.")
+        cond_var = bege_implied_variance(pseries, nseries, sigma_p, sigma_n)
+        if not np.all(np.isfinite(cond_var)) or np.any(cond_var <= 0.0):
+            return big_penalty
 
-    params = best.x
-    ll     = -best.fun
-    AIC    = 2*len(params) - 2*ll
-    BIC    = np.log(N_obs)*len(params) - 2*ll
+        if enforce_variance_bounds:
+            lower, upper, _ = bege_variance_bounds(residuals)
+            if np.any(cond_var < lower) or np.any(cond_var > upper):
+                return big_penalty
 
-    # --- SEs via Hessian and OPG blend (as in your code) ---
-    H = approx_hess(params, _negloglik, epsilon=1e-5)
-    H = _sym(H)
-    H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
-    scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
-    OPG = scores.T @ scores
-    opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
-    if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
-        cov = H_inv.copy()
-        used_opg_fallback = True
-    else:
-        cov = H_inv @ _sym(OPG) @ H_inv
-        used_opg_fallback = False
-    cov = _sym(cov)
-    w, V = np.linalg.eigh(cov); w = np.maximum(w, 0.0); cov = (V*w) @ V.T
-    se = np.sqrt(np.diag(cov))
+        ll = BEGE_log_density(
+            residuals,
+            pseries,
+            nseries,
+            sigma_p,
+            sigma_n,
+            hyperu_method=density_hyperu_method,
+        )
+        value = -float(np.sum(ll))
+        return value if np.isfinite(value) else big_penalty
 
-    if print_summary:
-        print("\n" + "-"*68)
-        print("BEGE (Asym constants & sigmas; FULL GJR) — near-starts around center")
-        print("-"*68)
-        print(f"{'Parameter':<20}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
-        print("-"*68)
-        for nm, val, err in zip(names_full, params, se):
-            t = np.nan if err <= 0 else (val/err)
-            print(f"{nm:<20}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
-        print("-"*68)
-        print(f"{'LogLik':<20}{ll:>14.6f}")
-        print(f"{'AIC':<20}{AIC:>14.6f}")
-        print(f"{'BIC':<20}{BIC:>14.6f}")
-        print("-"*68)
+    def p_stability(theta: np.ndarray) -> float:
+        return stability_margins(theta, variance_bound)["p_stability_margin"] - 1e-8
+
+    def n_stability(theta: np.ndarray) -> float:
+        return stability_margins(theta, variance_bound)["n_stability_margin"] - 1e-8
+
+    def uncond_variance(theta: np.ndarray) -> float:
+        return stability_margins(theta, variance_bound)["unconditional_variance_margin"]
+
+    constraints = [
+        {"type": "ineq", "fun": p_stability},
+        {"type": "ineq", "fun": n_stability},
+        {"type": "ineq", "fun": uncond_variance},
+    ]
+
+    starts = []
+    if include_center_start:
+        starts.append(project_to_bounds(center_params, bounds))
+    starts.extend(
+        draw_near_start(center_params, bounds, rng, jitter_scale, variance_bound)
+        for _ in range(max(0, int(n_starts) - len(starts)))
+    )
+    if not starts:
+        raise ValueError("n_starts must leave at least one optimizer start.")
+
+    best_opt = None
+    best_fun = np.inf
+    for idx, start in enumerate(starts, start=1):
+        use_slsqp = optimizer_method == "SLSQP"
+        opt = minimize(
+            objective,
+            start,
+            method=optimizer_method,
+            bounds=bounds,
+            constraints=constraints if use_slsqp else (),
+            options={"maxiter": int(maxiter), "ftol": float(tol), "disp": False},
+        )
+        if print_summary:
+            print(
+                f"start {idx:02d}/{len(starts):02d}: "
+                f"success={opt.success} negloglik={float(opt.fun):.6f}"
+            )
+        if (
+            np.isfinite(opt.fun)
+            and opt.fun < big_penalty
+            and (
+                best_opt is None
+                or (bool(opt.success) and not bool(best_opt.success))
+                or (bool(opt.success) == bool(best_opt.success) and opt.fun < best_fun)
+            )
+        ):
+            best_opt = opt
+            best_fun = float(opt.fun)
+
+    if best_opt is None:
+        raise RuntimeError("All synthetic Full BEGE starts failed.")
+
+    params = np.asarray(best_opt.x, dtype=float)
+    residuals = residual_function(params[:3])
+    (
+        p0,
+        n0,
+        rho_p,
+        rho_n,
+        phi_p_plus,
+        phi_p_minus,
+        phi_n_plus,
+        phi_n_minus,
+        sigma_p,
+        sigma_n,
+    ) = unpack_vol(params)
+    pseries = gjr_recursion(residuals, (p0, rho_p, phi_p_plus, phi_p_minus), sigma_p)
+    nseries = gjr_recursion(residuals, (n0, rho_n, phi_n_plus, phi_n_minus), sigma_n)
+    cond_var = bege_implied_variance(pseries, nseries, sigma_p, sigma_n)
+    n_obs = int(Y.shape[0])
+    loglik = -best_fun
 
     return {
-        'opt': best,
-        'params': params,
-        'se': se,
-        'AIC': AIC,
-        'BIC': BIC,
-        'loglik': ll,
-        'names': names_full,
-        'bounds': bounds_full
+        "opt": best_opt,
+        "params": params,
+        "loglik": loglik,
+        "AIC": 2 * len(params) - 2 * loglik,
+        "BIC": np.log(n_obs) * len(params) - 2 * loglik,
+        "residuals": residuals,
+        "pseries": pseries,
+        "nseries": nseries,
+        "cond_var": cond_var,
+        "bounds": bounds,
+        "optimizer_method": optimizer_method,
+        "include_center_start": include_center_start,
     }
-def evaluate_BEGE_fullGJR(Y, X, mean_type, params_full, cap_pn=120.0):
-    """
-    Computes LogLik/AIC/BIC for FULL-GJR parameter vector using Justin's BEGE log density,
-    with the hard cap rule for p_t, n_t.
-    """
-    Y = np.asarray(Y, float); N = len(Y)
 
-    if mean_type == 'constant':
-        num_m = 0
-        def mean_model(Y, X, pm): return Y
-    elif mean_type == 'ARX(1,1)':
-        num_m = 3
-        def mean_model(Y, X, pm):
-            c0, phi1, theta1 = pm
-            Y = np.asarray(Y, float); X = np.asarray(X, float)
-            n = min(len(Y), len(X)); Y = Y[:n]; X = X[:n]
-            res = np.empty(n, float); res[0] = Y[0] - c0
-            for t in range(1, n):
-                res[t] = Y[t] - (c0 + phi1*Y[t-1] + theta1*X[t-1])
-            return res
-    else:
-        raise ValueError("mean_type must be 'constant' or 'ARX(1,1)'")
 
-    theta = np.asarray(params_full, float)
-    pm = theta[:num_m]; rest = theta[num_m:]
-    p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = rest
-    res = mean_model(Y, X, pm)
+def evaluate_loglik(
+    Y: np.ndarray,
+    X: dict[str, np.ndarray],
+    theta: np.ndarray,
+    density_hyperu_method: str,
+) -> float:
+    residual_function = _make_residual_function(Y, X, "ARX(1,1)")
+    residuals = residual_function(theta[:3])
+    (
+        p0,
+        n0,
+        rho_p,
+        rho_n,
+        phi_p_plus,
+        phi_p_minus,
+        phi_n_plus,
+        phi_n_minus,
+        sigma_p,
+        sigma_n,
+    ) = unpack_vol(theta)
+    pseries = gjr_recursion(residuals, (p0, rho_p, phi_p_plus, phi_p_minus), sigma_p)
+    nseries = gjr_recursion(residuals, (n0, rho_n, phi_n_plus, phi_n_minus), sigma_n)
+    ll = BEGE_log_density(
+        residuals,
+        pseries,
+        nseries,
+        sigma_p,
+        sigma_n,
+        hyperu_method=density_hyperu_method,
+    )
+    return float(np.sum(ll))
 
-    pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
-    nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
-    valid = np.all(np.isfinite(pseries)) and np.all(np.isfinite(nseries)) \
-            and (np.max(pseries) <= cap_pn) and (np.max(nseries) <= cap_pn)
-    if not valid:
-        return {'loglik': -np.inf, 'AIC': np.inf, 'BIC': np.inf, 'cap_hit': True}
+def build_results_frame(theta_true: np.ndarray, theta_hat: np.ndarray) -> pd.DataFrame:
+    df = pd.DataFrame(
+        {
+            "parameter": PARAM_NAMES,
+            "true": theta_true,
+            "estimate": theta_hat,
+        }
+    )
+    df["error"] = df["estimate"] - df["true"]
+    df["abs_error"] = np.abs(df["error"])
+    df["relative_abs_error"] = df["abs_error"] / np.maximum(np.abs(df["true"]), 1e-12)
+    return df
 
-    ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
-    ll_sum = float(np.sum(ll))
-    k = len(theta)
-    return {'loglik': ll_sum, 'AIC': 2*k - 2*ll_sum, 'BIC': np.log(N)*k - 2*ll_sum, 'cap_hit': False}
-def run_full_bege_nearstart_experiment(
-    T=3000,
-    mean_type='constant',
-    mean_params_true=None,      # {} for constant
-    vol_params_true=None,       # dict with full-GJR keys
-    # near-start controls
-    jitter_rel=0.05, jitter_abs=1e-3, n_starts=25,
-    # optimizer controls
-    maxiter=800, tol=1e-8, random_state=7,
-    # caps for evaluation
-    cap_pn_eval=120.0
-):
-    # 1) simulate data
-    Y, X, _ = simulate_bege_full(
-        T=T,
-        mean_type=mean_type,
-        mean_params_true=mean_params_true,
-        vol_params_true=vol_params_true,
-        rng_seed=123,
-        max_shape_cap=5000.0
+
+def format_float(value: float, digits: int = 6) -> str:
+    return f"{float(value):.{digits}f}"
+
+
+def write_markdown_report(
+    path: Path,
+    csv_path: Path,
+    results: pd.DataFrame,
+    fit: dict[str, object],
+    theta_true: np.ndarray,
+    true_loglik: float,
+    n_obs: int,
+    burn_in: int,
+    seed: int,
+    n_starts: int,
+    jitter_scale: float,
+    include_center_start: bool,
+    variance_bound: float,
+    enforce_variance_bounds: bool,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        csv_display_path = csv_path.resolve().relative_to(PROJECT_ROOT)
+    except ValueError:
+        csv_display_path = csv_path
+    margins = stability_margins(theta_true, variance_bound)
+    estimate_margins = stability_margins(np.asarray(fit["params"], dtype=float), variance_bound)
+    max_abs_error = float(results["abs_error"].max())
+    max_rel_error = float(results["relative_abs_error"].max())
+    opt = fit["opt"]
+    lower, upper, _ = bege_variance_bounds(np.asarray(fit["residuals"], dtype=float))
+    cond_var = np.asarray(fit["cond_var"], dtype=float)
+    estimate_variance_bounds_ok = bool(
+        np.all(np.isfinite(cond_var))
+        and np.all(cond_var >= lower)
+        and np.all(cond_var <= upper)
     )
 
-    # 2) pack true vector in BEGE_FullGJR order
-    if mean_type == 'constant':
-        theta_true = [
-        ] + [
-            vol_params_true['p0'], vol_params_true['n0'],
-            vol_params_true['rho_p'], vol_params_true['rho_n'],
-            vol_params_true['phi_p_plus'], vol_params_true['phi_p_minus'],
-            vol_params_true['phi_n_plus'], vol_params_true['phi_n_minus'],
-            vol_params_true['sigp'], vol_params_true['sign']
-        ]
-        names_full = ['p0','n0','rho_p','rho_n','phi_p⁺','phi_p⁻','phi_n⁺','phi_n⁻','σ₊','σ₋']
-        true_map = {
-            'p0': vol_params_true['p0'],
-            'n0': vol_params_true['n0'],
-            'rho_p': vol_params_true['rho_p'],
-            'rho_n': vol_params_true['rho_n'],
-            'phi_p⁺': vol_params_true['phi_p_plus'],
-            'phi_p⁻': vol_params_true['phi_p_minus'],
-            'phi_n⁺': vol_params_true['phi_n_plus'],
-            'phi_n⁻': vol_params_true['phi_n_minus'],
-            'σ₊': vol_params_true['sigp'],
-            'σ₋': vol_params_true['sign'],
-        }
-    else:
-        theta_true = [
-            mean_params_true['const'], mean_params_true['phi1'], mean_params_true['theta1']
-        ] + [
-            vol_params_true['p0'], vol_params_true['n0'],
-            vol_params_true['rho_p'], vol_params_true['rho_n'],
-            vol_params_true['phi_p_plus'], vol_params_true['phi_p_minus'],
-            vol_params_true['phi_n_plus'], vol_params_true['phi_n_minus'],
-            vol_params_true['sigp'], vol_params_true['sign']
-        ]
-        names_full = ['const','Infl(1)','SPF','p0','n0','rho_p','rho_n','phi_p⁺','phi_p⁻','phi_n⁺','phi_n⁻','σ₊','σ₋']
-        true_map = {
-            'const': mean_params_true['const'], 'Infl(1)': mean_params_true['phi1'], 'SPF': mean_params_true['theta1'],
-            'p0': vol_params_true['p0'], 'n0': vol_params_true['n0'],
-            'rho_p': vol_params_true['rho_p'], 'rho_n': vol_params_true['rho_n'],
-            'phi_p⁺': vol_params_true['phi_p_plus'], 'phi_p⁻': vol_params_true['phi_p_minus'],
-            'phi_n⁺': vol_params_true['phi_n_plus'], 'phi_n⁻': vol_params_true['phi_n_minus'],
-            'σ₊': vol_params_true['sigp'], 'σ₋': vol_params_true['sign'],
-        }
+    table = results.copy()
+    for col in ["true", "estimate", "error", "abs_error", "relative_abs_error"]:
+        table[col] = table[col].map(lambda value: format_float(value, 8))
 
-    # 3) estimate with near-starts around the TRUE vector (mild shocks)
-    fit = BEGE_FullGJR_MLE_nearstarts(
-        Y, X=X, mean_type=mean_type,
+    lines = [
+        "```{raw:typst}",
+        "#set page(margin: auto)",
+        "```",
+        "",
+        "# Full BEGE Synthetic Recovery Check",
+        "",
+        f"Generated: `{datetime.now().isoformat(timespec='seconds')}`",
+        "",
+        "This report is produced by `BEGE_GARCH/Full_BEGE/BEGE_Full_Anchor_ARX11.py`.",
+        "",
+        "## Simulation Design",
+        "",
+        "The synthetic sample uses the ARX(1,1) mean process",
+        "",
+        "$$",
+        "\\pi_t = c + \\rho_1 \\pi_{t-1} + \\phi_1 SPF_t + u_t.",
+        "$$",
+        "",
+        "The residual is generated from the Full BEGE recursion",
+        "",
+        "$$",
+        "u_t = \\sigma_p (G_{p,t} - p_t) - \\sigma_n (G_{n,t} - n_t),",
+        "$$",
+        "",
+        "where `G_{p,t}` is drawn from `Gamma(shape=p_t, scale=1)` and "
+        "`G_{n,t}` is drawn independently from `Gamma(shape=n_t, scale=1)`. "
+        "The centered gamma draws have conditional mean zero, so the residual "
+        "definition remains `u_t = pi_t - hat(pi)_t`.",
+        "",
+        "The shape states follow",
+        "",
+        "$$",
+        "\\begin{aligned}",
+        "p_t &= p_0 + \\rho_p p_{t-1}"
+        " + \\frac{\\phi_p^+}{2\\sigma_p^2}(u_{t-1}^+)^2"
+        " + \\frac{\\phi_p^-}{2\\sigma_p^2}(u_{t-1}^-)^2,\\\\",
+        "n_t &= n_0 + \\rho_n n_{t-1}"
+        " + \\frac{\\phi_n^+}{2\\sigma_n^2}(u_{t-1}^+)^2"
+        " + \\frac{\\phi_n^-}{2\\sigma_n^2}(u_{t-1}^-)^2.",
+        "\\end{aligned}",
+        "$$",
+        "",
+        f"The simulation draws `{n_obs}` observations after a burn-in of `{burn_in}` observations. "
+        f"The random seed is `{seed}`. The SPF process is an exogenous stationary AR(1) process "
+        "with mean `0.80`, autoregressive coefficient `0.65`, and innovation standard deviation `0.12`.",
+        "",
+        "## Estimation Setup",
+        "",
+        f"The estimator maximizes the same Full BEGE log likelihood used in the project code. "
+        f"It runs `{n_starts}` `{fit.get('optimizer_method', 'unknown')}` starts centered at "
+        f"the true parameter vector with jitter scale "
+        f"`{jitter_scale}`. Exact true-parameter start included: `{include_center_start}`. "
+        f"Stability constraints and the unconditional variance bound "
+        f"`sigma_p^2 p0 + sigma_n^2 n0 <= {variance_bound}` are imposed by the objective "
+        "feasibility screen.",
+        "",
+        f"EWMA implied-variance bounds are {'enforced' if enforce_variance_bounds else 'not enforced'} "
+        "during this synthetic recovery run. The final estimate is still rechecked against those bounds.",
+        "",
+        "The true parameters were chosen away from the optimizer bounds and with comfortable "
+        "stability margins:",
+        "",
+        f"- True p-process stability margin: `{format_float(margins['p_stability_margin'])}`",
+        f"- True n-process stability margin: `{format_float(margins['n_stability_margin'])}`",
+        f"- True unconditional variance margin: `{format_float(margins['unconditional_variance_margin'])}`",
+        "",
+        "## Estimation Results",
+        "",
+        table.to_markdown(index=False),
+        "",
+        "## Likelihood and Diagnostics",
+        "",
+        f"- Optimizer success: `{bool(opt.success)}`",
+        f"- Optimizer message: `{opt.message}`",
+        f"- Log likelihood at estimate: `{format_float(fit['loglik'])}`",
+        f"- Log likelihood at true parameters: `{format_float(true_loglik)}`",
+        f"- AIC at estimate: `{format_float(fit['AIC'])}`",
+        f"- BIC at estimate: `{format_float(fit['BIC'])}`",
+        f"- Maximum absolute parameter error: `{format_float(max_abs_error, 8)}`",
+        f"- Maximum relative absolute parameter error: `{format_float(max_rel_error, 8)}`",
+        f"- Estimated p-process stability margin: `{format_float(estimate_margins['p_stability_margin'])}`",
+        f"- Estimated n-process stability margin: `{format_float(estimate_margins['n_stability_margin'])}`",
+        f"- Estimated unconditional variance margin: `{format_float(estimate_margins['unconditional_variance_margin'])}`",
+        f"- Estimated EWMA implied-variance-bound check: `{estimate_variance_bounds_ok}`",
+        f"- Maximum estimated shape state: `{format_float(max(np.max(fit['pseries']), np.max(fit['nseries'])), 6)}`",
+        f"- Maximum estimated implied variance: `{format_float(np.max(fit['cond_var']), 6)}`",
+        "",
+        f"The parameter comparison CSV is written to `{csv_display_path}`.",
+        "",
+        "A finite random sample does not make the MLE exactly equal to the data-generating "
+        "parameters. This run is a recovery check: with a long sample and a well-conditioned "
+        "interior parameter vector, the estimate should be close to the true vector and the "
+        "sample likelihood at the estimate should be at least as high as the likelihood at the truth.",
+        "",
+    ]
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def parse_args() -> argparse.Namespace:
+    default_report = SCRIPT_DIR / "results" / "synthetic_full_arx11_recovery.md"
+    default_csv = SCRIPT_DIR / "results" / "synthetic_full_arx11_recovery.csv"
+
+    parser = argparse.ArgumentParser(
+        description="Synthetic ARX(1,1) Full BEGE recovery experiment."
+    )
+    parser.add_argument("--n-obs", type=int, default=20000, help="Post-burn-in sample length")
+    parser.add_argument("--burn-in", type=int, default=5000, help="Simulation burn-in length")
+    parser.add_argument("--seed", type=int, default=20261208, help="Simulation seed")
+    parser.add_argument("--estimation-seed", type=int, default=20261209, help="Start jitter seed")
+    parser.add_argument("--n-starts", type=int, default=3, help="Number of true-centered starts")
+    parser.add_argument("--jitter-scale", type=float, default=0.03, help="Near-start jitter scale")
+    parser.add_argument("--maxiter", type=int, default=180, help="Optimizer iteration limit")
+    parser.add_argument("--tol", type=float, default=1e-9, help="Optimizer tolerance")
+    parser.add_argument(
+        "--density-hyperu-method",
+        choices=["scipy_approx", "scipy_fast", "mpmath"],
+        default="scipy_fast",
+        help="BEGE density backend",
+    )
+    parser.add_argument(
+        "--optimizer-method",
+        choices=["L-BFGS-B", "SLSQP"],
+        default="L-BFGS-B",
+        help="Optimizer for the synthetic recovery MLE.",
+    )
+    parser.add_argument(
+        "--include-center-start",
+        action="store_true",
+        help="Include the exact true parameter vector as one optimizer start.",
+    )
+    parser.add_argument(
+        "--variance-bound",
+        type=float,
+        default=0.75,
+        help="Unconditional variance bound used by Full BEGE.",
+    )
+    parser.add_argument(
+        "--enforce-variance-bounds",
+        action="store_true",
+        help="Impose EWMA implied-variance bounds in the synthetic objective. "
+        "The final estimate is rechecked either way.",
+    )
+    parser.add_argument(
+        "--no-variance-bounds",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument("--report-path", type=Path, default=default_report)
+    parser.add_argument("--csv-path", type=Path, default=default_csv)
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress per-start optimizer output.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    theta_true = pack_params(TRUE_PARAMS)
+    if not constraints_ok(theta_true, args.variance_bound):
+        raise ValueError("Configured true parameters do not satisfy Full BEGE constraints.")
+
+    data = simulate_full_bege_arx11(
+        n_obs=args.n_obs,
+        burn_in=args.burn_in,
+        seed=args.seed,
+        true_params=TRUE_PARAMS,
+    )
+    enforce_variance_bounds = bool(args.enforce_variance_bounds and not args.no_variance_bounds)
+    fit = estimate_full_bege_arx11(
+        Y=data.Y,
+        X=data.X,
         center_params=theta_true,
-        jitter_rel=jitter_rel, jitter_abs=jitter_abs,
-        n_starts=n_starts,
-        maxiter=maxiter, tol=tol, random_state=random_state,
-        print_summary=True
+        n_starts=args.n_starts,
+        jitter_scale=args.jitter_scale,
+        seed=args.estimation_seed,
+        maxiter=args.maxiter,
+        tol=args.tol,
+        density_hyperu_method=args.density_hyperu_method,
+        variance_bound=args.variance_bound,
+        enforce_variance_bounds=enforce_variance_bounds,
+        optimizer_method=args.optimizer_method,
+        include_center_start=args.include_center_start,
+        print_summary=not args.quiet,
+    )
+    theta_hat = np.asarray(fit["params"], dtype=float)
+    results = build_results_frame(theta_true, theta_hat)
+
+    args.csv_path.parent.mkdir(parents=True, exist_ok=True)
+    results.to_csv(args.csv_path, index=False)
+
+    true_loglik = evaluate_loglik(
+        data.Y,
+        data.X,
+        theta_true,
+        density_hyperu_method=args.density_hyperu_method,
+    )
+    write_markdown_report(
+        path=args.report_path,
+        csv_path=args.csv_path,
+        results=results,
+        fit=fit,
+        theta_true=theta_true,
+        true_loglik=true_loglik,
+        n_obs=args.n_obs,
+        burn_in=args.burn_in,
+        seed=args.seed,
+        n_starts=args.n_starts,
+        jitter_scale=args.jitter_scale,
+        include_center_start=args.include_center_start,
+        variance_bound=args.variance_bound,
+        enforce_variance_bounds=enforce_variance_bounds,
     )
 
-    # 4) evaluate at truth and at estimate (Justin density)
-    eval_true = evaluate_BEGE_fullGJR(Y, X, mean_type, theta_true, cap_pn=cap_pn_eval)
-    eval_est  = {'loglik': fit['loglik'], 'AIC': fit['AIC'], 'BIC': fit['BIC']}
-
-    # 5) pretty comparison
-    print("\n=== True vs Estimated (Full-GJR; near-starts) ===")
-    for nm, ev in zip(fit['names'], fit['params']):
-        tv = true_map.get(nm, np.nan)
-        if np.isfinite(tv):
-            print(f"{nm:8s}  true={tv: .6f}   est={ev: .6f}   abs.err={abs(ev-tv): .6f}")
-        else:
-            print(f"{nm:8s}  est={ev: .6f}")
-
-    print("\n[Estimated]   LogLik: {0:.6f}   AIC: {1:.6f}   BIC: {2:.6f}".format(
-        eval_est['loglik'], eval_est['AIC'], eval_est['BIC']
-    ))
-    print("[True-params] LogLik: {0}   AIC: {1}   BIC: {2}".format(
-        f"{eval_true['loglik']:.6f}" if np.isfinite(eval_true['loglik']) else str(eval_true['loglik']),
-        f"{eval_true['AIC']:.6f}"    if np.isfinite(eval_true['AIC'])    else str(eval_true['AIC']),
-        f"{eval_true['BIC']:.6f}"    if np.isfinite(eval_true['BIC'])    else str(eval_true['BIC'])
-    ))
-
-    return {'Y': Y, 'X': X, 'fit': fit, 'eval_true': eval_true}
-
- 
- 
- 
- 
- 
- 
- 
- 
-# Load data
-sample_data = pd.read_pickle('/project/lhansen/Capital_NN_variant/BEGE_GARCH/Aggregate_CPI_inflation.pkl')
-Y= sample_data['Inflation']  
-
-X=sample_data['Forecasted inflation']
-mean_type='ARX(1,1)'
-
-# Base directory to store results
-base_dir = "/project/lhansen/Capital_NN_variant/BEGE_GARCH/Anchor"
-# Ensure the base directory exists
-os.makedirs(base_dir, exist_ok=True)
- 
-
-# for spec in model_specs:
- 
-foldername= "ARX11"
-# Use the mean_type as the subfolder name
-out_dir = os.path.join(base_dir, foldername)
-os.makedirs(out_dir, exist_ok=True)
-
- 
-# ==============================================================
-# Robust incremental saving: all results go into ONE pkl file
-# ==============================================================
-
-out_file = os.path.join(out_dir, f"draw_{seed}.pkl")
-
-# If the file already exists, resume from where you left off
-if os.path.exists(out_file):
-    container = pd.read_pickle(out_file)
-    start_iter = len(container) + 1
-    print(f"Resuming from iteration {start_iter} (already have {len(container)} results)")
-else:
-    container = []
-    start_iter = 1
-    print("Starting fresh run")
-
-
-
-# === Anchor (your candidate) ===
-# Order: ['const', 'Infl(1)', 'SPF', p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigma_p, sigma_n]
-anchor = np.array([
-    0.072, 0.2881, 0.7508,
-    0.904377808, 0.336032844,
-    0.481065237, 0.143825951,
-    0.920859013, 0.207961914,
-    0.569922229, 0.085702431,
-    0.201562748, 0.447615960
-], dtype=float)
-
-# === Bounds (wide) and overflow cap ===
-p0n0_bounds = (1e-3, 10.0)
-rho_bounds  = (1e-5, 0.999)
-phi_bounds  = (1e-5, 1.5)
-sigma_bounds= (1e-5, 2.0)
-cap_pn      = 300.0
-
-# Loop through iterations
-for i in range(start_iter, 21):  # change 51 to 501 if you want 500 draws
-    # res = BEGE_FullGJR_MLE(
-    #     Y=spec["Y"],
-    #     X=spec["X"],
-    #     mean_type=mean_type,
-    #     n_starts=50,
-    #     maxiter=500,
-    #     tol=1e-8,
-    #     random_state=i + seed * 10000,
-    # )
-    # === Run anchored near-start estimation (multi-start near the candidate) ===
-    res = BEGE_FullGJR_MLE_nearstarts(
-        Y=Y, X=X, mean_type=mean_type,
-        center_params=anchor,          # <- anchor around which starts are generated
-        # jitter_frac=jitter_frac,    # <- mild perturbations (per-parameter)
-        n_starts=50,                # number of local starts near anchor
-        random_state=i + seed * 100000,
-        sigma_bounds=sigma_bounds,
-        p0n0_bounds=p0n0_bounds,
-        rho_bounds=rho_bounds,
-        phi_bounds=phi_bounds,
-        cap_pn=cap_pn,
-        print_summary=True
+    print(f"Wrote parameter comparison: {args.csv_path}")
+    print(f"Wrote markdown report: {args.report_path}")
+    print(
+        "Max abs error: "
+        f"{float(results['abs_error'].max()):.8f}; "
+        f"loglik estimate={float(fit['loglik']):.6f}; "
+        f"loglik truth={true_loglik:.6f}"
     )
-    container.append(res)
-    pd.to_pickle(container, out_file)  # overwrite with latest list
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] "
-          f"Saved iteration {i}/20 to {out_file} (total {len(container)} results)")
+
+if __name__ == "__main__":
+    main()
