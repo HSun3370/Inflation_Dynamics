@@ -2,12 +2,12 @@
 #set page(margin: auto)
 ```
 
-# BadGood BEGE Best Model Summary
+# Symmetric BEGE Best Model Summary
 
-Generated: `2026-06-08T03:40:30`
+Generated: `2026-06-03T14:51:48`
 Total estimations: `8000`
-Converged estimations: `7833`
-Eligible estimations for best-model selection: `7833`
+Converged estimations: `8000`
+Eligible estimations for best-model selection: `7999`
 
 Saved likelihoods are recomputed from the stored parameter paths before ranking. Large recursive shape states are evaluated by the BEGE saddlepoint density backend; `max(p_t, n_t)` is reported as a diagnostic, not as an exclusion rule.
 
@@ -15,7 +15,7 @@ Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer 
 This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage for this selected model.
 
 ```{note}
-Flagged 110 estimate(s) with corrected log likelihood above `-150` for manual review. These rows remain eligible if they pass the admissibility checks.
+Flagged 54 estimate(s) with corrected log likelihood above `-150` for manual review. These rows remain eligible if they pass the admissibility checks.
 ```
 
 ## Selected Best Model
@@ -24,7 +24,7 @@ Best admissible estimate ranked by corrected log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |
 |---|---:|---:|---:|---:|---:|---:|---:|:---:|
-| ARX(2,1) | 80 | 20 | 93.2589 | -162.5177 | -122.0701 | 4758.8992 | 11.1469 | yes |
+| ARX(2,1) | 21 | 40 | 253.4762 | -484.9524 | -447.8754 | 271.1604 | 23.4717 | yes |
 
 Selection checks:
 
@@ -40,22 +40,22 @@ Selection checks:
 Mean process:
 
 $$
-\pi_{t+1} = \underset{(0.0000)}{-0.3434} + \underset{(0.5952)}{-0.0005}\,\pi_t + \underset{(0.0673)}{-0.1117}\,\pi_{t-1} + \underset{(0.2151)}{-0.1006}\,SPF_t + u_{t+1}
+\pi_{t+1} = \underset{(30.1515)}{-0.0279} + \underset{(1.2296)}{0.4083}\,\pi_t + \underset{(20.4300)}{-0.0331}\,\pi_{t-1} + \underset{(26.7291)}{0.6653}\,SPF_t + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(0.0007)}{0.2029}\,\omega_{p,t} - \underset{(0.0001)}{0.0333}\,\omega_{n,t},\\
+u_t &= \underset{(1.2348)}{0.0761}\,\omega_{p,t} - \underset{(4.3916)}{0.4957}\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= \underset{(0.6712)}{6.5171} + \underset{(0.0000)}{0.8101}\,p_{t-1} + \frac{\underset{(0.0007)}{0.1139}}{2(\underset{(0.0007)}{0.2029})^2}\,u_{t-1}^2,\\
-n_t &= \underset{(63.1620)}{4.7066} + \underset{(0.1481)}{0.3787}\,n_{t-1} + \frac{\underset{(0.0000)}{0.2931}}{2(\underset{(0.0001)}{0.0333})^2}\,u_{t-1}^2
+p_t &= \underset{(66.6572)}{8.1612} + \underset{(0.0000)}{0.9400}\,p_{t-1} + \frac{\underset{(0.0698)}{0.0506}}{2(\underset{(1.2348)}{0.0761})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(1.1648)}{0.0093}}{2(\underset{(1.2348)}{0.0761})^2}\,(u_{t-1}^-)^2,\\
+n_t &= \underset{(6.9573)}{2.6820} + \underset{(0.0000)}{0.9400}\,n_{t-1} + \frac{\underset{(0.0698)}{0.0506}}{2(\underset{(4.3916)}{0.4957})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(1.1648)}{0.0093}}{2(\underset{(4.3916)}{0.4957})^2}\,(u_{t-1}^-)^2
 \end{aligned}
 $$
 
@@ -63,15 +63,14 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| c | -0.3434 | 0.0000 |
-| rho_1 | -0.0005 | 0.5952 |
-| rho_2 | -0.1117 | 0.0673 |
-| phi_1 | -0.1006 | 0.2151 |
-| p0 | 6.5171 | 0.6712 |
-| n0 | 4.7066 | 63.1620 |
-| rho_p | 0.8101 | 0.0000 |
-| rho_n | 0.3787 | 0.1481 |
-| phi_p | 0.1139 | 0.0007 |
-| phi_n | 0.2931 | 0.0000 |
-| sigma_p | 0.2029 | 0.0007 |
-| sigma_n | 0.0333 | 0.0001 |
+| c | -0.0279 | 30.1515 |
+| rho_1 | 0.4083 | 1.2296 |
+| rho_2 | -0.0331 | 20.4300 |
+| phi_1 | 0.6653 | 26.7291 |
+| p0 | 8.1612 | 66.6572 |
+| n0 | 2.6820 | 6.9573 |
+| rho | 0.9400 | 0.0000 |
+| phi_plus | 0.0506 | 0.0698 |
+| phi_minus | 0.0093 | 1.1648 |
+| sigma_p | 0.0761 | 1.2348 |
+| sigma_n | 0.4957 | 4.3916 |
