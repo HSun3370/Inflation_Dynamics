@@ -355,6 +355,141 @@ BEGE_VARIANCE_EWMA_LAMBDA = 0.94
 BEGE_VARIANCE_EWMA_TAU = 75
 
 
+@njit(cache=True, nogil=True)
+def _bege_variance_bounds_ok_core(r, pseries, nseries, sigma_p, sigma_n, lam, tau):
+    n_obs = r.shape[0]
+    if n_obs == 0 or pseries.shape[0] != n_obs or nseries.shape[0] != n_obs:
+        return False
+
+    sum_r = 0.0
+    max_resid_sq = 0.0
+    for i in range(n_obs):
+        ri = r[i]
+        if not np.isfinite(ri):
+            return False
+        sum_r += ri
+        sq_i = ri * ri
+        if sq_i > max_resid_sq:
+            max_resid_sq = sq_i
+
+    mean_r = sum_r / n_obs
+    sample_var = 0.0
+    for i in range(n_obs):
+        diff = r[i] - mean_r
+        sample_var += diff * diff
+    sample_var /= n_obs
+
+    tau_eff = tau
+    if tau_eff < 1:
+        tau_eff = 1
+    if tau_eff > n_obs:
+        tau_eff = n_obs
+
+    weight = 1.0
+    weight_sum = 0.0
+    weighted_sq_sum = 0.0
+    for i in range(tau_eff):
+        weighted_sq_sum += weight * r[i] * r[i]
+        weight_sum += weight
+        weight *= lam
+    initial_value = weighted_sq_sum / weight_sum
+
+    tiny = 2.2250738585072014e-308
+    if (not np.isfinite(initial_value)) or initial_value <= 0.0:
+        initial_value = sample_var if sample_var > 0.0 else tiny
+
+    lower_floor = sample_var / 1e8
+    upper_cap = 1e7 * (1.0 + max_resid_sq)
+    min_upper = 1.0 + max_resid_sq
+    one_minus_lam = 1.0 - lam
+    ewma = initial_value if initial_value > tiny else tiny
+
+    sigp2 = sigma_p * sigma_p
+    sign2 = sigma_n * sigma_n
+    for t in range(n_obs):
+        if t > 0:
+            ewma = lam * ewma + one_minus_lam * r[t - 1] * r[t - 1]
+            if (not np.isfinite(ewma)) or ewma <= 0.0:
+                ewma = tiny
+
+        pt = pseries[t]
+        nt = nseries[t]
+        if (not np.isfinite(pt)) or (not np.isfinite(nt)):
+            return False
+
+        cond_var = sigp2 * pt + sign2 * nt
+        if not np.isfinite(cond_var):
+            return False
+
+        lower = ewma / 1e6
+        if lower < lower_floor:
+            lower = lower_floor
+
+        upper = ewma * 1e6
+        if upper > upper_cap:
+            upper = upper_cap
+        if upper < min_upper:
+            upper = min_upper
+        if upper < lower:
+            upper = lower
+
+        if cond_var < lower or cond_var > upper:
+            return False
+
+    return True
+
+
+def _resolve_start_n_jobs(n_starts, start_n_jobs=None):
+    if start_n_jobs is None:
+        raw = os.environ.get("BEGE_START_N_JOBS") or os.environ.get("SLURM_CPUS_PER_TASK")
+    else:
+        raw = start_n_jobs
+    try:
+        n_jobs = int(raw)
+    except (TypeError, ValueError):
+        n_jobs = 1
+    n_jobs = max(1, n_jobs)
+    return min(n_jobs, max(1, int(n_starts)))
+
+
+def _run_multistart_minimize(
+    start_values,
+    objective,
+    *,
+    method,
+    bounds,
+    constraints=None,
+    options=None,
+    start_n_jobs=None,
+):
+    start_values = [np.asarray(init, dtype=float) for init in start_values]
+    n_jobs = _resolve_start_n_jobs(len(start_values), start_n_jobs=start_n_jobs)
+    constraints_arg = () if constraints is None else constraints
+    options_arg = {} if options is None else dict(options)
+
+    def _run_one(init):
+        try:
+            opt = minimize(
+                objective,
+                init,
+                method=method,
+                bounds=bounds,
+                constraints=constraints_arg,
+                options=options_arg,
+            )
+            return opt, None
+        except Exception as exc:
+            return None, exc
+
+    if n_jobs == 1 or len(start_values) <= 1:
+        return [_run_one(init) for init in start_values]
+
+    backend = os.environ.get("BEGE_START_BACKEND", "loky")
+    return Parallel(n_jobs=n_jobs, backend=backend)(
+        delayed(_run_one)(init) for init in start_values
+    )
+
+
 def bege_implied_variance(pseries, nseries, sigma_p, sigma_n):
     pseries = np.asarray(pseries, dtype=float)
     nseries = np.asarray(nseries, dtype=float)
@@ -416,6 +551,22 @@ def bege_variance_bounds_ok(
     *,
     return_details=False,
 ):
+    if not return_details:
+        r = np.ascontiguousarray(resids, dtype=np.float64).reshape(-1)
+        p = np.ascontiguousarray(pseries, dtype=np.float64).reshape(-1)
+        n = np.ascontiguousarray(nseries, dtype=np.float64).reshape(-1)
+        return bool(
+            _bege_variance_bounds_ok_core(
+                r,
+                p,
+                n,
+                float(sigma_p),
+                float(sigma_n),
+                float(BEGE_VARIANCE_EWMA_LAMBDA),
+                int(BEGE_VARIANCE_EWMA_TAU),
+            )
+        )
+
     lower, upper, ewma = bege_variance_bounds(resids)
     cond_var = bege_implied_variance(pseries, nseries, sigma_p, sigma_n)
     finite = (
@@ -1113,7 +1264,7 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
 def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
                       n_starts=20, maxiter=1500, tol=1e-8, random_state=None,
                       compute_se=False, density_hyperu_method='scipy_approx',
-                      enforce_variance_bounds=True):
+                      enforce_variance_bounds=True, start_n_jobs=None):
     """
     BEGE GARCH MLE with random initialization.
     Mean params drawn from manually set ranges (last estimation results).
@@ -1218,18 +1369,35 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         return np.array([rng.uniform(a, b) for (a, b) in dist_bounds], dtype=float)
 
     # -------- 5) Multi-start MLE --------
+    start_values = [
+        np.concatenate([sample_mean_params(), sample_dist_params()])
+        for _ in range(int(n_starts))
+    ]
+    results = _run_multistart_minimize(
+        start_values,
+        full_obj,
+        method='L-BFGS-B',
+        bounds=full_bounds,
+        options={'maxiter': maxiter, 'ftol': tol},
+        start_n_jobs=start_n_jobs,
+    )
+
     best_fun = np.inf
     best_opt = None
-    for _ in range(n_starts):
-        init = np.concatenate([sample_mean_params(), sample_dist_params()])
-        opt = minimize(full_obj, init, method='L-BFGS-B', bounds=full_bounds,
-                       options={'maxiter': maxiter, 'ftol': tol})
+    last_error = None
+    for opt, exc in results:
+        if exc is not None:
+            last_error = exc
+            continue
         if _optimizer_result_eligible(opt) and opt.fun < best_fun:
             best_fun = opt.fun
             best_opt = opt
 
     if best_opt is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All optimization runs failed to converge to a finite eligible objective value.")
+        detail = ""
+        if last_error is not None:
+            detail = f" Last error: {type(last_error).__name__}: {last_error}"
+        raise RuntimeError(f"All optimization runs failed to converge to a finite eligible objective value.{detail}")
 
     # -------- 6) Post-estimation --------
     params = best_opt.x
@@ -1281,7 +1449,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
 def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
                        n_starts=20, maxiter=500, tol=1e-8, random_state=None,
                        compute_se=False, density_hyperu_method='scipy_approx',
-                       enforce_variance_bounds=True):
+                       enforce_variance_bounds=True, start_n_jobs=None):
     """
     Symmetric-volatility BEGE MLE (multi-start, no explicit constraints).
     - One shared GJR shape process s_t for BOTH p_t and n_t (symmetry).
@@ -1410,9 +1578,8 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         )  # per-observation neg ll
 
     # ---------- 5) Multi-start MLE ----------
-    best_fun = np.inf
-    best_opt = None
-    for _ in range(n_starts):
+    start_values = []
+    for _ in range(int(n_starts)):
         if num_m > 0:
             init_mean = sample_mean_params()
         else:
@@ -1428,16 +1595,33 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
             # if we couldn't find a stable draw quickly, just clamp to a mild stable default
             init_sym = np.array([1.0, 0.3, 0.5, 0.5, max(0.4, 0.1*np.std(Y))], dtype=float)
 
-        init = np.concatenate([init_mean, init_sym])
+        start_values.append(np.concatenate([init_mean, init_sym]))
 
-        opt = minimize(full_obj, init, method='L-BFGS-B', bounds=full_bounds,
-                       options={'maxiter': maxiter, 'ftol': tol})
+    results = _run_multistart_minimize(
+        start_values,
+        full_obj,
+        method='L-BFGS-B',
+        bounds=full_bounds,
+        options={'maxiter': maxiter, 'ftol': tol},
+        start_n_jobs=start_n_jobs,
+    )
+
+    best_fun = np.inf
+    best_opt = None
+    last_error = None
+    for opt, exc in results:
+        if exc is not None:
+            last_error = exc
+            continue
         if _optimizer_result_eligible(opt) and opt.fun < best_fun:
             best_fun = opt.fun
             best_opt = opt
 
     if best_opt is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All starts failed to converge to a finite eligible objective value.")
+        detail = ""
+        if last_error is not None:
+            detail = f" Last error: {type(last_error).__name__}: {last_error}"
+        raise RuntimeError(f"All starts failed to converge to a finite eligible objective value.{detail}")
 
     # ---------- 6) Post-estimation ----------
     params = best_opt.x
@@ -1497,6 +1681,7 @@ def BEGE_AsymSharedGJR_MLE(
     compute_se=False,
     density_hyperu_method='scipy_approx',
     enforce_variance_bounds=True,
+    start_n_jobs=None,
 ):
     """
     BEGE with asymmetric constants and scales, shared GJR coefficients.
@@ -1795,15 +1980,26 @@ def BEGE_AsymSharedGJR_MLE(
         )
 
     # ---------- optimize (multi-start SLSQP) ----------
+    start_values = [
+        np.concatenate([_sample_mean(), _sample_vol()])
+        for _ in range(int(n_starts))
+    ]
+    results = _run_multistart_minimize(
+        start_values,
+        _negloglik,
+        method='SLSQP',
+        bounds=bounds_full,
+        constraints=constraints,
+        options={'maxiter': int(maxiter), 'ftol': float(tol)},
+        start_n_jobs=start_n_jobs,
+    )
+
     best, best_fun = None, np.inf
-    for _ in range(int(n_starts)):
-        init = np.concatenate([_sample_mean(), _sample_vol()])
-        opt = minimize(
-            _negloglik, init, method='SLSQP',
-            bounds=bounds_full,
-            constraints=constraints,
-            options={'maxiter': int(maxiter), 'ftol': float(tol)}
-        )
+    last_error = None
+    for opt, exc in results:
+        if exc is not None:
+            last_error = exc
+            continue
         if (
             _optimizer_result_eligible(opt)
             and (
@@ -1815,7 +2011,10 @@ def BEGE_AsymSharedGJR_MLE(
             best = opt
 
     if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All starts failed to converge to a finite eligible objective value.")
+        detail = ""
+        if last_error is not None:
+            detail = f" Last error: {type(last_error).__name__}: {last_error}"
+        raise RuntimeError(f"All starts failed to converge to a finite eligible objective value.{detail}")
 
     params = best.x
     ll = -best.fun
@@ -1925,7 +2124,8 @@ def ID_GARCH(
     density_hyperu_method='scipy_approx',
     big_penalty=1e12,
     big_vec_penalty=1e6,
-    enforce_variance_bounds=True
+    enforce_variance_bounds=True,
+    start_n_jobs=None,
 ):
     """
     Inflation/Deflation BEGE-GJR.
@@ -2363,20 +2563,20 @@ def ID_GARCH(
         if not start_values:
             raise ValueError("Set n_starts >= 1 or provide initial_params.")
 
-        for init in start_values:
-            try:
-                opt = minimize(
-                    _negloglik,
-                    init,
-                    method='L-BFGS-B',
-                    bounds=bounds_full,
-                    options={'maxiter': int(maxiter), 'ftol': float(tol)}
-                )
-                if _optimizer_result_eligible(opt) and opt.fun < best_fun:
-                    best_fun = opt.fun
-                    best = opt
-            except Exception:
+        results = _run_multistart_minimize(
+            start_values,
+            _negloglik,
+            method='L-BFGS-B',
+            bounds=bounds_full,
+            options={'maxiter': int(maxiter), 'ftol': float(tol)},
+            start_n_jobs=start_n_jobs,
+        )
+        for opt, exc in results:
+            if exc is not None:
                 continue
+            if _optimizer_result_eligible(opt) and opt.fun < best_fun:
+                best_fun = opt.fun
+                best = opt
 
     if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
         raise RuntimeError("All starts failed to converge to a finite eligible objective value.")
@@ -2468,6 +2668,7 @@ def BEGE_FullGJR_MLE(
     compute_se=False,
     density_hyperu_method='scipy_approx',
     enforce_variance_bounds=True,
+    start_n_jobs=None,
 ):
     """
     BEGE with FULL GJR recursions (separate parameters for p_t and n_t).
@@ -2864,30 +3065,43 @@ def BEGE_FullGJR_MLE(
             floor_eps=floor_eps,
             max_tries=200
         )
-    # ---------- optimize (multi-start L-BFGS-B) ----------
+    # ---------- optimize (multi-start SLSQP) ----------
+    start_values = [
+        np.concatenate([_sample_mean(), _sample_vol()])
+        for _ in range(int(n_starts))
+    ]
+    results = _run_multistart_minimize(
+        start_values,
+        _negloglik,
+        method='SLSQP',
+        bounds=bounds_full,
+        constraints=constraints,
+        options={'maxiter': int(maxiter), 'ftol': float(tol)},
+        start_n_jobs=start_n_jobs,
+    )
+
     best, best_fun = None, np.inf
-    for _ in range(int(n_starts)):
-        init = np.concatenate([_sample_mean(), _sample_vol()])
-        try:
-            opt  = minimize(_negloglik, init, method='SLSQP',   #method='L-BFGS-B'
-                            bounds=bounds_full,
-                            constraints=constraints,
-                            options={'maxiter': int(maxiter), 'ftol': float(tol)})
-            if (
-                _optimizer_result_eligible(opt)
-                and (
-                    best is None
-                    or opt.fun < best_fun
-                )
-            ):
-                best_fun = opt.fun
-                best = opt
-        except Exception:
+    last_error = None
+    for opt, exc in results:
+        if exc is not None:
+            last_error = exc
             continue
+        if (
+            _optimizer_result_eligible(opt)
+            and (
+                best is None
+                or opt.fun < best_fun
+            )
+        ):
+            best_fun = opt.fun
+            best = opt
 
     if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
+        detail = ""
+        if last_error is not None:
+            detail = f" Last error: {type(last_error).__name__}: {last_error}"
         raise RuntimeError("All starts failed to converge to a finite eligible objective value. "
-                           "Consider tightening bounds, increasing big_penalty, or scaling data.")
+                           f"Consider tightening bounds, increasing big_penalty, or scaling data.{detail}")
 
     params = best.x
     ll     = -best.fun
@@ -2980,6 +3194,7 @@ def BG_GARCH(
     compute_se=False,
     density_hyperu_method='scipy_approx',
     enforce_variance_bounds=True,
+    start_n_jobs=None,
 ):
     """
     BG_GARCH: Good/Bad volatility with symmetric-in-sign GARCH:
@@ -3241,25 +3456,29 @@ def BG_GARCH(
         )
 
     # ---------- optimize ----------
+    start_values = [
+        np.concatenate([_sample_mean(), _sample_vol()])
+        for _ in range(int(n_starts))
+    ]
+    results = _run_multistart_minimize(
+        start_values,
+        _negloglik,
+        method='SLSQP',
+        bounds=bounds_full,
+        constraints=constraints,
+        options={'maxiter': int(maxiter), 'ftol': float(tol)},
+        start_n_jobs=start_n_jobs,
+    )
+
     best, best_fun = None, np.inf
     last_error = None
-    for _ in range(int(n_starts)):
-        init = np.concatenate([_sample_mean(), _sample_vol()])
-        try:
-            opt = minimize(
-                _negloglik,
-                init,
-                method='SLSQP',
-                bounds=bounds_full,
-                constraints=constraints,
-                options={'maxiter': int(maxiter), 'ftol': float(tol)}
-            )
-            if _optimizer_result_eligible(opt) and opt.fun < best_fun:
-                best_fun = opt.fun
-                best = opt
-        except Exception as exc:
+    for opt, exc in results:
+        if exc is not None:
             last_error = exc
             continue
+        if _optimizer_result_eligible(opt) and opt.fun < best_fun:
+            best_fun = opt.fun
+            best = opt
 
     if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
         detail = ""
