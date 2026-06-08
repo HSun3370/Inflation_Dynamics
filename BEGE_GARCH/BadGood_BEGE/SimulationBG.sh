@@ -16,7 +16,6 @@ MAXITER="${MAXITER:-800}"
 TOL="${TOL:-1e-8}"
 INCLUDE_ARX22="${INCLUDE_ARX22:-1}"
 DENSITY_HYPERU_METHOD="${DENSITY_HYPERU_METHOD:-scipy_approx}"
-CAP_PN="${CAP_PN:-}"
 COMPUTE_SE="${COMPUTE_SE:-0}"
 SUBMIT_COLLECTOR="${SUBMIT_COLLECTOR:-1}"
 COLLECT_DEPENDENCY_TYPE="${COLLECT_DEPENDENCY_TYPE:-afterany}"
@@ -41,7 +40,6 @@ Environment overrides:
   N_DRAWS=${N_DRAWS} N_STARTS=${N_STARTS} MAXITER=${MAXITER} TOL=${TOL}
   INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 estimates all four mean processes
   DENSITY_HYPERU_METHOD=${DENSITY_HYPERU_METHOD}
-  CAP_PN=${CAP_PN:-unset}          # unset means no hard shape cap
   COMPUTE_SE=${COMPUTE_SE}         # 0 skips standard errors for fast search
   SUBMIT_COLLECTOR=${SUBMIT_COLLECTOR}
 
@@ -109,9 +107,6 @@ build_python_args() {
     args="--id PLACEHOLDER_ID --n-draws ${N_DRAWS} --n-starts ${N_STARTS} --maxiter ${MAXITER} --tol ${TOL} --density-hyperu-method ${DENSITY_HYPERU_METHOD}"
     if [ "${INCLUDE_ARX22}" != "1" ]; then
         args="${args} --skip-arx22"
-    fi
-    if [ -n "${CAP_PN}" ]; then
-        args="${args} --cap-pn ${CAP_PN}"
     fi
     if [ "${COMPUTE_SE}" = "1" ]; then
         args="${args} --compute-se"

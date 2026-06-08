@@ -77,7 +77,7 @@ def unpack_vol(theta: np.ndarray) -> tuple[float, ...]:
     return tuple(float(v) for v in theta[3:])
 
 
-def stability_margins(theta: np.ndarray, variance_bound: float) -> dict[str, float]:
+def stability_margins(theta: np.ndarray) -> dict[str, float]:
     (
         p0,
         n0,
@@ -93,19 +93,16 @@ def stability_margins(theta: np.ndarray, variance_bound: float) -> dict[str, flo
     return {
         "p_stability_margin": 1.0 - (rho_p + 0.5 * (phi_p_plus + phi_p_minus)),
         "n_stability_margin": 1.0 - (rho_n + 0.5 * (phi_n_plus + phi_n_minus)),
-        "unconditional_variance_margin": variance_bound
-        - (sigma_p * sigma_p * p0 + sigma_n * sigma_n * n0),
     }
 
 
-def constraints_ok(theta: np.ndarray, variance_bound: float, floor_eps: float = 1e-8) -> bool:
+def constraints_ok(theta: np.ndarray, floor_eps: float = 1e-8) -> bool:
     if not np.all(np.isfinite(theta)):
         return False
-    margins = stability_margins(theta, variance_bound)
+    margins = stability_margins(theta)
     return (
         margins["p_stability_margin"] > floor_eps
         and margins["n_stability_margin"] > floor_eps
-        and margins["unconditional_variance_margin"] >= -floor_eps
     )
 
 
@@ -244,13 +241,12 @@ def draw_near_start(
     bounds: list[tuple[float, float]],
     rng: np.random.Generator,
     jitter_scale: float,
-    variance_bound: float,
 ) -> np.ndarray:
     width = float(jitter_scale) * np.maximum(1.0, np.abs(center))
     for shrink in (1.0, 0.5, 0.25, 0.1, 0.05, 0.02):
         candidate = center + rng.uniform(-width * shrink, width * shrink)
         candidate = project_to_bounds(candidate, bounds)
-        if constraints_ok(candidate, variance_bound):
+        if constraints_ok(candidate):
             return candidate
     return project_to_bounds(center, bounds)
 
@@ -265,7 +261,6 @@ def estimate_full_bege_arx11(
     maxiter: int,
     tol: float,
     density_hyperu_method: str,
-    variance_bound: float,
     enforce_variance_bounds: bool,
     optimizer_method: str,
     include_center_start: bool,
@@ -278,7 +273,7 @@ def estimate_full_bege_arx11(
 
     def objective(theta: np.ndarray) -> float:
         theta = np.asarray(theta, dtype=float)
-        if not constraints_ok(theta, variance_bound):
+        if not constraints_ok(theta):
             return big_penalty
 
         residuals = residual_function(theta[:3])
@@ -326,25 +321,21 @@ def estimate_full_bege_arx11(
         return value if np.isfinite(value) else big_penalty
 
     def p_stability(theta: np.ndarray) -> float:
-        return stability_margins(theta, variance_bound)["p_stability_margin"] - 1e-8
+        return stability_margins(theta)["p_stability_margin"] - 1e-8
 
     def n_stability(theta: np.ndarray) -> float:
-        return stability_margins(theta, variance_bound)["n_stability_margin"] - 1e-8
-
-    def uncond_variance(theta: np.ndarray) -> float:
-        return stability_margins(theta, variance_bound)["unconditional_variance_margin"]
+        return stability_margins(theta)["n_stability_margin"] - 1e-8
 
     constraints = [
         {"type": "ineq", "fun": p_stability},
         {"type": "ineq", "fun": n_stability},
-        {"type": "ineq", "fun": uncond_variance},
     ]
 
     starts = []
     if include_center_start:
         starts.append(project_to_bounds(center_params, bounds))
     starts.extend(
-        draw_near_start(center_params, bounds, rng, jitter_scale, variance_bound)
+        draw_near_start(center_params, bounds, rng, jitter_scale)
         for _ in range(max(0, int(n_starts) - len(starts)))
     )
     if not starts:
@@ -482,7 +473,6 @@ def write_markdown_report(
     n_starts: int,
     jitter_scale: float,
     include_center_start: bool,
-    variance_bound: float,
     enforce_variance_bounds: bool,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -490,8 +480,8 @@ def write_markdown_report(
         csv_display_path = csv_path.resolve().relative_to(PROJECT_ROOT)
     except ValueError:
         csv_display_path = csv_path
-    margins = stability_margins(theta_true, variance_bound)
-    estimate_margins = stability_margins(np.asarray(fit["params"], dtype=float), variance_bound)
+    margins = stability_margins(theta_true)
+    estimate_margins = stability_margins(np.asarray(fit["params"], dtype=float))
     max_abs_error = float(results["abs_error"].max())
     max_rel_error = float(results["relative_abs_error"].max())
     opt = fit["opt"]
@@ -560,9 +550,7 @@ def write_markdown_report(
         f"It runs `{n_starts}` `{fit.get('optimizer_method', 'unknown')}` starts centered at "
         f"the true parameter vector with jitter scale "
         f"`{jitter_scale}`. Exact true-parameter start included: `{include_center_start}`. "
-        f"Stability constraints and the unconditional variance bound "
-        f"`sigma_p^2 p0 + sigma_n^2 n0 <= {variance_bound}` are imposed by the objective "
-        "feasibility screen.",
+        "Stability constraints are imposed by the objective feasibility screen.",
         "",
         f"EWMA implied-variance bounds are {'enforced' if enforce_variance_bounds else 'not enforced'} "
         "during this synthetic recovery run. The final estimate is still rechecked against those bounds.",
@@ -572,7 +560,6 @@ def write_markdown_report(
         "",
         f"- True p-process stability margin: `{format_float(margins['p_stability_margin'])}`",
         f"- True n-process stability margin: `{format_float(margins['n_stability_margin'])}`",
-        f"- True unconditional variance margin: `{format_float(margins['unconditional_variance_margin'])}`",
         "",
         "## Estimation Results",
         "",
@@ -590,7 +577,6 @@ def write_markdown_report(
         f"- Maximum relative absolute parameter error: `{format_float(max_rel_error, 8)}`",
         f"- Estimated p-process stability margin: `{format_float(estimate_margins['p_stability_margin'])}`",
         f"- Estimated n-process stability margin: `{format_float(estimate_margins['n_stability_margin'])}`",
-        f"- Estimated unconditional variance margin: `{format_float(estimate_margins['unconditional_variance_margin'])}`",
         f"- Estimated EWMA implied-variance-bound check: `{estimate_variance_bounds_ok}`",
         f"- Maximum estimated shape state: `{format_float(max(np.max(fit['pseries']), np.max(fit['nseries'])), 6)}`",
         f"- Maximum estimated implied variance: `{format_float(np.max(fit['cond_var']), 6)}`",
@@ -639,12 +625,6 @@ def parse_args() -> argparse.Namespace:
         help="Include the exact true parameter vector as one optimizer start.",
     )
     parser.add_argument(
-        "--variance-bound",
-        type=float,
-        default=0.75,
-        help="Unconditional variance bound used by Full BEGE.",
-    )
-    parser.add_argument(
         "--enforce-variance-bounds",
         action="store_true",
         help="Impose EWMA implied-variance bounds in the synthetic objective. "
@@ -668,7 +648,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     theta_true = pack_params(TRUE_PARAMS)
-    if not constraints_ok(theta_true, args.variance_bound):
+    if not constraints_ok(theta_true):
         raise ValueError("Configured true parameters do not satisfy Full BEGE constraints.")
 
     data = simulate_full_bege_arx11(
@@ -688,7 +668,6 @@ def main() -> None:
         maxiter=args.maxiter,
         tol=args.tol,
         density_hyperu_method=args.density_hyperu_method,
-        variance_bound=args.variance_bound,
         enforce_variance_bounds=enforce_variance_bounds,
         optimizer_method=args.optimizer_method,
         include_center_start=args.include_center_start,
@@ -719,7 +698,6 @@ def main() -> None:
         n_starts=args.n_starts,
         jitter_scale=args.jitter_scale,
         include_center_start=args.include_center_start,
-        variance_bound=args.variance_bound,
         enforce_variance_bounds=enforce_variance_bounds,
     )
 

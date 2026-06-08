@@ -21,17 +21,16 @@ the parameter bounds used in code, finite-recursion checks, and the documented
 ID-GARCH stability restrictions:
 
 - $\rho_p + \frac{\phi_p^+}{2} < 1$ and $\rho_n + \frac{\phi_n^-}{2} < 1$.
-- $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$.
 - The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.
 
-The hard shape cap $\max\{p_t, n_t\} < 200$ is **not imposed by default** in
-`ID_GARCH`. It can still be restored for sensitivity checks by passing
-`cap_pn=200`, but it is not part of the current best-model reporting screen.
+The legacy hard shape cap on $\max\{p_t, n_t\}$ has been removed from
+`ID_GARCH`; large shape states are retained as diagnostics rather than used as
+an exclusion rule.
 
 For reported best-model selection, `collect_id_results.py` keeps the raw search
 rows, recomputes each likelihood with the stabilized BEGE density, and uses
 finite corrected criteria, optimizer convergence, and the documented
-parameter/stability/unconditional-variance constraints. The row-level selection
+parameter/stability constraints. The row-level selection
 outcome, stored likelihood, corrected likelihood, and maximum shape diagnostic
 are written to `results/selection_diagnostics.csv`.
 

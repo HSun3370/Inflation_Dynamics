@@ -437,7 +437,14 @@ def bege_variance_bounds_ok(
     }
 
 
- 
+def _optimizer_result_eligible(opt):
+    return (
+        bool(getattr(opt, "success", False))
+        and np.isfinite(getattr(opt, "fun", np.nan))
+        and np.all(np.isfinite(getattr(opt, "x", np.array([np.nan]))))
+    )
+
+
 
 def loglikedgam_constant(resids, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
     resids = np.asarray(resids)
@@ -1217,12 +1224,12 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         init = np.concatenate([sample_mean_params(), sample_dist_params()])
         opt = minimize(full_obj, init, method='L-BFGS-B', bounds=full_bounds,
                        options={'maxiter': maxiter, 'ftol': tol})
-        if np.isfinite(opt.fun) and np.all(np.isfinite(opt.x)) and opt.fun < best_fun:
+        if _optimizer_result_eligible(opt) and opt.fun < best_fun:
             best_fun = opt.fun
             best_opt = opt
 
     if best_opt is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All optimization runs failed to produce finite objective values.")
+        raise RuntimeError("All optimization runs failed to converge to a finite eligible objective value.")
 
     # -------- 6) Post-estimation --------
     params = best_opt.x
@@ -1425,12 +1432,12 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
 
         opt = minimize(full_obj, init, method='L-BFGS-B', bounds=full_bounds,
                        options={'maxiter': maxiter, 'ftol': tol})
-        if opt.fun < best_fun:
+        if _optimizer_result_eligible(opt) and opt.fun < best_fun:
             best_fun = opt.fun
             best_opt = opt
 
     if best_opt is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All starts failed (likely numerical instability or variance-bound rejection).")
+        raise RuntimeError("All starts failed to converge to a finite eligible objective value.")
 
     # ---------- 6) Post-estimation ----------
     params = best_opt.x
@@ -1485,12 +1492,10 @@ def BEGE_AsymSharedGJR_MLE(
     phi_bounds=(0.0, 2.0),  # kept for optimizer bounds; sampling ignores these for phis (see below)
     floor_eps=1e-6,
     print_summary=True,
-    cap_pn=None,
     big_penalty=1e12,
     big_vec_penalty=1e6,
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    variance_bound=0.87,
     enforce_variance_bounds=True,
 ):
     """
@@ -1498,9 +1503,6 @@ def BEGE_AsymSharedGJR_MLE(
 
     MODS:
       • Stability guard: rho + 0.5*(phi+ + phi-) < 1.
-      • Unconditional variance guard: sigma_p^2*p0 + sigma_n^2*n0 <= variance_bound.
-      • No p_t/n_t upper cap is applied by default. If cap_pn is provided,
-        values above that cap receive a large objective penalty.
       • Sampling: sample all params from bounds except phip/2 and phin/2.
         Sample beta_p := phip/2 ~ U[0, 1 - rho - floor_eps], beta_n similarly,
         then set phip = 2*beta_p, phin = 2*beta_n.
@@ -1591,21 +1593,14 @@ def BEGE_AsymSharedGJR_MLE(
             return False
         if rho + 0.5 * (phip + phin) >= 1.0 - floor_eps:
             return False
-        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
-            return False
         return True
 
     def constr_rho_phi(theta):
         p0, n0, rho, phip, phin, sigp, sign = _unpack_vol(theta)
         return 1.0 - floor_eps - (rho + 0.5 * (phip + phin))
 
-    def constr_uncond_var(theta):
-        p0, n0, rho, phip, phin, sigp, sign = _unpack_vol(theta)
-        return variance_bound - (sigp**2 * p0 + sign**2 * n0)
-
     constraints = [
         {'type': 'ineq', 'fun': constr_rho_phi},
-        {'type': 'ineq', 'fun': constr_uncond_var},
     ]
 
     # ---------- objectives ----------
@@ -1620,8 +1615,7 @@ def BEGE_AsymSharedGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho), float(phip), float(phin)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho), float(phip), float(phin)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (exceeds_cap or not np.all(np.isfinite(pseries)) or
+        if (not np.all(np.isfinite(pseries)) or
             not np.all(np.isfinite(nseries))):
             return float(big_penalty)
         if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
@@ -1650,8 +1644,7 @@ def BEGE_AsymSharedGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho), float(phip), float(phin)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho), float(phip), float(phin)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (exceeds_cap or not np.all(np.isfinite(pseries)) or
+        if (not np.all(np.isfinite(pseries)) or
             not np.all(np.isfinite(nseries))):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
         if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
@@ -1736,7 +1729,7 @@ def BEGE_AsymSharedGJR_MLE(
         Sampling rule:
           - rho ~ U[rho_lo, rho_hi]
           - sigp, sign ~ U[sigma_lo, sigma_hi]
-          - p0, n0 are sampled inside the unconditional variance bound
+          - p0, n0 ~ U[p0_lo, p0_hi]
           - beta_p := phip/2 ~ U[0, 1 - rho - floor_eps]
             beta_n := phin/2 ~ U[0, 1 - rho - floor_eps]
             phip = 2*beta_p, phin = 2*beta_n
@@ -1755,19 +1748,8 @@ def BEGE_AsymSharedGJR_MLE(
             rho  = rng.uniform(rho_lo, rho_upper)
             sigp = rng.uniform(sig_lo, sig_hi)
             sign = rng.uniform(sig_lo, sig_hi)
-            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
-            if min_var > variance_bound:
-                continue
-
-            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
-            if p0_upper <= p0_lo:
-                continue
-            p0 = rng.uniform(p0_lo, p0_upper)
-
-            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
-            if n0_upper <= p0_lo:
-                continue
-            n0 = rng.uniform(p0_lo, n0_upper)
+            p0 = rng.uniform(p0_lo, p0_hi)
+            n0 = rng.uniform(p0_lo, p0_hi)
 
             cap = min(0.5 * phi_hi, 1.0 - rho - floor_eps)
             if cap <= 0:
@@ -1799,9 +1781,6 @@ def BEGE_AsymSharedGJR_MLE(
         p_bar = 1.0; n_bar = 1.0
         p0 = float(np.clip(denom * p_bar, p0_lo + 1e-8, p0_hi - 1e-8))
         n0 = float(np.clip(denom * n_bar, p0_lo + 1e-8, p0_hi - 1e-8))
-        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
-            p0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sigp * sigp)))
-            n0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sign * sign)))
         return np.array([p0, n0, rho, phip, phin, sigp, sign], dtype=float)
 
     def _sample_vol():
@@ -1826,18 +1805,17 @@ def BEGE_AsymSharedGJR_MLE(
             options={'maxiter': int(maxiter), 'ftol': float(tol)}
         )
         if (
-            np.isfinite(opt.fun)
+            _optimizer_result_eligible(opt)
             and (
                 best is None
-                or (bool(opt.success) and not bool(best.success))
-                or (bool(opt.success) == bool(best.success) and opt.fun < best_fun)
+                or opt.fun < best_fun
             )
         ):
             best_fun = opt.fun
             best = opt
 
     if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All starts failed (likely numerical instability).")
+        raise RuntimeError("All starts failed to converge to a finite eligible objective value.")
 
     params = best.x
     ll = -best.fun
@@ -1943,9 +1921,7 @@ def ID_GARCH(
     print_summary=True,
     compute_se=False,
     initial_params=None,
-    cap_pn=None,
     enforce_constraints=True,
-    variance_bound=0.87,
     density_hyperu_method='scipy_approx',
     big_penalty=1e12,
     big_vec_penalty=1e6,
@@ -1959,8 +1935,7 @@ def ID_GARCH(
       [p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigma_p, sigma_n]
 
     By default the likelihood enforces the documented persistence-plus-loading
-    bounds and unconditional variance reference sigp^2 * p0 + sign^2 * n0 <=
-    variance_bound, but does not impose a hard shape cap unless cap_pn is set.
+    bounds.
     The optimizer uses a SciPy/asymptotic BEGE-density fallback by default to
     avoid slow high-precision calls at rejected trial points.
     """
@@ -2164,14 +2139,10 @@ def ID_GARCH(
             return False
         if rho_n + 0.5 * phi_n_minus >= 1.0 - floor_eps:
             return False
-        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
-            return False
         return True
 
     def _series_ok(pseries, nseries):
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
-            return False
-        if cap_pn is not None and (np.any(pseries >= cap_pn) or np.any(nseries >= cap_pn)):
             return False
         return True
 
@@ -2324,19 +2295,8 @@ def ID_GARCH(
         for _ in range(500):
             sigp = rng.uniform(sig_lo, sig_hi)
             sign = rng.uniform(sig_lo, sig_hi)
-            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
-            if min_var > variance_bound:
-                continue
-
-            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
-            if p0_upper <= p0_lo:
-                continue
-            p0 = rng.uniform(p0_lo, p0_upper)
-
-            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
-            if n0_upper <= p0_lo:
-                continue
-            n0 = rng.uniform(p0_lo, n0_upper)
+            p0 = rng.uniform(p0_lo, p0_hi)
+            n0 = rng.uniform(p0_lo, p0_hi)
 
             rho_p = rng.uniform(rho_lo, rho_upper)
             phi_p_upper = min(phi_hi, 2.0 * (1.0 - floor_eps - rho_p))
@@ -2357,9 +2317,6 @@ def ID_GARCH(
         sig_default = min(max(0.4, sig_lo), sig_hi)
         p0_default = min(max(0.5, p0_lo), p0_hi)
         n0_default = min(max(0.5, p0_lo), p0_hi)
-        if sig_default * sig_default * (p0_default + n0_default) > variance_bound:
-            p0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
-            n0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
         rho_default = min(max(0.3, rho_lo), rho_upper)
         phi_default = min(0.5, phi_hi, 2.0 * (1.0 - floor_eps - rho_default))
         phi_default = max(phi_lo, phi_default)
@@ -2415,14 +2372,14 @@ def ID_GARCH(
                     bounds=bounds_full,
                     options={'maxiter': int(maxiter), 'ftol': float(tol)}
                 )
-                if np.isfinite(opt.fun) and opt.fun < best_fun:
+                if _optimizer_result_eligible(opt) and opt.fun < best_fun:
                     best_fun = opt.fun
                     best = opt
             except Exception:
                 continue
 
     if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All starts failed (likely numerical instability).")
+        raise RuntimeError("All starts failed to converge to a finite eligible objective value.")
 
     params = np.asarray(best.x, dtype=float)
     ll = -float(best.fun)
@@ -2506,13 +2463,10 @@ def BEGE_FullGJR_MLE(
     phi_bounds=(0.0, 2.0),
     floor_eps=1e-6,
     print_summary=True,
-    # ---- hard penalty controls ----
-    cap_pn=None,                # optional cap; None means no p_t/n_t upper cap
     big_penalty=1e12,           # scalar objective penalty
     big_vec_penalty=1e6,        # per-observation penalty (vector version)
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    variance_bound=0.75,
     enforce_variance_bounds=True,
 ):
     """
@@ -2525,10 +2479,6 @@ def BEGE_FullGJR_MLE(
     Behavior in this version:
       • Stability is enforced for both shape processes:
         rho + 0.5*(phi_plus + phi_minus) < 1.
-      • The unconditional variance bound
-        sigma_p^2*p0 + sigma_n^2*n0 <= variance_bound is enforced.
-      • No p_t/n_t upper cap is applied by default. If cap_pn is provided,
-        values above that cap receive the hard penalty.
       • Random starts are sampled from the feasible stability/variance region.
 
     Returns:
@@ -2638,8 +2588,6 @@ def BEGE_FullGJR_MLE(
             return False
         if rho_n + 0.5 * (phi_n_plus + phi_n_minus) >= 1.0 - floor_eps:
             return False
-        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
-            return False
         return True
 
     # 1) rho_p + phi_p⁺/2 + phi_p⁻/2 < 1
@@ -2654,16 +2602,9 @@ def BEGE_FullGJR_MLE(
         phi_n_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
         return 1.0 - floor_eps - (rho_n + 0.5 * (phi_n_plus + phi_n_minus))
 
-    # 3) unconditional variance: sig_p² p0 + sig_n² n0 <= variance_bound
-    def constr_uncond_var(theta):
-        p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, \
-        phi_n_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
-        return variance_bound - (sigp**2 * p0 + sign**2 * n0)
-
     constraints = [
         {'type': 'ineq', 'fun': constr_rho_phi_p},
         {'type': 'ineq', 'fun': constr_rho_phi_n},
-        {'type': 'ineq', 'fun': constr_uncond_var},
     ]
 
     
@@ -2681,8 +2622,7 @@ def BEGE_FullGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return float(big_penalty)
         if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return float(big_penalty)
@@ -2710,8 +2650,7 @@ def BEGE_FullGJR_MLE(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
         if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
@@ -2833,20 +2772,8 @@ def BEGE_FullGJR_MLE(
             # Sample sigma parameters
             sigp = rng.uniform(sig_lo, sig_hi)
             sign = rng.uniform(sig_lo, sig_hi)
-
-            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
-            if min_var > variance_bound:
-                continue
-
-            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
-            if p0_upper <= p0_lo:
-                continue
-            p0 = rng.uniform(p0_lo, p0_upper)
-
-            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
-            if n0_upper <= p0_lo:
-                continue
-            n0 = rng.uniform(p0_lo, n0_upper)
+            p0 = rng.uniform(p0_lo, p0_hi)
+            n0 = rng.uniform(p0_lo, p0_hi)
 
             # Sample p component phi parameters
             cap_p = min(0.5 * phi_hi, 1.0 - rho_p - floor_eps)
@@ -2921,9 +2848,6 @@ def BEGE_FullGJR_MLE(
         n_bar = 1.0
         p0 = float(np.clip(denom_p * p_bar, p0_lo + 1e-8, p0_hi - 1e-8))
         n0 = float(np.clip(denom_n * n_bar, p0_lo + 1e-8, p0_hi - 1e-8))
-        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
-            p0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sigp * sigp)))
-            n0 = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sign * sign)))
         
         return np.array([p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, 
                         phi_n_plus, phi_n_minus, sigp, sign], dtype=float)
@@ -2950,11 +2874,10 @@ def BEGE_FullGJR_MLE(
                             constraints=constraints,
                             options={'maxiter': int(maxiter), 'ftol': float(tol)})
             if (
-                np.isfinite(opt.fun)
+                _optimizer_result_eligible(opt)
                 and (
                     best is None
-                    or (bool(opt.success) and not bool(best.success))
-                    or (bool(opt.success) == bool(best.success) and opt.fun < best_fun)
+                    or opt.fun < best_fun
                 )
             ):
                 best_fun = opt.fun
@@ -2963,7 +2886,7 @@ def BEGE_FullGJR_MLE(
             continue
 
     if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
-        raise RuntimeError("All starts failed (likely numerical instability). "
+        raise RuntimeError("All starts failed to converge to a finite eligible objective value. "
                            "Consider tightening bounds, increasing big_penalty, or scaling data.")
 
     params = best.x
@@ -3052,12 +2975,10 @@ def BG_GARCH(
     phi_bounds=(0.0, 2.0),
     floor_eps=1e-6,
     print_summary=True,
-    cap_pn=None,
     big_penalty=1e12,
     big_vec_penalty=1e6,
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    variance_bound=0.87,
     enforce_variance_bounds=True,
 ):
     """
@@ -3154,8 +3075,6 @@ def BG_GARCH(
             return False
         if rho_n + phi_n >= 1.0 - floor_eps:
             return False
-        if sigp * sigp * p0 + sign * sign * n0 > variance_bound:
-            return False
         return True
 
     # rho_p + phi_p < 1
@@ -3168,15 +3087,9 @@ def BG_GARCH(
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = _unpack_vol(theta)
         return 1.0 - floor_eps - (rho_n + phi_n)
 
-    # unconditional variance constraint
-    def constr_uncond_var(theta):
-        p0, n0, rho_p, rho_n, phi_p, phi_n, sigp, sign = _unpack_vol(theta)
-        return variance_bound - (sigp**2 * p0 + sign**2 * n0)
-
     constraints = [
         {'type': 'ineq', 'fun': constr_rho_phi_p},
         {'type': 'ineq', 'fun': constr_rho_phi_n},
-        {'type': 'ineq', 'fun': constr_uncond_var},
     ]
 
     # ---------- objective ----------
@@ -3190,8 +3103,7 @@ def BG_GARCH(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return float(big_penalty)
         if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return float(big_penalty)
@@ -3215,8 +3127,7 @@ def BG_GARCH(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
         if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
@@ -3300,19 +3211,8 @@ def BG_GARCH(
         for _ in range(500):
             sigp = rng.uniform(sig_lo, sig_hi)
             sign = rng.uniform(sig_lo, sig_hi)
-            min_var = sigp * sigp * p0_lo + sign * sign * p0_lo
-            if min_var > variance_bound:
-                continue
-
-            p0_upper = min(p0_hi, (variance_bound - sign * sign * p0_lo) / (sigp * sigp))
-            if p0_upper <= p0_lo:
-                continue
-            p0 = rng.uniform(p0_lo, p0_upper)
-
-            n0_upper = min(p0_hi, (variance_bound - sigp * sigp * p0) / (sign * sign))
-            if n0_upper <= p0_lo:
-                continue
-            n0 = rng.uniform(p0_lo, n0_upper)
+            p0 = rng.uniform(p0_lo, p0_hi)
+            n0 = rng.uniform(p0_lo, p0_hi)
 
             rho_p = rng.uniform(rho_lo, rho_hi)
             rho_n = rng.uniform(rho_lo, rho_hi)
@@ -3332,9 +3232,6 @@ def BG_GARCH(
         sig_default = min(max(0.5, sig_lo), sig_hi)
         p0_default = min(max(0.5, p0_lo), p0_hi)
         n0_default = min(max(0.5, p0_lo), p0_hi)
-        if sig_default * sig_default * (p0_default + n0_default) > variance_bound:
-            p0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
-            n0_default = min(p0_hi, max(p0_lo, 0.45 * variance_bound / (sig_default * sig_default)))
         rho_default = min(max(0.3, rho_lo), rho_upper)
         phi_default = min(0.4, phi_hi, 1.0 - floor_eps - rho_default)
         phi_default = max(phi_lo, phi_default)
@@ -3357,7 +3254,7 @@ def BG_GARCH(
                 constraints=constraints,
                 options={'maxiter': int(maxiter), 'ftol': float(tol)}
             )
-            if np.isfinite(opt.fun) and opt.fun < best_fun:
+            if _optimizer_result_eligible(opt) and opt.fun < best_fun:
                 best_fun = opt.fun
                 best = opt
         except Exception as exc:
@@ -3368,7 +3265,7 @@ def BG_GARCH(
         detail = ""
         if last_error is not None:
             detail = f" Last error: {type(last_error).__name__}: {last_error}"
-        raise RuntimeError(f"All starts failed (likely numerical instability).{detail}")
+        raise RuntimeError(f"All starts failed to converge to a finite eligible objective value.{detail}")
 
     params = best.x
     ll     = -best.fun
@@ -3457,7 +3354,6 @@ def _ID_GARCH_legacy(
     phi_bounds=(1e-5, 1.5),
     floor_eps=1e-6,
     print_summary=True,
-    cap_pn=None,
     big_penalty=1e12,
     big_vec_penalty=1e6
 ):
@@ -3563,15 +3459,9 @@ def _ID_GARCH_legacy(
         p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
         return 1.0 - (rho_n + 0.5 * phi_n_minus)
 
-    # unconditional variance constraint
-    def constr_uncond_var(theta):
-        p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
-        return 0.87 - (sigp**2 * p0 + sign**2 * n0)
-
     constraints = [
         {'type': 'ineq', 'fun': constr_rho_phi_p},
         {'type': 'ineq', 'fun': constr_rho_phi_n},
-        {'type': 'ineq', 'fun': constr_uncond_var},
     ]
 
     # ---------- objective ----------
@@ -3584,8 +3474,7 @@ def _ID_GARCH_legacy(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), 0.0), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), 0.0, float(phi_n_minus)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return float(big_penalty)
 
         ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -3602,8 +3491,7 @@ def _ID_GARCH_legacy(
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), 0.0), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), 0.0, float(phi_n_minus)), float(sign))
 
-        exceeds_cap = cap_pn is not None and (np.any(pseries > cap_pn) or np.any(nseries > cap_pn))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) or exceeds_cap:
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
@@ -3691,8 +3579,7 @@ def _ID_GARCH_legacy(
             p0    = rng.uniform(p0_lo, p0_hi)
             n0    = rng.uniform(p0_lo, p0_hi)
 
-            if sigp**2 * p0 + sign**2 * n0 <= 1.5:
-                return np.array([p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign], dtype=float)
+            return np.array([p0, n0, rho_p, rho_n, phi_p_plus, phi_n_minus, sigp, sign], dtype=float)
 
         return np.array([1.0, 1.0, 0.3, 0.3, 0.4, 0.4, 0.5, 0.5], dtype=float)
 
@@ -3709,14 +3596,14 @@ def _ID_GARCH_legacy(
                 constraints=constraints,
                 options={'maxiter': int(maxiter), 'ftol': float(tol)}
             )
-            if np.isfinite(opt.fun) and opt.fun < best_fun:
+            if _optimizer_result_eligible(opt) and opt.fun < best_fun:
                 best_fun = opt.fun
                 best = opt
         except Exception:
             continue
 
     if best is None:
-        raise RuntimeError("All starts failed (likely numerical instability).")
+        raise RuntimeError("All starts failed to converge to a finite eligible objective value.")
 
     params = best.x
     ll     = -best.fun

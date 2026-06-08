@@ -54,14 +54,6 @@ def model_param_names_for_family(model_family: str) -> list[str]:
     raise ValueError(f"Unknown model_family {model_family!r}.")
 
 
-def variance_bound_for_family(model_family: str) -> float:
-    if model_family == "full":
-        return 0.75
-    if model_family in {"badgood", "id", "symmetric"}:
-        return 0.87
-    raise ValueError(f"Unknown model_family {model_family!r}.")
-
-
 def _resolve_column(df: pd.DataFrame, preferred: str, aliases: tuple[str, ...]) -> str:
     candidates = (preferred, *aliases)
     for col in candidates:
@@ -212,7 +204,6 @@ def run_seed_estimation(
     include_arx22: bool,
     print_summary: bool,
     density_hyperu_method: str,
-    cap_pn,
     compute_se: bool,
 ) -> None:
     output_dir = script_dir / "output"
@@ -250,7 +241,6 @@ def run_seed_estimation(
                     maxiter=maxiter,
                     tol=tol,
                     random_state=rs,
-                    cap_pn=cap_pn,
                     compute_se=compute_se,
                     density_hyperu_method=density_hyperu_method,
                     print_summary=print_summary,
@@ -466,7 +456,6 @@ def _selection_metrics_for_row(
         "selection_persistence_p": float(persistence_p),
         "selection_persistence_n": float(persistence_n),
         "selection_sigma_min": float(min(sigma_p, sigma_n)),
-        "selection_uncond_var_ref": float(sigma_p * sigma_p * p0 + sigma_n * sigma_n * n0),
         "selection_max_p_t": float(np.max(pseries)),
         "selection_max_n_t": float(np.max(nseries)),
         "selection_shape_max": float(max(np.max(pseries), np.max(nseries))),
@@ -649,8 +638,6 @@ def _constraints_ok_for_theta(theta: np.ndarray, *, mean_type: str, model_family
     if not np.all(np.isfinite(vol)):
         return False
 
-    variance_bound = variance_bound_for_family(model_family)
-
     if model_family == "badgood":
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigma_p, sigma_n = vol
         stable = (rho_p + phi_p < 1.0 - 1e-6) and (rho_n + phi_n < 1.0 - 1e-6)
@@ -682,8 +669,6 @@ def _constraints_ok_for_theta(theta: np.ndarray, *, mean_type: str, model_family
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
     if not stable:
-        return False
-    if sigma_p * sigma_p * p0 + sigma_n * sigma_n * n0 > variance_bound:
         return False
     return True
 
@@ -918,7 +903,6 @@ def add_selection_diagnostics(
             "selection_high_shape_density": False,
             "selection_loglik_upper_threshold": float(IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD),
             "selection_loglik_plausible": False,
-            "selection_variance_bound": variance_bound_for_family(model_family),
             "selection_bounds_ok": False,
             "selection_constraints_ok": False,
             "selection_mean_stationary": False,
@@ -928,7 +912,6 @@ def add_selection_diagnostics(
             "selection_persistence_p": np.nan,
             "selection_persistence_n": np.nan,
             "selection_sigma_min": np.nan,
-            "selection_uncond_var_ref": np.nan,
             "selection_max_p_t": np.nan,
             "selection_max_n_t": np.nan,
             "selection_shape_max": np.nan,
@@ -1291,7 +1274,7 @@ def _append_best_model_section(
             "",
             f"- Optimizer convergence: `{_bool_text(row.get('optimizer_success', row.get('success', np.nan)))}`",
             f"- Parameter bounds: `{_bool_text(row.get('selection_bounds_ok', np.nan))}`",
-            f"- BEGE stability and variance restrictions: `{_bool_text(row.get('selection_constraints_ok', np.nan))}`",
+            f"- BEGE stability restrictions: `{_bool_text(row.get('selection_constraints_ok', np.nan))}`",
             f"- Shape upper-cap diagnostic: `{'flagged' if bool(row.get('selection_high_shape_density', False)) else 'not flagged'}`",
             f"- Implied variance bounds: `{_bool_text(row.get('selection_implied_variance_bounds_ok', np.nan))}`",
             f"- Mean-process stationarity: `{_bool_text(row.get('selection_mean_stationary', np.nan))}`",
@@ -1345,7 +1328,7 @@ def write_markdown_summary(
         "",
         "Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, "
         "finite positive shape paths, positive conditional variance paths, EWMA implied-variance "
-        "bounds, mean-process stationarity, and documented parameter/stability/unconditional-variance "
+        "bounds, mean-process stationarity, and documented parameter/stability "
         "constraints. Corrected log likelihoods above "
         f"`{IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD:g}` are flagged for review but are not excluded by this threshold.",
         "This report shows only the single likelihood-best admissible estimate. "
@@ -1420,7 +1403,6 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_high_shape_density",
         "selection_loglik_upper_threshold",
         "selection_loglik_plausible",
-        "selection_variance_bound",
         "selection_bounds_ok",
         "selection_constraints_ok",
         "selection_mean_stationary",
@@ -1431,7 +1413,6 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_sigma_min",
         "selection_persistence_p",
         "selection_persistence_n",
-        "selection_uncond_var_ref",
         "selection_cond_var_min",
         "selection_cond_var_median",
         "selection_cond_var_max",

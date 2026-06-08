@@ -33,7 +33,6 @@ def run_seed(
     include_arx22: bool,
     print_summary: bool,
     density_hyperu_method: str,
-    cap_pn,
     compute_se: bool,
 ) -> None:
     run_seed_estimation(
@@ -50,7 +49,6 @@ def run_seed(
         include_arx22=include_arx22,
         print_summary=print_summary,
         density_hyperu_method=density_hyperu_method,
-        cap_pn=cap_pn,
         compute_se=compute_se,
     )
 
@@ -79,12 +77,6 @@ def parse_args() -> argparse.Namespace:
         help="BEGE density backend. Default uses the stabilized SciPy/high-precision fallback.",
     )
     parser.add_argument(
-        "--cap-pn",
-        type=float,
-        default=None,
-        help="Optional hard cap for p_t and n_t. Default is no shape cap.",
-    )
-    parser.add_argument(
         "--compute-se",
         action="store_true",
         help="Compute robust numerical standard errors. Default skips SEs for fast search.",
@@ -103,6 +95,5 @@ if __name__ == "__main__":
         include_arx22=not args.skip_arx22,
         print_summary=args.print_summary,
         density_hyperu_method=args.density_hyperu_method,
-        cap_pn=args.cap_pn,
         compute_se=args.compute_se,
     )

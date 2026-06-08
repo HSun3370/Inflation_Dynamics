@@ -19,7 +19,6 @@ $$
 I have set the constraints below.
 
 - $\rho + \phi < 1$ for both good and bad shape processes.
-- $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$.
 - The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.
 
 The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start

@@ -199,8 +199,6 @@ def BEGE_FullGJR_MLE_nearstarts(
     p0n0_bounds=(0.005, 10.0),
     rho_bounds=(1e-5, 0.999),
     phi_bounds=(1e-5, 1.5),
-    # --- hard overflow guard (no stability checks; just cap) ---
-    cap_pn=120.0,
     big_penalty=1e12,
     big_vec_penalty=1e6,
     print_summary=True
@@ -262,15 +260,14 @@ def BEGE_FullGJR_MLE_nearstarts(
 
     k = len(bounds_full)
 
-    # --- objective (Justin's BEGE density; no stability check, just cap) ---
+    # --- objective (Justin's BEGE density) ---
     def _negloglik(theta):
         pm = theta[:num_m]
         p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
         res = mean_model(Y, X, pm)
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return float(big_penalty)
         ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
         val = -float(np.sum(ll))
@@ -283,8 +280,7 @@ def BEGE_FullGJR_MLE_nearstarts(
         res = mean_model(Y, X, pm)
         pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return np.full(N_obs, float(big_vec_penalty), float)
         v = -BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
         v = np.asarray(v, float).reshape(-1)
@@ -333,13 +329,13 @@ def BEGE_FullGJR_MLE_nearstarts(
         try:
             opt = minimize(_negloglik, init, method='L-BFGS-B',
                            bounds=bounds_full, options={'maxiter': int(maxiter), 'ftol': float(tol)})
-            if np.isfinite(opt.fun) and opt.fun < best_fun:
+            if bool(opt.success) and np.isfinite(opt.fun) and opt.fun < best_fun:
                 best, best_fun = opt, opt.fun
         except Exception:
             continue
 
     if best is None:
-        raise RuntimeError("All near-starts failed. Try loosening jitter_abs/jitter_rel or cap_pn.")
+        raise RuntimeError("All near-starts failed. Try loosening jitter_abs/jitter_rel.")
 
     params = best.x
     ll     = -best.fun
@@ -388,10 +384,9 @@ def BEGE_FullGJR_MLE_nearstarts(
         'names': names_full,
         'bounds': bounds_full
     }
-def evaluate_BEGE_fullGJR(Y, X, mean_type, params_full, cap_pn=120.0):
+def evaluate_BEGE_fullGJR(Y, X, mean_type, params_full):
     """
-    Computes LogLik/AIC/BIC for FULL-GJR parameter vector using Justin's BEGE log density,
-    with the hard cap rule for p_t, n_t.
+    Computes LogLik/AIC/BIC for FULL-GJR parameter vector using Justin's BEGE log density.
     """
     Y = np.asarray(Y, float); N = len(Y)
 
@@ -419,15 +414,14 @@ def evaluate_BEGE_fullGJR(Y, X, mean_type, params_full, cap_pn=120.0):
     pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)), float(sigp))
     nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)), float(sign))
 
-    valid = np.all(np.isfinite(pseries)) and np.all(np.isfinite(nseries)) \
-            and (np.max(pseries) <= cap_pn) and (np.max(nseries) <= cap_pn)
+    valid = np.all(np.isfinite(pseries)) and np.all(np.isfinite(nseries))
     if not valid:
-        return {'loglik': -np.inf, 'AIC': np.inf, 'BIC': np.inf, 'cap_hit': True}
+        return {'loglik': -np.inf, 'AIC': np.inf, 'BIC': np.inf}
 
     ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
     ll_sum = float(np.sum(ll))
     k = len(theta)
-    return {'loglik': ll_sum, 'AIC': 2*k - 2*ll_sum, 'BIC': np.log(N)*k - 2*ll_sum, 'cap_hit': False}
+    return {'loglik': ll_sum, 'AIC': 2*k - 2*ll_sum, 'BIC': np.log(N)*k - 2*ll_sum}
 def run_full_bege_nearstart_experiment(
     T=3000,
     mean_type='constant',
@@ -436,9 +430,7 @@ def run_full_bege_nearstart_experiment(
     # near-start controls
     jitter_rel=0.05, jitter_abs=1e-3, n_starts=25,
     # optimizer controls
-    maxiter=800, tol=1e-8, random_state=7,
-    # caps for evaluation
-    cap_pn_eval=120.0
+    maxiter=800, tol=1e-8, random_state=7
 ):
     # 1) simulate data
     Y, X, _ = simulate_bege_full(
@@ -504,7 +496,7 @@ def run_full_bege_nearstart_experiment(
     )
 
     # 4) evaluate at truth and at estimate (Justin density)
-    eval_true = evaluate_BEGE_fullGJR(Y, X, mean_type, theta_true, cap_pn=cap_pn_eval)
+    eval_true = evaluate_BEGE_fullGJR(Y, X, mean_type, theta_true)
     eval_est  = {'loglik': fit['loglik'], 'AIC': fit['AIC'], 'BIC': fit['BIC']}
 
     # 5) pretty comparison
@@ -540,7 +532,5 @@ out = run_full_bege_nearstart_experiment(
     jitter_abs=1e-3,           # protects very small centers
     n_starts=500,               # more starts -> more robust local search
     # optimizer controls
-    maxiter=800, tol=1e-8, random_state=42,
-    # evaluation cap for p_t, n_t overflow (no stability checks)
-    cap_pn_eval=500.0
+    maxiter=800, tol=1e-8, random_state=42
 )

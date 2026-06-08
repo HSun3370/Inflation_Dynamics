@@ -42,7 +42,6 @@ The parameter bounds are chosen to be:
 According to the emails, I have set the constraints below.
 
 - $\rho + \frac{\phi^+}{2} + \frac{\phi^-}{2} < 1$ for both BE and GE shape processes.
-- $\sigma_p^2 p_0 + \sigma_n^2 n_0 < \mathrm{Var}(\pi_t)$ where $\mathrm{Var}(\pi_t) = 0.75$ is the unconditional variance of inflation.
 - The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.
 
 The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start

@@ -105,7 +105,7 @@ def simulate_bege_sharedgjr_constant(vol_params, T=10000, seed=123, max_shape_ca
 # =========================================================
 # 2) EVALUATE TRUE LL / IC WITH JUSTIN'S DENSITY (constant mean)
 # =========================================================
-def evaluate_ll_ic_true(Y, vol_params, cap_pn=120.0):
+def evaluate_ll_ic_true(Y, vol_params):
     resids = np.asarray(Y, dtype=float)
     p0, n0  = vol_params['p0'], vol_params['n0']
     rho     = vol_params['rho']
@@ -117,8 +117,7 @@ def evaluate_ll_ic_true(Y, vol_params, cap_pn=120.0):
     pseries = gjr_recursion(resids, (p0, rho, phip, phin), sigp)
     nseries = gjr_recursion(resids, (n0, rho, phip, phin), sign)
 
-    if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-       or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+    if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
         return dict(loglik=-np.inf, AIC=np.inf, BIC=np.inf, N=len(Y), k=7)
 
     ll_vec = BEGE_log_density(resids, pseries, nseries, sigp, sign)
@@ -144,7 +143,6 @@ def BEGE_AsymSharedGJR_MLE_custom_starts(
     init_radius_pct=0.10,      # ±10% box around center for starts
     n_starts=40,
     frac_near=0.85,            # fraction of starts drawn near truth
-    cap_pn=120.0,
     tol=1e-8,
     maxiter=1200,
     random_state=7,
@@ -190,8 +188,7 @@ def BEGE_AsymSharedGJR_MLE_custom_starts(
         res = Y
         pseries = gjr_recursion(res, (float(p0), float(rho), float(phip), float(phin)), float(sigp))
         nseries = gjr_recursion(res, (float(n0), float(rho), float(phip), float(phin)), float(sign))
-        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))) \
-           or (np.any(pseries > cap_pn)) or (np.any(nseries > cap_pn)):
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return BIG
         ll = BEGE_log_density(res, pseries, nseries, float(sigp), float(sign))
         val = -float(np.sum(ll))
@@ -249,14 +246,14 @@ def BEGE_AsymSharedGJR_MLE_custom_starts(
             out = minimize(_negloglik, x0, method='L-BFGS-B',
                            bounds=bounds_full,
                            options={'maxiter': int(maxiter), 'ftol': float(tol)})
-            if np.isfinite(out.fun) and out.fun < best_fun:
+            if bool(out.success) and np.isfinite(out.fun) and out.fun < best_fun:
                 best_fun = float(out.fun)
                 best = out
         except Exception:
             continue
 
     if best is None:
-        raise RuntimeError("All starts failed; consider loosening init_radius_pct or cap_pn.")
+        raise RuntimeError("All starts failed; consider loosening init_radius_pct.")
 
     params = best.x
     ll = -best.fun
@@ -303,7 +300,6 @@ est = BEGE_AsymSharedGJR_MLE_custom_starts(
     init_radius_pct=0.10,       # +/-10% box
     n_starts=50,
     frac_near=0.9,
-    cap_pn=500.0,
     tol=1e-8,
     maxiter=500,
     random_state=seed * 100,
@@ -326,6 +322,5 @@ for nm, vhat in zip(names, hat):
     print(f"{nm:5s}  true={vtrue: .6f}   est={vhat: .6f}   abs.err={abs(vhat-vtrue): .6f}")
 
 print(f"\n[Estimated] LogLik: {est['loglik']:.6f}   AIC: {est['AIC']:.6f}   BIC: {est['BIC']:.6f}")
-true_eval = evaluate_ll_ic_true(Y_long, vol_true, cap_pn=500.0)
+true_eval = evaluate_ll_ic_true(Y_long, vol_true)
 print(f"[True-params] LogLik: {true_eval['loglik']:.6f}   AIC: {true_eval['AIC']:.6f}   BIC: {true_eval['BIC']:.6f}")
-
