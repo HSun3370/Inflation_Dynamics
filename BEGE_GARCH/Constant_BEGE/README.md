@@ -40,9 +40,13 @@ dynamic BEGE specifications during optimization and result collection.
 `collect_constant_results.py` merges the raw seed files, writes the cleaned
 combined output to `results/all_estimations.csv`, and splits the same cleaned
 output by mean process under `results/by_mean/` as `constant.csv`,
-`ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`. It ranks admissible estimates
-by log likelihood, computes standard errors for the likelihood-best admissible
-fit in `results/best_loglik_with_se.csv`, and writes `results/best_model.md`
-with only that selected fit as substituted mean and fixed-shape BEGE equations.
+`ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`. The by-mean files retain
+empirical 5%, median, and 95% path quantiles for $p_t$, $n_t$,
+$\sigma_t^2$, $s_t^2$, and $k_t^2$. The collector also writes
+`results/path_quantile_diagnostics.csv` with the same path quantiles beside
+each stored parameter vector. It ranks admissible estimates by log likelihood,
+computes standard errors for the likelihood-best admissible fit in
+`results/best_loglik_with_se.csv`, and writes `results/best_model.md` with
+only that selected fit as substituted mean and fixed-shape BEGE equations.
 Standard errors are shown below the parameter values in those reported
 equations.

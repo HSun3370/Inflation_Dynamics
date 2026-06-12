@@ -66,8 +66,9 @@ Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keep
 `collect_full_results.py` merges the raw seed files and writes:
 
 - `results/all_estimations.csv`, without standard-error columns or optimizer messages.
-- `results/by_mean/constant.csv`, `results/by_mean/ARX_1_1.csv`, `results/by_mean/ARX_2_1.csv`, and `results/by_mean/ARX_2_2.csv`, which split the cleaned estimations by mean process.
+- `results/by_mean/constant.csv`, `results/by_mean/ARX_1_1.csv`, `results/by_mean/ARX_2_1.csv`, and `results/by_mean/ARX_2_2.csv`, which split the eligible cleaned estimations by mean process and retain empirical path quantiles.
 - `results/selection_diagnostics.csv`, with stored and corrected likelihood criteria plus selection diagnostics.
+- `results/path_quantile_diagnostics.csv`, with each estimate's parameters and empirical 5%, median, and 95% quantiles for $p_t$, $n_t$, $\sigma_t^2$, $s_t^2$, and $k_t^2$ from the fixed effective-sample recursion.
 - `results/best_loglik_with_se.csv`, with standard errors for the likelihood-best admissible fit.
 - `results/best_model.md`, with only the likelihood-best admissible fit, reported as substituted mean and BEGE volatility equations with standard errors shown below the parameter values.
 

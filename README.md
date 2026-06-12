@@ -13,7 +13,7 @@ The notebook is organized around five linked pieces.
 
 4. **Regime-switching GARCH.** The regime-switching section studies state-dependent mean  dynamics with normal and standardized Student's $t$ innovations.
 
-5. **BEGE-GARCH models.** The BEGE section estimates five volatility specifications:  Constant, Symmetric,   InflationDeflation, BadGood and Full BEGE models.  
+5. **BEGE-GARCH models.** The BEGE section estimates the baseline volatility specifications: Constant, Symmetric, InflationDeflation, BadGood and Full BEGE models. It also includes the requested Constant-p Full BEGE and Constant-n Full BEGE extensions.
 
  
 - $\pi_t$: realized inflation.

@@ -3180,6 +3180,430 @@ def BEGE_FullGJR_MLE(
 
 
 
+def _BEGE_OneConstantFullGJR_MLE(
+    Y, X=None, mean_type='ARX(1,1)',
+    n_starts=50, maxiter=800, tol=1e-8, random_state=None,
+    sigma_bounds=(1e-5, 2.0),
+    p0n0_bounds=(0.0, 10.0),
+    rho_bounds=(0.0, 1.0),
+    phi_bounds=(0.0, 2.0),
+    floor_eps=1e-6,
+    print_summary=True,
+    big_penalty=1e12,
+    big_vec_penalty=1e6,
+    compute_se=False,
+    density_hyperu_method='scipy_approx',
+    enforce_variance_bounds=True,
+    start_n_jobs=None,
+    constant_shape='p',
+):
+    """
+    BEGE with one constant shape process and one full GJR shape process.
+
+    constant_shape='p':
+      [mean params] + [p0, n0, rho_n, phi_n_plus, phi_n_minus, sigma_p, sigma_n]
+      with p_t = p0 and full GJR dynamics for n_t.
+
+    constant_shape='n':
+      [mean params] + [p0, n0, rho_p, phi_p_plus, phi_p_minus, sigma_p, sigma_n]
+      with n_t = n0 and full GJR dynamics for p_t.
+    """
+    import numpy as np
+    from statsmodels.tools.numdiff import approx_hess
+
+    if constant_shape not in {'p', 'n'}:
+        raise ValueError("constant_shape must be either 'p' or 'n'.")
+
+    rng = np.random.default_rng(random_state)
+    Y, X = _align_mean_sample(Y, X)
+    N_obs = int(Y.shape[0])
+
+    def _get_mean_spec(Y, mean_type):
+        ymin, ymax = float(np.min(Y)), float(np.max(Y))
+        if mean_type == 'constant':
+            mean_model, num_m = mean_const, 0
+            bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,1)':
+            mean_model, num_m = mean_ARX11, 3
+            bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)]
+            names_mean = ['const', 'Infl(1)', 'SPF']
+            ranges = [
+                (0.0720 - .2*0.086, 0.0720 + .2*0.086),
+                (0.2881 - .2*0.073, 0.2881 + .2*0.073),
+                (0.7508 - .2*0.125, 0.7508 + .2*0.125),
+            ]
+        elif mean_type == 'ARX(2,1)':
+            mean_model, num_m = mean_ARX21, 4
+            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
+            ranges = [
+                (0.0792 - 2*0.087, 0.0792 + 2*0.087),
+                (0.2793 - 2*0.073, 0.2793 + 2*0.073),
+                (0.0728 - 2*0.080, 0.0728 + 2*0.080),
+                (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+            ]
+        elif mean_type == 'ARX(2,2)':
+            mean_model, num_m = mean_ARX22, 5
+            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
+            ranges = [
+                (0.0761 - 2*0.087, 0.0761 + 2*0.087),
+                (0.2880 - 2*0.076, 0.2880 + 2*0.076),
+                (0.0799 - 2*0.082, 0.0799 + 2*0.082),
+                (0.4720 - 2*0.459, 0.4720 + 2*0.459),
+                (0.1793 - 2*0.399, 0.1793 + 2*0.399),
+            ]
+        else:
+            raise ValueError("Invalid mean_type")
+        return mean_model, num_m, bounds_mean, names_mean, ranges
+
+    mean_model, num_m, bounds_mean, names_mean, mean_ranges = _get_mean_spec(Y, mean_type)
+    residual_function = _make_residual_function(Y, X, mean_type)
+
+    (sig_lo, sig_hi) = sigma_bounds
+    (p0_lo, p0_hi) = p0n0_bounds
+    (rho_lo, rho_hi) = rho_bounds
+    (phi_lo, phi_hi) = phi_bounds
+
+    if constant_shape == 'p':
+        bounds_vol = [
+            (p0_lo, p0_hi),
+            (p0_lo, p0_hi),
+            (rho_lo, rho_hi),
+            (phi_lo, phi_hi),
+            (phi_lo, phi_hi),
+            (sig_lo, sig_hi),
+            (sig_lo, sig_hi),
+        ]
+        names_vol = ['p0', 'n0', 'rho_n', 'phi_n+', 'phi_n-', 'sigma_p', 'sigma_n']
+    else:
+        bounds_vol = [
+            (p0_lo, p0_hi),
+            (p0_lo, p0_hi),
+            (rho_lo, rho_hi),
+            (phi_lo, phi_hi),
+            (phi_lo, phi_hi),
+            (sig_lo, sig_hi),
+            (sig_lo, sig_hi),
+        ]
+        names_vol = ['p0', 'n0', 'rho_p', 'phi_p+', 'phi_p-', 'sigma_p', 'sigma_n']
+
+    bounds_full = bounds_mean + bounds_vol
+    names_full = names_mean + names_vol
+
+    def _unpack_vol(theta):
+        return tuple(theta[num_m:])
+
+    def _constraints_ok(*vol):
+        vals = np.asarray(vol, dtype=float)
+        if not np.all(np.isfinite(vals)):
+            return False
+        if vals[0] <= floor_eps or vals[1] <= floor_eps:
+            return False
+        if vals[-2] <= 0.0 or vals[-1] <= 0.0:
+            return False
+        rho = vals[2]
+        phi_plus = vals[3]
+        phi_minus = vals[4]
+        return bool(rho + 0.5 * (phi_plus + phi_minus) < 1.0 - floor_eps)
+
+    def constr_shape_positive_p(theta):
+        return _unpack_vol(theta)[0] - floor_eps
+
+    def constr_shape_positive_n(theta):
+        return _unpack_vol(theta)[1] - floor_eps
+
+    def constr_dynamic_persistence(theta):
+        vol = _unpack_vol(theta)
+        return 1.0 - floor_eps - (vol[2] + 0.5 * (vol[3] + vol[4]))
+
+    constraints = [
+        {'type': 'ineq', 'fun': constr_shape_positive_p},
+        {'type': 'ineq', 'fun': constr_shape_positive_n},
+        {'type': 'ineq', 'fun': constr_dynamic_persistence},
+    ]
+
+    def _shape_paths(theta, res):
+        vol = _unpack_vol(theta)
+        if constant_shape == 'p':
+            p0, n0, rho_n, phi_n_plus, phi_n_minus, sigp, sign = vol
+            pseries = np.full_like(res, float(p0), dtype=float)
+            nseries = gjr_recursion(
+                res,
+                (float(n0), float(rho_n), float(phi_n_plus), float(phi_n_minus)),
+                float(sign),
+            )
+        else:
+            p0, n0, rho_p, phi_p_plus, phi_p_minus, sigp, sign = vol
+            pseries = gjr_recursion(
+                res,
+                (float(p0), float(rho_p), float(phi_p_plus), float(phi_p_minus)),
+                float(sigp),
+            )
+            nseries = np.full_like(res, float(n0), dtype=float)
+        return pseries, nseries, float(sigp), float(sign)
+
+    def _negloglik(theta):
+        pm = theta[:num_m]
+        vol = _unpack_vol(theta)
+        if not _constraints_ok(*vol):
+            return float(big_penalty)
+
+        res = residual_function(pm)
+        pseries, nseries, sigp, sign = _shape_paths(theta, res)
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
+            return float(big_penalty)
+        if np.any(pseries <= 0.0) or np.any(nseries <= 0.0):
+            return float(big_penalty)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return float(big_penalty)
+
+        ll = BEGE_log_density(
+            res,
+            pseries,
+            nseries,
+            sigp,
+            sign,
+            hyperu_method=density_hyperu_method,
+        )
+        val = -float(np.sum(ll))
+        if not np.isfinite(val):
+            return float(big_penalty)
+        return val
+
+    def _ind_negloglik_vec(theta):
+        pm = theta[:num_m]
+        vol = _unpack_vol(theta)
+        if not _constraints_ok(*vol):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+
+        res = residual_function(pm)
+        pseries, nseries, sigp, sign = _shape_paths(theta, res)
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        if np.any(pseries <= 0.0) or np.any(nseries <= 0.0):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+
+        values = -BEGE_log_density(
+            res,
+            pseries,
+            nseries,
+            sigp,
+            sign,
+            hyperu_method=density_hyperu_method,
+        )
+        values = np.asarray(values, dtype=float).reshape(-1)
+        if values.shape[0] != N_obs:
+            values = np.full(N_obs, float(values.ravel()[0]))
+        if not np.all(np.isfinite(values)):
+            values = np.full(N_obs, float(big_vec_penalty), dtype=float)
+        return values
+
+    def _sym(A): return 0.5 * (A + A.T)
+
+    def _safe_inv_with_ridge(A, ridge0=1e-8, max_tries=6):
+        A = _sym(A)
+        I = np.eye(A.shape[0])
+        ridge = float(ridge0)
+        for _ in range(max_tries):
+            try:
+                return np.linalg.inv(A + ridge * I), ridge, False
+            except np.linalg.LinAlgError:
+                ridge *= 10.0
+        return np.linalg.pinv(A), ridge, True
+
+    def _project_to_bounds(x, bounds):
+        out = np.array(x, float)
+        tiny = 1e-10
+        for j, (lo, hi) in enumerate(bounds):
+            if lo is not None:
+                out[j] = max(out[j], lo + tiny)
+            if hi is not None:
+                out[j] = min(out[j], hi - tiny)
+        return out
+
+    def _central_diff_scores(theta, f_per_obs, bounds, rel=1e-4, absmin=1e-6):
+        theta = np.asarray(theta, float)
+        k = theta.size
+        f0 = f_per_obs(theta)
+        J = np.empty((N_obs, k), float)
+        h = np.maximum(absmin, rel * np.maximum(1.0, np.abs(theta)))
+        for j in range(k):
+            th_p = theta.copy()
+            th_m = theta.copy()
+            th_p[j] += h[j]
+            th_m[j] -= h[j]
+            th_p = _project_to_bounds(th_p, bounds)
+            th_m = _project_to_bounds(th_m, bounds)
+            fp = np.asarray(f_per_obs(th_p), float).reshape(-1)
+            fm = np.asarray(f_per_obs(th_m), float).reshape(-1)
+            if fp.shape[0] != N_obs:
+                fp = np.full(N_obs, float(fp.ravel()[0]))
+            if fm.shape[0] != N_obs:
+                fm = np.full(N_obs, float(fm.ravel()[0]))
+            denom = float(th_p[j] - th_m[j])
+            if denom == 0.0:
+                th_p = theta.copy()
+                th_p[j] += h[j]
+                th_p = _project_to_bounds(th_p, bounds)
+                fp = np.asarray(f_per_obs(th_p), float).reshape(-1)
+                if fp.shape[0] != N_obs:
+                    fp = np.full(N_obs, float(fp.ravel()[0]))
+                fm = f0
+                denom = float(th_p[j] - theta[j])
+            J[:, j] = (fp - fm) / denom
+        return J
+
+    def _sample_mean():
+        if num_m == 0:
+            return np.array([], dtype=float)
+        return np.array([rng.uniform(a, b) for (a, b) in mean_ranges], dtype=float)
+
+    def _sample_dynamic_component():
+        rho_upper = min(rho_hi, 1.0 - floor_eps - phi_lo)
+        if rho_upper <= rho_lo:
+            raise ValueError("rho_bounds and phi_bounds leave no feasible stable constant-shape BEGE starts.")
+
+        for _ in range(500):
+            rho = rng.uniform(rho_lo, rho_upper)
+            cap = min(0.5 * phi_hi, 1.0 - rho - floor_eps)
+            if cap <= 0.0:
+                continue
+            beta_plus = rng.uniform(0.0, cap)
+            beta_minus = rng.uniform(0.0, cap)
+            phi_plus = 2.0 * beta_plus
+            phi_minus = 2.0 * beta_minus
+            if rho + 0.5 * (phi_plus + phi_minus) < 1.0 - floor_eps:
+                return rho, phi_plus, phi_minus
+
+        rho = min(max(0.3, rho_lo), rho_upper)
+        beta = 0.25 * max(1.0 - rho - floor_eps, floor_eps)
+        phi = min(phi_hi, 2.0 * beta)
+        phi = max(phi_lo, phi)
+        return rho, phi, phi
+
+    def _sample_vol():
+        sigp = rng.uniform(sig_lo, sig_hi)
+        sign = rng.uniform(sig_lo, sig_hi)
+        shape_lo = max(p0_lo, floor_eps * 10.0)
+        p0 = rng.uniform(shape_lo, p0_hi)
+        n0 = rng.uniform(shape_lo, p0_hi)
+        rho, phi_plus, phi_minus = _sample_dynamic_component()
+        return np.array([p0, n0, rho, phi_plus, phi_minus, sigp, sign], dtype=float)
+
+    start_values = [
+        np.concatenate([_sample_mean(), _sample_vol()])
+        for _ in range(int(n_starts))
+    ]
+    results = _run_multistart_minimize(
+        start_values,
+        _negloglik,
+        method='SLSQP',
+        bounds=bounds_full,
+        constraints=constraints,
+        options={'maxiter': int(maxiter), 'ftol': float(tol)},
+        start_n_jobs=start_n_jobs,
+    )
+
+    best, best_fun = None, np.inf
+    last_error = None
+    for opt, exc in results:
+        if exc is not None:
+            last_error = exc
+            continue
+        if _optimizer_result_eligible(opt) and (best is None or opt.fun < best_fun):
+            best_fun = opt.fun
+            best = opt
+
+    if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
+        detail = ""
+        if last_error is not None:
+            detail = f" Last error: {type(last_error).__name__}: {last_error}"
+        raise RuntimeError(f"All starts failed to converge to a finite eligible objective value.{detail}")
+
+    params = np.asarray(best.x, dtype=float)
+    ll = -float(best.fun)
+    AIC = 2 * len(params) - 2 * ll
+    BIC = np.log(N_obs) * len(params) - 2 * ll
+
+    se = np.full(len(params), np.nan, dtype=float)
+    used_ridge = 0.0
+    used_pseudo = False
+    used_opg_fallback = False
+
+    if compute_se:
+        H = approx_hess(params, _negloglik, epsilon=1e-5)
+        H = _sym(H)
+        H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
+        scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
+        OPG = scores.T @ scores
+        opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
+        if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
+            cov = H_inv.copy()
+            used_opg_fallback = True
+        else:
+            cov = H_inv @ _sym(OPG) @ H_inv
+        cov = _sym(cov)
+        w, V = np.linalg.eigh(cov)
+        w = np.maximum(w, 0.0)
+        cov = (V * w) @ V.T
+        se = np.sqrt(np.diag(cov))
+
+    if compute_se and used_pseudo:
+        print("[warn] Hessian singular; using pseudoinverse for covariance.")
+    elif compute_se and used_ridge > 1e-8:
+        print(f"[warn] Hessian near-singular; used ridge lambda={used_ridge:.1e}.")
+    if compute_se and used_opg_fallback:
+        print("[warn] OPG nearly zero/ill-conditioned; using observed-information inverse for covariance.")
+
+    if print_summary:
+        title = "BEGE (constant p, full GJR n)" if constant_shape == 'p' else "BEGE (full GJR p, constant n)"
+        print("\n" + "-" * 72)
+        print(title)
+        print("-" * 72)
+        if compute_se:
+            print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        else:
+            print(f"{'Parameter':<18}{'Estimate':>14}")
+        print("-" * 72)
+        for nm, val, err in zip(names_full, params, se):
+            if compute_se:
+                t = np.nan if err <= 0 else (val / err)
+                print(f"{nm:<18}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+            else:
+                print(f"{nm:<18}{val:>14.6f}")
+        print("-" * 72)
+        print(f"{'LogLik':<18}{ll:>14.6f}")
+        print(f"{'AIC':<18}{AIC:>14.6f}")
+        print(f"{'BIC':<18}{BIC:>14.6f}")
+        print("-" * 72)
+
+    return {
+        'opt': best,
+        'params': params,
+        'se': se,
+        'AIC': AIC,
+        'BIC': BIC,
+        'loglik': ll,
+        'names': names_full,
+        'compute_se': bool(compute_se),
+    }
+
+
+def BEGE_ConstantPFullGJR_MLE(*args, **kwargs):
+    """Full BEGE restriction with constant p_t and full GJR dynamics for n_t."""
+    kwargs['constant_shape'] = 'p'
+    return _BEGE_OneConstantFullGJR_MLE(*args, **kwargs)
+
+
+def BEGE_ConstantNFullGJR_MLE(*args, **kwargs):
+    """Full BEGE restriction with constant n_t and full GJR dynamics for p_t."""
+    kwargs['constant_shape'] = 'n'
+    return _BEGE_OneConstantFullGJR_MLE(*args, **kwargs)
+
+
 def BG_GARCH(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,

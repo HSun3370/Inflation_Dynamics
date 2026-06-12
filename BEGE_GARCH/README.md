@@ -14,6 +14,13 @@ The BEGE GARCH models have nice properties
 - conditional skewness: $s_t^2 = 2 (\sigma^3_p p_t - \sigma^3_n n_t)$,
 - conditional excess kurtosis: $k_t^2 = 6(\sigma^4_p p_t + \sigma^4_n n_t)$.
 
+The baseline BEGE volatility menu consists of Constant, Symmetric,
+InflationDeflation, BadGood, and Full BEGE. Two explicitly requested Full BEGE
+restrictions are also estimated here:
+
+- Constant-p Full BEGE: $p_t=p_0$ and $n_t$ follows the unrestricted Full BEGE GJR update.
+- Constant-n Full BEGE: $n_t=n_0$ and $p_t$ follows the unrestricted Full BEGE GJR update.
+
 **Used for recursive constraints!!**
 
 ## Random Search
@@ -29,7 +36,8 @@ from earlier density code do not determine the best model. The cleaned
 estimations are also split by mean process under `results/by_mean/` as
 `constant.csv`, `ARX_1_1.csv`, `ARX_2_1.csv`, and `ARX_2_2.csv`; these
 by-mean files keep only rows with successful optimizer status and
-`selection_eligible=True`.
+`selection_eligible=True` and retain empirical 5%, median, and 95% path
+quantiles for $p_t$, $n_t$, $\sigma_t^2$, $s_t^2$, and $k_t^2$.
 
 Reported best-model
 tables require finite corrected likelihood criteria, successful optimizer
@@ -55,9 +63,12 @@ The diagnostic value $\max_t\{p_t,n_t\}$ is recorded but is not used as a
 selection exclusion rule. The companion `results/selection_diagnostics.csv`
 records stored versus corrected likelihood criteria, high-shape density usage,
 implied persistence, minimum scale, maximum shape path, implied-variance-bound
-status, mean stationarity status, and the exclusion reason for each saved
-estimation row. A log-likelihood value above `-150` is recorded as a manual
-review diagnostic but is not a selection exclusion rule.
+status, mean stationarity status, empirical 5%, median, and 95% path quantiles,
+and the exclusion reason for each saved estimation row. The narrower
+`results/path_quantile_diagnostics.csv` keeps the same path quantiles beside
+the stored parameter vector for each estimate. A log-likelihood value above
+`-150` is recorded as a manual review diagnostic but is not a selection
+exclusion rule.
 
 Each `results/best_model.md` reports only the single likelihood-best admissible
 row for that BEGE specification. The markdown first shows the selected

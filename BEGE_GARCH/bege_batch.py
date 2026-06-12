@@ -23,6 +23,14 @@ DEFAULT_HIGH_SHAPE_REFERENCE = 200.0
 IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD = -150.0
 BEST_MODELS_PER_REPORT = 1
 TOP_MODELS_PER_MEAN = BEST_MODELS_PER_REPORT
+PATH_QUANTILE_LEVELS = (("q05", 0.05), ("median", 0.50), ("q95", 0.95))
+PATH_QUANTILE_PREFIXES = (
+    "selection_p_t",
+    "selection_n_t",
+    "selection_cond_var",
+    "selection_cond_skewness",
+    "selection_cond_excess_kurtosis",
+)
 MEAN_FILE_STEMS = {
     "constant": "constant",
     "ARX(1,1)": "ARX_1_1",
@@ -49,6 +57,10 @@ def model_param_names_for_family(model_family: str) -> list[str]:
             "sigma_p",
             "sigma_n",
         ]
+    if model_family == "constant_p":
+        return ["p0", "n0", "rho_n", "phi_n_plus", "phi_n_minus", "sigma_p", "sigma_n"]
+    if model_family == "constant_n":
+        return ["p0", "n0", "rho_p", "phi_p_plus", "phi_p_minus", "sigma_p", "sigma_n"]
     if model_family == "symmetric":
         return ["p0", "n0", "rho", "phi_plus", "phi_minus", "sigma_p", "sigma_n"]
     raise ValueError(f"Unknown model_family {model_family!r}.")
@@ -338,6 +350,29 @@ def _row_float(row: pd.Series, name: str) -> float:
     return float(value)
 
 
+def _path_quantile_columns() -> list[str]:
+    return [
+        f"{prefix}_{suffix}"
+        for prefix in PATH_QUANTILE_PREFIXES
+        for suffix, _ in PATH_QUANTILE_LEVELS
+    ]
+
+
+def _empty_path_quantile_metrics() -> dict[str, float]:
+    return {col: np.nan for col in _path_quantile_columns()}
+
+
+def _path_quantile_metrics(prefix: str, values: np.ndarray) -> dict[str, float]:
+    arr = np.asarray(values, dtype=float).reshape(-1)
+    if arr.size == 0 or not np.all(np.isfinite(arr)):
+        return {f"{prefix}_{suffix}": np.nan for suffix, _ in PATH_QUANTILE_LEVELS}
+    quantiles = np.quantile(arr, [level for _, level in PATH_QUANTILE_LEVELS])
+    return {
+        f"{prefix}_{suffix}": float(value)
+        for (suffix, _), value in zip(PATH_QUANTILE_LEVELS, quantiles)
+    }
+
+
 def _mean_residuals_from_row(row: pd.Series, specs_by_mean: dict[str, dict]) -> np.ndarray:
     from BEGE_GARCH.BEGE_GARCH import _make_residual_function
 
@@ -410,6 +445,32 @@ def _selection_metrics_for_row(
         persistence_p = rho_p + 0.5 * (phi_p_plus + phi_p_minus)
         persistence_n = rho_n + 0.5 * (phi_n_plus + phi_n_minus)
 
+    elif model_family == "constant_p":
+        p0 = _row_float(row, "param_p0")
+        n0 = _row_float(row, "param_n0")
+        rho_n = _row_float(row, "param_rho_n")
+        phi_n_plus = _row_float(row, "param_phi_n_plus")
+        phi_n_minus = _row_float(row, "param_phi_n_minus")
+        sigma_p = _row_float(row, "param_sigma_p")
+        sigma_n = _row_float(row, "param_sigma_n")
+        pseries = np.full_like(residuals, p0, dtype=float)
+        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n_plus, phi_n_minus), sigma_n)
+        persistence_p = 0.0
+        persistence_n = rho_n + 0.5 * (phi_n_plus + phi_n_minus)
+
+    elif model_family == "constant_n":
+        p0 = _row_float(row, "param_p0")
+        n0 = _row_float(row, "param_n0")
+        rho_p = _row_float(row, "param_rho_p")
+        phi_p_plus = _row_float(row, "param_phi_p_plus")
+        phi_p_minus = _row_float(row, "param_phi_p_minus")
+        sigma_p = _row_float(row, "param_sigma_p")
+        sigma_n = _row_float(row, "param_sigma_n")
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p_plus, phi_p_minus), sigma_p)
+        nseries = np.full_like(residuals, n0, dtype=float)
+        persistence_p = rho_p + 0.5 * (phi_p_plus + phi_p_minus)
+        persistence_n = 0.0
+
     elif model_family == "symmetric":
         p0 = _row_float(row, "param_p0")
         n0 = _row_float(row, "param_n0")
@@ -437,6 +498,8 @@ def _selection_metrics_for_row(
     cond_var = variance_details["cond_var"]
     lower = variance_details["lower"]
     upper = variance_details["upper"]
+    cond_skewness = 2.0 * (sigma_p**3 * pseries - sigma_n**3 * nseries)
+    cond_excess_kurtosis = 6.0 * (sigma_p**4 * pseries + sigma_n**4 * nseries)
     ll_vec = BEGE_log_density(residuals, pseries, nseries, sigma_p, sigma_n)
     if not np.all(np.isfinite(ll_vec)):
         corrected_loglik = np.nan
@@ -449,7 +512,7 @@ def _selection_metrics_for_row(
     corrected_aic = 2.0 * k_params - 2.0 * corrected_loglik
     corrected_bic = np.log(n_obs) * k_params - 2.0 * corrected_loglik
 
-    return {
+    metrics = {
         "corrected_loglik": float(corrected_loglik),
         "corrected_AIC": float(corrected_aic),
         "corrected_BIC": float(corrected_bic),
@@ -468,6 +531,12 @@ def _selection_metrics_for_row(
         "selection_cond_var_upper_min": float(np.min(upper)),
         "selection_cond_var_upper_max": float(np.max(upper)),
     }
+    metrics.update(_path_quantile_metrics("selection_p_t", pseries))
+    metrics.update(_path_quantile_metrics("selection_n_t", nseries))
+    metrics.update(_path_quantile_metrics("selection_cond_var", cond_var))
+    metrics.update(_path_quantile_metrics("selection_cond_skewness", cond_skewness))
+    metrics.update(_path_quantile_metrics("selection_cond_excess_kurtosis", cond_excess_kurtosis))
+    return metrics
 
 
 def _parameter_names_for_row(row: pd.Series, model_family: str) -> list[str]:
@@ -515,6 +584,16 @@ def _bounds_for_row(spec: dict, mean_type: str, model_family: str) -> list[tuple
             p0_bounds,
             p0_bounds,
             rho_bounds,
+            rho_bounds,
+            phi_bounds,
+            phi_bounds,
+            sigma_bounds,
+            sigma_bounds,
+        ]
+    elif model_family in {"constant_p", "constant_n"}:
+        bounds_vol = [
+            p0_bounds,
+            p0_bounds,
             rho_bounds,
             phi_bounds,
             phi_bounds,
@@ -613,6 +692,20 @@ def _vol_paths_from_theta(
         persistence_p = rho_p + 0.5 * (phi_p_plus + phi_p_minus)
         persistence_n = rho_n + 0.5 * (phi_n_plus + phi_n_minus)
 
+    elif model_family == "constant_p":
+        p0, n0, rho_n, phi_n_plus, phi_n_minus, sigma_p, sigma_n = vol
+        pseries = np.full_like(residuals, p0, dtype=float)
+        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n_plus, phi_n_minus), sigma_n)
+        persistence_p = 0.0
+        persistence_n = rho_n + 0.5 * (phi_n_plus + phi_n_minus)
+
+    elif model_family == "constant_n":
+        p0, n0, rho_p, phi_p_plus, phi_p_minus, sigma_p, sigma_n = vol
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p_plus, phi_p_minus), sigma_p)
+        nseries = np.full_like(residuals, n0, dtype=float)
+        persistence_p = rho_p + 0.5 * (phi_p_plus + phi_p_minus)
+        persistence_n = 0.0
+
     elif model_family == "symmetric":
         p0, n0, rho, phi_plus, phi_minus, sigma_p, sigma_n = vol
         pseries = gjr_recursion(residuals, (p0, rho, phi_plus, phi_minus), sigma_p)
@@ -661,6 +754,16 @@ def _constraints_ok_for_theta(theta: np.ndarray, *, mean_type: str, model_family
         ) = vol
         stable = (rho_p + 0.5 * (phi_p_plus + phi_p_minus) < 1.0 - 1e-6) and (
             rho_n + 0.5 * (phi_n_plus + phi_n_minus) < 1.0 - 1e-6
+        )
+    elif model_family == "constant_p":
+        p0, n0, rho_n, phi_n_plus, phi_n_minus, sigma_p, sigma_n = vol
+        stable = (p0 > 0.0) and (n0 > 0.0) and (
+            rho_n + 0.5 * (phi_n_plus + phi_n_minus) < 1.0 - 1e-6
+        )
+    elif model_family == "constant_n":
+        p0, n0, rho_p, phi_p_plus, phi_p_minus, sigma_p, sigma_n = vol
+        stable = (p0 > 0.0) and (n0 > 0.0) and (
+            rho_p + 0.5 * (phi_p_plus + phi_p_minus) < 1.0 - 1e-6
         )
     elif model_family == "symmetric":
         p0, n0, rho, phi_plus, phi_minus, sigma_p, sigma_n = vol
@@ -923,6 +1026,7 @@ def add_selection_diagnostics(
             "selection_cond_var_upper_min": np.nan,
             "selection_cond_var_upper_max": np.nan,
         }
+        diag.update(_empty_path_quantile_metrics())
 
         reasons = []
         if not bool(converged.loc[idx]):
@@ -1158,6 +1262,20 @@ def _volatility_equation(row: dict, model_family: str) -> list[str]:
                 rf"n_t &= {_math_param(row, 'n0')} + {_math_param(row, 'rho_n')}\,n_{{t-1}} + \frac{{{_math_param(row, 'phi_n_plus')}}}{{2({sn})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_n_minus')}}}{{2({sn})^2}}\,(u_{{t-1}}^-)^2",
             ]
         )
+    elif model_family == "constant_p":
+        lines.extend(
+            [
+                rf"p_t &= {_math_param(row, 'p0')},\\",
+                rf"n_t &= {_math_param(row, 'n0')} + {_math_param(row, 'rho_n')}\,n_{{t-1}} + \frac{{{_math_param(row, 'phi_n_plus')}}}{{2({sn})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_n_minus')}}}{{2({sn})^2}}\,(u_{{t-1}}^-)^2",
+            ]
+        )
+    elif model_family == "constant_n":
+        lines.extend(
+            [
+                rf"p_t &= {_math_param(row, 'p0')} + {_math_param(row, 'rho_p')}\,p_{{t-1}} + \frac{{{_math_param(row, 'phi_p_plus')}}}{{2({sp})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_p_minus')}}}{{2({sp})^2}}\,(u_{{t-1}}^-)^2,\\",
+                rf"n_t &= {_math_param(row, 'n0')}",
+            ]
+        )
     elif model_family == "symmetric":
         lines.extend(
             [
@@ -1245,6 +1363,33 @@ def _bool_text(value) -> str:
     return "yes" if bool(value) else "no"
 
 
+def _append_path_quantile_table(lines: list[str], row: dict) -> None:
+    rows = [
+        (r"$p_t$", "selection_p_t"),
+        (r"$n_t$", "selection_n_t"),
+        (r"$\sigma_t^2$", "selection_cond_var"),
+        (r"$s_t^2$", "selection_cond_skewness"),
+        (r"$k_t^2$", "selection_cond_excess_kurtosis"),
+    ]
+    if not any(f"{prefix}_median" in row for _, prefix in rows):
+        return
+
+    lines.extend(
+        [
+            "Empirical path quantiles:",
+            "",
+            "| Series | 5% | Median | 95% |",
+            "|---|---:|---:|---:|",
+        ]
+    )
+    for label, prefix in rows:
+        lines.append(
+            f"| {label} | {format_value(row.get(f'{prefix}_q05'))} | "
+            f"{format_value(row.get(f'{prefix}_median'))} | {format_value(row.get(f'{prefix}_q95'))} |"
+        )
+    lines.append("")
+
+
 def _append_best_model_section(
     lines: list[str],
     row: dict | None,
@@ -1281,10 +1426,10 @@ def _append_best_model_section(
             f"- Selection diagnostics: `{row.get('selection_reason', 'NA')}`",
             f"- Standard errors: `{row.get('se_message', 'not computed')}`",
             "",
-            "Mean process:",
-            "",
         ]
     )
+    _append_path_quantile_table(lines, row)
+    lines.extend(["Mean process:", ""])
     lines.extend(_mean_equation(row))
     lines.extend(["", "BEGE volatility process:", ""])
     lines.extend(_volatility_equation(row, model_family))
@@ -1367,13 +1512,14 @@ def write_markdown_summary(
     summary_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def cleaned_csv_view(df: pd.DataFrame) -> pd.DataFrame:
+def cleaned_csv_view(df: pd.DataFrame, *, include_path_quantiles: bool = False) -> pd.DataFrame:
+    retained_selection_cols = set(_path_quantile_columns()) if include_path_quantiles else set()
     drop_cols = [
         col
         for col in df.columns
         if col in REPORT_DROP_COLUMNS
         or col.startswith("se_")
-        or col.startswith("selection_")
+        or (col.startswith("selection_") and col not in retained_selection_cols)
         or col.startswith("corrected_")
     ]
     return df.drop(columns=drop_cols, errors="ignore")
@@ -1416,11 +1562,35 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_cond_var_min",
         "selection_cond_var_median",
         "selection_cond_var_max",
+        *_path_quantile_columns(),
         "selection_cond_var_lower_min",
         "selection_cond_var_lower_max",
         "selection_cond_var_upper_min",
         "selection_cond_var_upper_max",
     ]
+    return df[[col for col in dict.fromkeys(cols) if col in df.columns]]
+
+
+def path_quantile_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
+    id_cols = [
+        "seed",
+        "draw",
+        "random_state",
+        "mean_type",
+        "success",
+        "optimizer_success",
+        "status",
+        "loglik",
+        "AIC",
+        "BIC",
+        "corrected_loglik",
+        "corrected_AIC",
+        "corrected_BIC",
+        "selection_eligible",
+        "selection_reason",
+    ]
+    param_cols = [col for col in df.columns if col.startswith("param_")]
+    cols = id_cols + param_cols + _path_quantile_columns()
     return df[[col for col in cols if col in df.columns]]
 
 
@@ -1494,6 +1664,11 @@ def collect_results(
         project_root=script_dir.parents[1],
         model_family=model_family,
     )
+    path_quantile_path = results_dir / "path_quantile_diagnostics.csv"
+    path_quantile_diagnostics_view(all_results_with_diagnostics).to_csv(
+        path_quantile_path,
+        index=False,
+    )
     selected_best = best_overall(all_results_with_diagnostics, "loglik")
     best_loglik_rows = []
     if not selected_best.empty:
@@ -1507,7 +1682,10 @@ def collect_results(
     if not used_merged_results:
         cleaned_results = cleaned_csv_view(all_results_with_diagnostics)
         cleaned_results.to_csv(results_dir / "all_estimations.csv", index=False)
-        by_mean_results = cleaned_csv_view(eligible_result_rows(all_results_with_diagnostics))
+        by_mean_results = cleaned_csv_view(
+            eligible_result_rows(all_results_with_diagnostics),
+            include_path_quantiles=True,
+        )
         split_paths = write_mean_split_csvs(by_mean_results, results_dir)
         selection_diagnostics_view(all_results_with_diagnostics).to_csv(
             results_dir / "selection_diagnostics.csv",
@@ -1536,5 +1714,6 @@ def collect_results(
         print(f"Wrote {results_dir / 'all_estimations.csv'}")
         print(f"Wrote {len(split_paths)} mean-process CSV file(s) under {results_dir / 'by_mean'}")
         print(f"Wrote {results_dir / 'selection_diagnostics.csv'}")
+    print(f"Wrote {path_quantile_path}")
     print(f"Wrote {best_se_path}")
     print(f"Wrote {results_dir / 'best_model.md'}")

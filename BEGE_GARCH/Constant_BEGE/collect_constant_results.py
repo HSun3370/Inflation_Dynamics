@@ -18,7 +18,11 @@ from BEGE_GARCH.BEGE_GARCH import _make_residual_function, bege_variance_bounds_
 from BEGE_GARCH.bege_batch import (
     IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD,
     TOP_MODELS_PER_MEAN,
+    _append_path_quantile_table,
     _central_diff_scores,
+    _empty_path_quantile_metrics,
+    _path_quantile_columns,
+    _path_quantile_metrics,
     _project_to_bounds,
     _safe_inv_with_ridge,
     _sym_matrix,
@@ -26,6 +30,7 @@ from BEGE_GARCH.bege_batch import (
     eligible_result_rows,
     load_effective_sample,
     optimizer_success_mask,
+    path_quantile_diagnostics_view,
     write_mean_split_csvs,
 )
 
@@ -335,6 +340,7 @@ def add_selection_diagnostics(df: pd.DataFrame, project_root: Path) -> pd.DataFr
             "selection_cond_var_upper_min": np.nan,
             "selection_cond_var_upper_max": np.nan,
         }
+        diag.update(_empty_path_quantile_metrics())
         reasons = []
         row_df = pd.DataFrame([row])
         if not bool(success_mask(row_df).iloc[0]) or not bool(optimizer_success_mask(row_df).iloc[0]):
@@ -378,6 +384,8 @@ def add_selection_diagnostics(df: pd.DataFrame, project_root: Path) -> pd.DataFr
             cond_var = variance_details["cond_var"]
             lower = variance_details["lower"]
             upper = variance_details["upper"]
+            cond_skewness = 2.0 * (sigma_p**3 * pseries - sigma_n**3 * nseries)
+            cond_excess_kurtosis = 6.0 * (sigma_p**4 * pseries + sigma_n**4 * nseries)
             diag.update(
                 {
                     "selection_mean_stationary": _mean_stationarity_ok(mean_type, mean_params),
@@ -391,6 +399,11 @@ def add_selection_diagnostics(df: pd.DataFrame, project_root: Path) -> pd.DataFr
                     "selection_cond_var_upper_max": float(np.max(upper)),
                 }
             )
+            diag.update(_path_quantile_metrics("selection_p_t", pseries))
+            diag.update(_path_quantile_metrics("selection_n_t", nseries))
+            diag.update(_path_quantile_metrics("selection_cond_var", cond_var))
+            diag.update(_path_quantile_metrics("selection_cond_skewness", cond_skewness))
+            diag.update(_path_quantile_metrics("selection_cond_excess_kurtosis", cond_excess_kurtosis))
             if not diag["selection_mean_stationary"]:
                 reasons.append("mean process is not stationary")
             if not diag["selection_implied_variance_bounds_ok"]:
@@ -576,10 +589,10 @@ def _append_best_model_section(lines: list[str], row: dict | None) -> None:
             f"- Selection diagnostics: `{row.get('selection_reason', 'NA')}`",
             f"- Standard errors: `{row.get('se_message', 'not computed')}`",
             "",
-            "Mean process:",
-            "",
         ]
     )
+    _append_path_quantile_table(lines, row)
+    lines.extend(["Mean process:", ""])
     lines.extend(_mean_equation(row))
     lines.extend(["", "BEGE volatility process:", ""])
     lines.extend(_constant_volatility_equation(row))
@@ -664,11 +677,14 @@ def write_markdown_summary(
     summary_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def cleaned_csv_view(df: pd.DataFrame) -> pd.DataFrame:
+def cleaned_csv_view(df: pd.DataFrame, *, include_path_quantiles: bool = False) -> pd.DataFrame:
+    retained_selection_cols = set(_path_quantile_columns()) if include_path_quantiles else set()
     drop_cols = [
         col
         for col in df.columns
-        if col in REPORT_DROP_COLUMNS or col.startswith("se_") or col.startswith("selection_")
+        if col in REPORT_DROP_COLUMNS
+        or col.startswith("se_")
+        or (col.startswith("selection_") and col not in retained_selection_cols)
     ]
     return df.drop(columns=drop_cols, errors="ignore")
 
@@ -693,12 +709,13 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_cond_var_min",
         "selection_cond_var_median",
         "selection_cond_var_max",
+        *_path_quantile_columns(),
         "selection_cond_var_lower_min",
         "selection_cond_var_lower_max",
         "selection_cond_var_upper_min",
         "selection_cond_var_upper_max",
     ]
-    return df[[col for col in cols if col in df.columns]]
+    return df[[col for col in dict.fromkeys(cols) if col in df.columns]]
 
 
 def seed_range_from_env():
@@ -764,6 +781,11 @@ def main() -> None:
 
     all_results = ensure_optimizer_success(all_results)
     all_results_with_diagnostics = add_selection_diagnostics(all_results, script_dir.parents[1])
+    path_quantile_path = results_dir / "path_quantile_diagnostics.csv"
+    path_quantile_diagnostics_view(all_results_with_diagnostics).to_csv(
+        path_quantile_path,
+        index=False,
+    )
     selected_best = best_overall(all_results_with_diagnostics)
     best_loglik_rows = []
     if not selected_best.empty:
@@ -780,7 +802,10 @@ def main() -> None:
     if not used_merged_results:
         cleaned_results = cleaned_csv_view(all_results_with_diagnostics)
         cleaned_results.to_csv(out_csv, index=False)
-        by_mean_results = cleaned_csv_view(eligible_result_rows(all_results_with_diagnostics))
+        by_mean_results = cleaned_csv_view(
+            eligible_result_rows(all_results_with_diagnostics),
+            include_path_quantiles=True,
+        )
         split_paths = write_mean_split_csvs(by_mean_results, results_dir)
         selection_diagnostics_view(all_results_with_diagnostics).to_csv(out_diag, index=False)
     stale_se_path = results_dir / "best_loglik_top20_with_se.csv"
@@ -802,6 +827,7 @@ def main() -> None:
         print(f"Merged {len(csv_files)} seed files into: {out_csv}")
         print(f"Wrote {len(split_paths)} mean-process CSV file(s) under {results_dir / 'by_mean'}")
         print(f"Wrote selection diagnostics: {out_diag}")
+    print(f"Wrote path quantile diagnostics: {path_quantile_path}")
     print(f"Wrote selected best model with SEs: {best_se_path}")
     print(f"Wrote summary markdown: {out_md}")
 
