@@ -23,6 +23,9 @@ MEAN_PARAM_NAMES = {
     "ARX(2,2)": ["c", "rho_1", "rho_2", "phi_1", "phi_2"],
 }
 BG_PARAM_NAMES = ["p0", "n0", "rho_p", "rho_n", "phi_p", "phi_n", "sigma_p", "sigma_n"]
+CONSTANT_INIT_SHAPES_PATH = (
+    SCRIPT_DIR.parent / "Constant_BEGE" / "results" / "constant_bege_initial_shapes_by_mean.csv"
+)
 
 
 def _resolve_column(df: pd.DataFrame, preferred: str, aliases: tuple[str, ...]) -> str:
@@ -72,7 +75,11 @@ def load_effective_sample(project_root: Path) -> pd.DataFrame:
     return canonical
 
 
-def build_model_specs(df: pd.DataFrame, include_arx22: bool) -> list[dict]:
+def build_model_specs(
+    df: pd.DataFrame,
+    include_arx22: bool,
+    mean_type_filter: str | None = None,
+) -> list[dict]:
     if "Inflation_lag_1" in df.columns:
         x_arx11 = {
             "SPF": df["SPF"].to_numpy(dtype=float),
@@ -126,7 +133,33 @@ def build_model_specs(df: pd.DataFrame, include_arx22: bool) -> list[dict]:
             }
         )
 
+    if mean_type_filter is not None:
+        specs = [spec for spec in specs if spec["mean_type"] == mean_type_filter]
+        if not specs:
+            raise ValueError(f"No model specification available for mean_type={mean_type_filter!r}.")
+
     return specs
+
+
+def load_constant_bege_initial_shapes(path: Path = CONSTANT_INIT_SHAPES_PATH) -> dict[str, tuple[float, float]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing Constant BEGE initial-shape file: {path}")
+
+    df = pd.read_csv(path)
+    required = {"mean_type", "p_bar", "n_bar"}
+    missing = required.difference(df.columns)
+    if missing:
+        raise KeyError(f"Constant BEGE initial-shape file is missing columns: {sorted(missing)}")
+
+    values: dict[str, tuple[float, float]] = {}
+    for _, row in df.iterrows():
+        mean_type = str(row["mean_type"])
+        p_bar = float(row["p_bar"])
+        n_bar = float(row["n_bar"])
+        if not (np.isfinite(p_bar) and p_bar > 0.0 and np.isfinite(n_bar) and n_bar > 0.0):
+            raise ValueError(f"Nonpositive or nonfinite Constant BEGE shape for {mean_type}.")
+        values[mean_type] = (p_bar, n_bar)
+    return values
 
 
 def _require_columns(df: pd.DataFrame, cols: list[str], label: str) -> None:
@@ -135,7 +168,14 @@ def _require_columns(df: pd.DataFrame, cols: list[str], label: str) -> None:
         raise KeyError(f"{label} requires columns {missing} in the effective sample file.")
 
 
-def _result_to_row(result: dict, mean_type: str, draw: int, seed: int, random_state: int) -> dict:
+def _result_to_row(
+    result: dict,
+    mean_type: str,
+    draw: int,
+    seed: int,
+    random_state: int,
+    shape_initial_values: tuple[float, float] | None = None,
+) -> dict:
     row = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "seed": seed,
@@ -146,6 +186,10 @@ def _result_to_row(result: dict, mean_type: str, draw: int, seed: int, random_st
         "AIC": float(result["AIC"]),
         "BIC": float(result["BIC"]),
     }
+
+    if shape_initial_values is not None:
+        row["recursion_init_p"] = float(shape_initial_values[0])
+        row["recursion_init_n"] = float(shape_initial_values[1])
 
     opt = result.get("opt")
     row["success"] = bool(getattr(opt, "success", False))
@@ -181,8 +225,11 @@ def run_seed(
     print_summary: bool,
     density_hyperu_method: str,
     compute_se: bool,
+    mean_type_filter: str | None = None,
+    output_dir: Path | None = None,
+    use_shape_initialization: bool = True,
 ) -> None:
-    output_dir = SCRIPT_DIR / "output"
+    output_dir = SCRIPT_DIR / "output" if output_dir is None else Path(output_dir)
     raw_dir = output_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
@@ -191,7 +238,12 @@ def run_seed(
         print(f"[WARN] Effective sample length is {len(df)} (expected 215).")
 
     _require_columns(df, ["Inflation", "SPF", "SPF_shock"], "BadGood BEGE runner")
-    specs = build_model_specs(df, include_arx22=include_arx22)
+    specs = build_model_specs(
+        df,
+        include_arx22=include_arx22,
+        mean_type_filter=mean_type_filter,
+    )
+    constant_initial_shapes = load_constant_bege_initial_shapes() if use_shape_initialization else {}
 
     total_starts = len(specs) * n_draws * n_starts
     print(
@@ -203,7 +255,21 @@ def run_seed(
     all_rows: list[dict] = []
     for spec in specs:
         mean_type = spec["mean_type"]
+        shape_initial_values: tuple[float, float] | None = None
         print(f"Estimating mean_type={mean_type} with {n_draws} draws...")
+        if use_shape_initialization:
+            if mean_type not in constant_initial_shapes:
+                raise KeyError(f"Missing Constant BEGE initial shapes for mean_type={mean_type}.")
+            shape_initial_values = constant_initial_shapes[mean_type]
+            print(
+                f"Using Constant BEGE recursion initialization for {mean_type}: "
+                f"p_init={shape_initial_values[0]:.6f}, n_init={shape_initial_values[1]:.6f}"
+            )
+        else:
+            print(
+                f"Using parameter-implied unconditional recursion initialization "
+                f"for {mean_type}; fixed p_init/n_init disabled."
+            )
 
         for draw in range(1, n_draws + 1):
             rs = draw + seed * 10000
@@ -219,8 +285,16 @@ def run_seed(
                     compute_se=compute_se,
                     density_hyperu_method=density_hyperu_method,
                     print_summary=print_summary,
+                    shape_initial_values=shape_initial_values,
                 )
-                row = _result_to_row(result, mean_type=mean_type, draw=draw, seed=seed, random_state=rs)
+                row = _result_to_row(
+                    result,
+                    mean_type=mean_type,
+                    draw=draw,
+                    seed=seed,
+                    random_state=rs,
+                    shape_initial_values=shape_initial_values,
+                )
             except Exception as exc:
                 row = {
                     "timestamp": datetime.now().isoformat(timespec="seconds"),
@@ -235,6 +309,9 @@ def run_seed(
                     "AIC": np.nan,
                     "BIC": np.nan,
                 }
+                if shape_initial_values is not None:
+                    row["recursion_init_p"] = float(shape_initial_values[0])
+                    row["recursion_init_n"] = float(shape_initial_values[1])
 
             all_rows.append(row)
             out_file = raw_dir / f"draw_{seed:03d}.csv"
@@ -275,6 +352,23 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Compute robust numerical standard errors. Default skips SEs for fast search.",
     )
+    parser.add_argument(
+        "--mean-type",
+        choices=["all", "constant", "ARX(1,1)", "ARX(2,1)", "ARX(2,2)"],
+        default="all",
+        help="Estimate one mean specification. Default estimates all enabled mean processes.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory for raw output. Default is BadGood_BEGE/output.",
+    )
+    parser.add_argument(
+        "--no-shape-initialization",
+        action="store_true",
+        help="Use the parameter-implied unconditional recursion backcast instead of fixed Constant-BEGE p/n initial states.",
+    )
     return parser.parse_args()
 
 
@@ -290,4 +384,7 @@ if __name__ == "__main__":
         print_summary=args.print_summary,
         density_hyperu_method=args.density_hyperu_method,
         compute_se=args.compute_se,
+        mean_type_filter=None if args.mean_type == "all" else args.mean_type,
+        output_dir=args.output_dir,
+        use_shape_initialization=not args.no_shape_initialization,
     )

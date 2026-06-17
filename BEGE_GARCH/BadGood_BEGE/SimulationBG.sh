@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
 OUTPUT_DIR="${SCRIPT_DIR}/output"
-ACTION_NAME="BadGood_BEGE_RandomSearch"
+ACTION_NAME="${ACTION_NAME:-BadGood_BEGE_RandomSearch}"
 PY_SCRIPT="${SCRIPT_DIR}/BG_GJR1.py"
 COLLECT_SCRIPT="${SCRIPT_DIR}/collect_bg_results.py"
 
@@ -15,6 +15,9 @@ N_STARTS="${N_STARTS:-25}"
 MAXITER="${MAXITER:-800}"
 TOL="${TOL:-1e-8}"
 INCLUDE_ARX22="${INCLUDE_ARX22:-1}"
+MEAN_TYPE="${MEAN_TYPE:-all}"
+RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:-${OUTPUT_DIR}}"
+USE_SHAPE_INITIALIZATION="${USE_SHAPE_INITIALIZATION:-1}"
 DENSITY_HYPERU_METHOD="${DENSITY_HYPERU_METHOD:-scipy_approx}"
 COMPUTE_SE="${COMPUTE_SE:-0}"
 SUBMIT_COLLECTOR="${SUBMIT_COLLECTOR:-1}"
@@ -39,6 +42,9 @@ Environment overrides:
   START_ID=${START_ID} END_ID=${END_ID}
   N_DRAWS=${N_DRAWS} N_STARTS=${N_STARTS} MAXITER=${MAXITER} TOL=${TOL}
   INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 estimates all four mean processes
+  MEAN_TYPE=${MEAN_TYPE}          # all, constant, ARX(1,1), ARX(2,1), or ARX(2,2)
+  RUN_OUTPUT_DIR=${RUN_OUTPUT_DIR}
+  USE_SHAPE_INITIALIZATION=${USE_SHAPE_INITIALIZATION}  # 1 uses Constant BEGE p/n initial states
   DENSITY_HYPERU_METHOD=${DENSITY_HYPERU_METHOD}
   COMPUTE_SE=${COMPUTE_SE}         # 0 skips standard errors for fast search
   SUBMIT_COLLECTOR=${SUBMIT_COLLECTOR}
@@ -51,6 +57,10 @@ USAGE
 }
 
 mean_count() {
+    if [ "${MEAN_TYPE}" != "all" ]; then
+        printf '1\n'
+        return
+    fi
     if [ "${INCLUDE_ARX22}" = "1" ]; then
         printf '4\n'
     else
@@ -104,12 +114,15 @@ EOF
 
 build_python_args() {
     local args
-    args="--id PLACEHOLDER_ID --n-draws ${N_DRAWS} --n-starts ${N_STARTS} --maxiter ${MAXITER} --tol ${TOL} --density-hyperu-method ${DENSITY_HYPERU_METHOD}"
+    args="--id PLACEHOLDER_ID --n-draws ${N_DRAWS} --n-starts ${N_STARTS} --maxiter ${MAXITER} --tol ${TOL} --density-hyperu-method ${DENSITY_HYPERU_METHOD} --mean-type '${MEAN_TYPE}' --output-dir '${RUN_OUTPUT_DIR}'"
     if [ "${INCLUDE_ARX22}" != "1" ]; then
         args="${args} --skip-arx22"
     fi
     if [ "${COMPUTE_SE}" = "1" ]; then
         args="${args} --compute-se"
+    fi
+    if [ "${USE_SHAPE_INITIALIZATION}" != "1" ]; then
+        args="${args} --no-shape-initialization"
     fi
     printf '%s\n' "${args}"
 }

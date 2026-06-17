@@ -27,6 +27,25 @@ density is evaluated directly as long as the recursive shape series are finite;
 large shape states use the saddlepoint density backend. The collector writes
 the maximum shape path as a diagnostic in `results/selection_diagnostics.csv`.
 
+For the resubmitted stability test, the first recursive shape states are no
+longer initialized with the parameter-implied unconditional values. Instead,
+each mean process uses the corresponding Constant BEGE fixed-shape estimates
+from `BEGE_GARCH/Constant_BEGE/results/constant_bege_initial_shapes_by_mean.csv`:
+
+| Mean process | Fixed $p_{\mathrm{init}}$ | Fixed $n_{\mathrm{init}}$ |
+|---|---:|---:|
+| Constant | 2.6759 | 0.1860 |
+| ARX(1,1) | 2.6277 | 0.2811 |
+| ARX(2,1) | 3.3171 | 0.2281 |
+| ARX(2,2) | 2.6648 | 0.2821 |
+
+The recursion intercept parameters named `p0` and `n0` remain freely estimated
+model parameters. Only the starting states $p_{\mathrm{init}}$ and
+$n_{\mathrm{init}}$ are fixed. The raw output records these fixed states as
+`recursion_init_p` and `recursion_init_n`, and the collector uses those columns
+when recomputing corrected likelihoods and path diagnostics. The fixed
+starting states do not replace `p0` or `n0` in the parameter vector.
+
 ## Estimation Workflow
 
 `BG_GJR1.py` estimates the BadGood BEGE specification on the canonical effective sample from `DataSummary/README.md`, **1969Q2--2022Q4** with **215 observations**. The runner uses the precomputed lag columns when they are available, so lagged ARX regressors do not trim the sample again.

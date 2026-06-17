@@ -350,6 +350,19 @@ def _row_float(row: pd.Series, name: str) -> float:
     return float(value)
 
 
+def _badgood_recursion_initial_states(row: pd.Series | dict) -> tuple[float | None, float | None]:
+    def _optional_float(value) -> float:
+        if value is None:
+            return float("nan")
+        return float(value)
+
+    p_init = _optional_float(row.get("recursion_init_p", row.get("shape_init_p", np.nan)))
+    n_init = _optional_float(row.get("recursion_init_n", row.get("shape_init_n", np.nan)))
+    if np.isfinite(p_init) and p_init > 0.0 and np.isfinite(n_init) and n_init > 0.0:
+        return p_init, n_init
+    return None, None
+
+
 def _path_quantile_columns() -> list[str]:
     return [
         f"{prefix}_{suffix}"
@@ -410,8 +423,9 @@ def _selection_metrics_for_row(
         phi_n = _row_float(row, "param_phi_n")
         sigma_p = _row_float(row, "param_sigma_p")
         sigma_n = _row_float(row, "param_sigma_n")
-        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p, phi_p), sigma_p)
-        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n, phi_n), sigma_n)
+        p_init, n_init = _badgood_recursion_initial_states(row)
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p, phi_p), sigma_p, initial_state=p_init)
+        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n, phi_n), sigma_n, initial_state=n_init)
         persistence_p = rho_p + phi_p
         persistence_n = rho_n + phi_n
 
@@ -511,11 +525,16 @@ def _selection_metrics_for_row(
     n_obs = int(residuals.shape[0])
     corrected_aic = 2.0 * k_params - 2.0 * corrected_loglik
     corrected_bic = np.log(n_obs) * k_params - 2.0 * corrected_loglik
+    recursion_init_p, recursion_init_n = (
+        _badgood_recursion_initial_states(row) if model_family == "badgood" else (None, None)
+    )
 
     metrics = {
         "corrected_loglik": float(corrected_loglik),
         "corrected_AIC": float(corrected_aic),
         "corrected_BIC": float(corrected_bic),
+        "selection_recursion_init_p": np.nan if recursion_init_p is None else float(recursion_init_p),
+        "selection_recursion_init_n": np.nan if recursion_init_n is None else float(recursion_init_n),
         "selection_persistence_p": float(persistence_p),
         "selection_persistence_n": float(persistence_n),
         "selection_sigma_min": float(min(sigma_p, sigma_n)),
@@ -654,6 +673,7 @@ def _vol_paths_from_theta(
     mean_type: str,
     model_family: str,
     residuals: np.ndarray,
+    initial_states: tuple[float | None, float | None] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, float, float, dict[str, float]]:
     from BEGE_GARCH.BEGE_GARCH import gjr_recursion
 
@@ -662,8 +682,9 @@ def _vol_paths_from_theta(
 
     if model_family == "badgood":
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigma_p, sigma_n = vol
-        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p, phi_p), sigma_p)
-        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n, phi_n), sigma_n)
+        p_init, n_init = initial_states if initial_states is not None else (None, None)
+        pseries = gjr_recursion(residuals, (p0, rho_p, phi_p, phi_p), sigma_p, initial_state=p_init)
+        nseries = gjr_recursion(residuals, (n0, rho_n, phi_n, phi_n), sigma_n, initial_state=n_init)
         persistence_p = rho_p + phi_p
         persistence_n = rho_n + phi_n
 
@@ -799,6 +820,7 @@ def _row_likelihood_functions(
     spec: dict,
     mean_type: str,
     model_family: str,
+    initial_states: tuple[float | None, float | None] | None = None,
     big_penalty: float = 1e12,
     big_vec_penalty: float = 1e6,
 ):
@@ -820,6 +842,7 @@ def _row_likelihood_functions(
             mean_type=mean_type,
             model_family=model_family,
             residuals=residuals,
+            initial_states=initial_states,
         )
         if (
             not np.all(np.isfinite(pseries))
@@ -914,6 +937,7 @@ def compute_standard_errors_for_row(
         spec=spec,
         mean_type=mean_type,
         model_family=model_family,
+        initial_states=_badgood_recursion_initial_states(row) if model_family == "badgood" else None,
     )
 
     obj_value = negloglik(theta_eval)
@@ -1010,6 +1034,8 @@ def add_selection_diagnostics(
             "selection_constraints_ok": False,
             "selection_mean_stationary": False,
             "selection_implied_variance_bounds_ok": False,
+            "selection_recursion_init_p": np.nan,
+            "selection_recursion_init_n": np.nan,
             "selection_eligible": False,
             "selection_reason": "",
             "selection_persistence_p": np.nan,
@@ -1428,6 +1454,19 @@ def _append_best_model_section(
             "",
         ]
     )
+    if model_family == "badgood":
+        p_init, n_init = _badgood_recursion_initial_states(row)
+        if p_init is not None and n_init is not None:
+            lines.extend(
+                [
+                    "Recursion initialization:",
+                    "",
+                    f"- Fixed $p_{{\\mathrm{{init}}}}$ from Constant BEGE $\\bar{{p}}$: `{format_value(p_init)}`",
+                    f"- Fixed $n_{{\\mathrm{{init}}}}$ from Constant BEGE $\\bar{{n}}$: `{format_value(n_init)}`",
+                    "- Recursion intercept parameters `p0` and `n0`: `estimated`",
+                    "",
+                ]
+            )
     _append_path_quantile_table(lines, row)
     lines.extend(["Mean process:", ""])
     lines.extend(_mean_equation(row))
@@ -1553,6 +1592,8 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_constraints_ok",
         "selection_mean_stationary",
         "selection_implied_variance_bounds_ok",
+        "selection_recursion_init_p",
+        "selection_recursion_init_n",
         "selection_shape_max",
         "selection_max_p_t",
         "selection_max_n_t",
@@ -1588,6 +1629,8 @@ def path_quantile_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "corrected_BIC",
         "selection_eligible",
         "selection_reason",
+        "recursion_init_p",
+        "recursion_init_n",
     ]
     param_cols = [col for col in df.columns if col.startswith("param_")]
     cols = id_cols + param_cols + _path_quantile_columns()

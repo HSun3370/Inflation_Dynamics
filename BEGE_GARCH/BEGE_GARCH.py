@@ -313,7 +313,7 @@ except Exception:
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def _gjr_recursion_numba_core(r, cont, rho, phi_p, phi_n, sigma):
+def _gjr_recursion_numba_core(r, cont, rho, phi_p, phi_n, sigma, initial_state):
     """
     Numba-compiled core. r must be float64 and contiguous.
     """
@@ -325,8 +325,11 @@ def _gjr_recursion_numba_core(r, cont, rho, phi_p, phi_n, sigma):
     inv_den = 1.0 / (2.0 * sigma * sigma)
 
     # backcast (guard against near-explosive denominator)
-    denom = 1.0 - rho - 0.5 * (phi_p + phi_n)
-    backcast = t1 if denom <= 1e-12 else cont / denom
+    if np.isfinite(initial_state) and initial_state > 0.0:
+        backcast = initial_state
+    else:
+        denom = 1.0 - rho - 0.5 * (phi_p + phi_n)
+        backcast = t1 if denom <= 1e-12 else cont / denom
     if backcast < t1:
         backcast = t1
     s[0] = backcast
@@ -341,14 +344,26 @@ def _gjr_recursion_numba_core(r, cont, rho, phi_p, phi_n, sigma):
 
     return s
 
-def gjr_recursion(resids, params, sigma):
+def gjr_recursion(resids, params, sigma, initial_state=None):
     """
     Drop-in replacement for your original function.
     Uses the Numba-compiled core above.
+
+    When ``initial_state`` is supplied, the first recursive shape state is set
+    to that value instead of the parameter-implied unconditional backcast.
     """
     cont, rho, phi_p, phi_n = params
     r = np.ascontiguousarray(resids, dtype=np.float64)
-    return _gjr_recursion_numba_core(r, float(cont), float(rho), float(phi_p), float(phi_n), float(sigma))
+    init = np.nan if initial_state is None else float(initial_state)
+    return _gjr_recursion_numba_core(
+        r,
+        float(cont),
+        float(rho),
+        float(phi_p),
+        float(phi_n),
+        float(sigma),
+        init,
+    )
 
 
 BEGE_VARIANCE_EWMA_LAMBDA = 0.94
@@ -3619,6 +3634,7 @@ def BG_GARCH(
     density_hyperu_method='scipy_approx',
     enforce_variance_bounds=True,
     start_n_jobs=None,
+    shape_initial_values=None,
 ):
     """
     BG_GARCH: Good/Bad volatility with symmetric-in-sign GARCH:
@@ -3628,6 +3644,10 @@ def BG_GARCH(
     Parameter order:
       [mean params] +
       [p0, n0, rho_p, rho_n, phi_p, phi_n, sigma_p, sigma_n]
+
+    The recursion intercepts p0 and n0 remain estimated. If
+    shape_initial_values is supplied, it only replaces the first recursive
+    states.
     """
     import numpy as np
     from scipy.optimize import minimize
@@ -3679,6 +3699,15 @@ def BG_GARCH(
 
     mean_model, num_m, bounds_mean, names_mean, mean_ranges = _get_mean_spec(Y, mean_type)
     residual_function = _make_residual_function(Y, X, mean_type)
+    if shape_initial_values is None:
+        p_initial = None
+        n_initial = None
+    else:
+        p_initial, n_initial = shape_initial_values
+        p_initial = float(p_initial)
+        n_initial = float(n_initial)
+        if not (np.isfinite(p_initial) and p_initial > 0.0 and np.isfinite(n_initial) and n_initial > 0.0):
+            raise ValueError("shape_initial_values must contain finite positive p and n initial states.")
 
     # ---------- bounds & names ----------
     (sig_lo, sig_hi) = sigma_bounds
@@ -3739,8 +3768,18 @@ def BG_GARCH(
             return float(big_penalty)
 
         res = residual_function(pm)
-        pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
-        nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
+        pseries = gjr_recursion(
+            res,
+            (float(p0), float(rho_p), float(phi_p), float(phi_p)),
+            float(sigp),
+            initial_state=p_initial,
+        )
+        nseries = gjr_recursion(
+            res,
+            (float(n0), float(rho_n), float(phi_n), float(phi_n)),
+            float(sign),
+            initial_state=n_initial,
+        )
 
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return float(big_penalty)
@@ -3763,8 +3802,18 @@ def BG_GARCH(
             return np.full(N_obs, float(big_vec_penalty), dtype=float)
 
         res = residual_function(pm)
-        pseries = gjr_recursion(res, (float(p0), float(rho_p), float(phi_p), float(phi_p)), float(sigp))
-        nseries = gjr_recursion(res, (float(n0), float(rho_n), float(phi_n), float(phi_n)), float(sign))
+        pseries = gjr_recursion(
+            res,
+            (float(p0), float(rho_p), float(phi_p), float(phi_p)),
+            float(sigp),
+            initial_state=p_initial,
+        )
+        nseries = gjr_recursion(
+            res,
+            (float(n0), float(rho_n), float(phi_n), float(phi_n)),
+            float(sign),
+            initial_state=n_initial,
+        )
 
         if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
             return np.full(N_obs, float(big_vec_penalty), dtype=float)

@@ -104,6 +104,10 @@ def _log_hyperu_helper_scalar(a, b, z, hyperu_method='scipy_approx'):
         if hyperu_method == 'mpmath':
             return _log_hyperu_mpmath_scalar(a, b, z)
 
+        near_integer_b = np.isclose(b, np.round(b), rtol=0.0, atol=1e-6)
+        if hyperu_method == 'scipy_approx' and (a > 50.0 or b >= 40.0 or near_integer_b):
+            return _log_hyperu_mpmath_scalar(a, b, z)
+
         result = hyperu(a, b, z)
         if result > HYPERU_TINY and np.isfinite(result):
             return np.log(result)
@@ -162,6 +166,13 @@ def log_hyperu_helper(a, b, z, hyperu_method='scipy_approx'):
             for idx in approx_idx:
                 flat_out[idx] = _log_hyperu_approximation(flat_a[idx], flat_b[idx], flat_z[idx])
             scipy_idx = valid_idx[~force_approx]
+        elif hyperu_method == 'scipy_approx':
+            near_integer_b = np.isclose(flat_b[valid_idx], np.round(flat_b[valid_idx]), rtol=0.0, atol=1e-6)
+            force_mpmath = (flat_a[valid_idx] > 50.0) | (flat_b[valid_idx] >= 40.0) | near_integer_b
+            mpmath_idx = valid_idx[force_mpmath]
+            for idx in mpmath_idx:
+                flat_out[idx] = _log_hyperu_mpmath_scalar(flat_a[idx], flat_b[idx], flat_z[idx])
+            scipy_idx = valid_idx[~force_mpmath]
 
         try:
             with np.errstate(divide='ignore', invalid='ignore', over='ignore', under='ignore'):
