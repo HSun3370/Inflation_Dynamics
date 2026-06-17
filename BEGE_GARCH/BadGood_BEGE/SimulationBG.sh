@@ -17,6 +17,8 @@ TOL="${TOL:-1e-8}"
 INCLUDE_ARX22="${INCLUDE_ARX22:-1}"
 MEAN_TYPE="${MEAN_TYPE:-all}"
 RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:-${OUTPUT_DIR}}"
+COLLECT_OUTPUT_DIR="${COLLECT_OUTPUT_DIR:-${RUN_OUTPUT_DIR}}"
+COLLECT_RESULTS_DIR="${COLLECT_RESULTS_DIR:-${SCRIPT_DIR}/results}"
 USE_SHAPE_INITIALIZATION="${USE_SHAPE_INITIALIZATION:-1}"
 DENSITY_HYPERU_METHOD="${DENSITY_HYPERU_METHOD:-scipy_approx}"
 COMPUTE_SE="${COMPUTE_SE:-0}"
@@ -44,6 +46,8 @@ Environment overrides:
   INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 estimates all four mean processes
   MEAN_TYPE=${MEAN_TYPE}          # all, constant, ARX(1,1), ARX(2,1), or ARX(2,2)
   RUN_OUTPUT_DIR=${RUN_OUTPUT_DIR}
+  COLLECT_OUTPUT_DIR=${COLLECT_OUTPUT_DIR}
+  COLLECT_RESULTS_DIR=${COLLECT_RESULTS_DIR}
   USE_SHAPE_INITIALIZATION=${USE_SHAPE_INITIALIZATION}  # 1 uses Constant BEGE p/n initial states
   DENSITY_HYPERU_METHOD=${DENSITY_HYPERU_METHOD}
   COMPUTE_SE=${COMPUTE_SE}         # 0 skips standard errors for fast search
@@ -128,9 +132,12 @@ build_python_args() {
 }
 
 run_collect_now() {
-    mkdir -p "${SCRIPT_DIR}/results"
+    mkdir -p "${COLLECT_RESULTS_DIR}"
     cd "${PROJECT_ROOT}"
-    START_ID="${START_ID}" END_ID="${END_ID}" python3 -u "${COLLECT_SCRIPT}"
+    START_ID="${START_ID}" END_ID="${END_ID}" \
+        BEGE_COLLECT_OUTPUT_DIR="${COLLECT_OUTPUT_DIR}" \
+        BEGE_COLLECT_RESULTS_DIR="${COLLECT_RESULTS_DIR}" \
+        python3 -u "${COLLECT_SCRIPT}"
 }
 
 submit_collector() {
@@ -162,7 +169,10 @@ echo "\$SLURM_JOB_NAME"
 echo "Collector starts \$(date)"
 start_time=\$(date +%s)
 
-START_ID=${START_ID} END_ID=${END_ID} python3 -u "${COLLECT_SCRIPT}"
+START_ID=${START_ID} END_ID=${END_ID} \\
+BEGE_COLLECT_OUTPUT_DIR="${COLLECT_OUTPUT_DIR}" \\
+BEGE_COLLECT_RESULTS_DIR="${COLLECT_RESULTS_DIR}" \\
+python3 -u "${COLLECT_SCRIPT}"
 
 echo "Collector ends \$(date)"
 $(elapsed_block)

@@ -39,7 +39,7 @@ The parameter bounds are chosen to be:
 - $0 \leq \phi^+_p, \phi_p^-, \phi_n^+, \phi_n^- \leq 2$,
 - $10^{-5} < \sigma_p, \sigma_n < 2$.
 
-According to the emails, I have set the constraints below.
+ I have set the constraints below.
 
 - $\rho + \frac{\phi^+}{2} + \frac{\phi^-}{2} < 1$ for both BE and GE shape processes.
 - The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.

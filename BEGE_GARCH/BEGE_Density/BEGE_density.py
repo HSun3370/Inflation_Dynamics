@@ -49,11 +49,29 @@ def numerical_approximation(x, p, n, sigma_p, sigma_n, n_points=1000):
     return log_likelihood
 
 
-mp.mp.dps = 25
+mp.mp.dps = 35
 
 HYPERU_TINY = np.finfo(np.float64).tiny
 HYPERU_MPMATH_MAXTERMS = 1000
+# BadGood rescore diagnostics show that a pointwise max(p, n) cutoff is too
+# late and too discontinuous: stored job-side failures appeared with max shape
+# below 180 but total shape near 200.  Use total-shape guarding plus an
+# exact-vs-saddlepoint disagreement check instead of a hard max-shape cap.
 SADDLEPOINT_SHAPE_THRESHOLD = 180.0
+SADDLEPOINT_BLEND_TOTAL_SHAPE_LOWER = 50.0
+SADDLEPOINT_BLEND_TOTAL_SHAPE_UPPER = 80.0
+SADDLEPOINT_GUARD_TOTAL_SHAPE = 40.0
+SADDLEPOINT_EXACT_DIFF_TOL = 2.0
+NORMAL_LIMIT_TOTAL_SHAPE = 500.0
+NORMAL_LIMIT_SKEWNESS = 0.03
+NORMAL_LIMIT_EXCESS_KURTOSIS = 0.03
+
+
+def _smoothstep(value, lower, upper):
+    if upper <= lower:
+        return np.where(value >= upper, 1.0, 0.0)
+    scaled = np.clip((value - lower) / (upper - lower), 0.0, 1.0)
+    return scaled * scaled * (3.0 - 2.0 * scaled)
 
 
 def _log_hyperu_large_z_approximation(a, b, z):
@@ -195,6 +213,14 @@ def _bege_normal_log_density(x, p, n, sigma_p, sigma_n):
     variance = p * sigma_p * sigma_p + n * sigma_n * sigma_n
     with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
         return -0.5 * (np.log(2.0 * np.pi * variance) + (x * x) / variance)
+
+
+def _bege_standardized_skewness_excess_kurtosis(p, n, sigma_p, sigma_n):
+    variance = p * sigma_p * sigma_p + n * sigma_n * sigma_n
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        skewness = 2.0 * (p * sigma_p**3 - n * sigma_n**3) / np.power(variance, 1.5)
+        excess_kurtosis = 6.0 * (p * sigma_p**4 + n * sigma_n**4) / (variance * variance)
+    return skewness, excess_kurtosis
 
 
 def _bege_saddlepoint_log_density(x, p, n, sigma_p, sigma_n):
@@ -403,7 +429,80 @@ def BEGE_log_density(
             - (branch_shape[finite_branch] - 1) * np.log(theta_tilde[finite_branch])
         )
     result[singular_branch] = np.inf
-    if np.any(use_saddlepoint):
+    if hyperu_method != 'mpmath':
+        total_shape = k_omega_p + k_omega_n
+        blend_weight = _smoothstep(
+            total_shape,
+            SADDLEPOINT_BLEND_TOTAL_SHAPE_LOWER,
+            SADDLEPOINT_BLEND_TOTAL_SHAPE_UPPER,
+        )
+        guard_candidate = valid & (total_shape >= SADDLEPOINT_GUARD_TOTAL_SHAPE)
+        needs_saddlepoint = (
+            use_saddlepoint
+            | (valid & (blend_weight > 0.0))
+            | guard_candidate
+            | (valid & ~np.isfinite(result))
+        )
+
+        if np.any(needs_saddlepoint):
+            saddle = np.full_like(result, np.nan, dtype=np.float64)
+            saddle[needs_saddlepoint] = _bege_saddlepoint_log_density(
+                x[needs_saddlepoint],
+                p[needs_saddlepoint],
+                n[needs_saddlepoint],
+                sigma_p[needs_saddlepoint],
+                sigma_n[needs_saddlepoint],
+            )
+
+            finite_exact = np.isfinite(result)
+            finite_saddle = np.isfinite(saddle)
+            large_disagreement = (
+                guard_candidate
+                & finite_exact
+                & finite_saddle
+                & (np.abs(result - saddle) > SADDLEPOINT_EXACT_DIFF_TOL)
+            )
+
+            result[valid & ~finite_exact & finite_saddle] = saddle[valid & ~finite_exact & finite_saddle]
+            result[large_disagreement] = saddle[large_disagreement]
+            result[use_saddlepoint & finite_saddle] = saddle[use_saddlepoint & finite_saddle]
+
+            blend = valid & finite_saddle & (blend_weight > 0.0) & ~large_disagreement & ~use_saddlepoint
+            if np.any(blend):
+                full_saddle_blend = blend & (blend_weight >= 1.0)
+                partial_blend = blend & ~full_saddle_blend
+                result[full_saddle_blend] = saddle[full_saddle_blend]
+                w = blend_weight[partial_blend]
+                exact_part = result[partial_blend]
+                saddle_part = saddle[partial_blend]
+                result[partial_blend] = np.logaddexp(
+                    np.log1p(-w) + exact_part,
+                    np.log(w) + saddle_part,
+                )
+
+        skewness, excess_kurtosis = _bege_standardized_skewness_excess_kurtosis(
+            p,
+            n,
+            sigma_p,
+            sigma_n,
+        )
+        normal_limit = (
+            valid
+            & (total_shape >= NORMAL_LIMIT_TOTAL_SHAPE)
+            & np.isfinite(skewness)
+            & np.isfinite(excess_kurtosis)
+            & (np.abs(skewness) <= NORMAL_LIMIT_SKEWNESS)
+            & (excess_kurtosis <= NORMAL_LIMIT_EXCESS_KURTOSIS)
+        )
+        if np.any(normal_limit):
+            result[normal_limit] = _bege_normal_log_density(
+                x[normal_limit],
+                p[normal_limit],
+                n[normal_limit],
+                sigma_p[normal_limit],
+                sigma_n[normal_limit],
+            )
+    elif np.any(use_saddlepoint):
         result[use_saddlepoint] = _bege_saddlepoint_log_density(
             x[use_saddlepoint],
             p[use_saddlepoint],

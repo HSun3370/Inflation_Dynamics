@@ -1675,8 +1675,9 @@ def collect_results(
     model_param_names: list[str],
     model_family: str,
 ) -> None:
-    raw_dir = script_dir / "output" / "raw"
-    results_dir = script_dir / "results"
+    output_root = Path(os.environ.get("BEGE_COLLECT_OUTPUT_DIR", script_dir / "output"))
+    results_dir = Path(os.environ.get("BEGE_COLLECT_RESULTS_DIR", script_dir / "results"))
+    raw_dir = output_root / "raw"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     start_seed, end_seed = seed_range_from_env()

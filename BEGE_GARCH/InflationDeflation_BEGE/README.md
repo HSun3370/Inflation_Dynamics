@@ -16,6 +16,13 @@ n_{t} &= n_0 + \rho_n \, n_{t-1}
 \end{aligned}
 $$
 
+The parameter bounds follow the Full BEGE bounds:
+
+- $0 \leq p_0, n_0 < 10$,
+- $0 \leq \rho_n, \rho_p \leq 1$,
+- $0 \leq \phi_n^+, \phi_n^- \leq 2$,
+- $10^{-5} < \sigma_p, \sigma_n < 2$.
+
 For the current random-search estimation runs, the likelihood is evaluated under
 the parameter bounds used in code, finite-recursion checks, and the documented
 ID-GARCH stability restrictions:

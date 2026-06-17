@@ -5,6 +5,9 @@
 
 ## Bad and Good Symmetric GARCH Model
 
+
+
+
 Here $n_t, p_t$ is generated recursively with parameters $(p_0, n_0, \rho_p, \rho_n, \phi_p, \phi_n)$:
 
 $$
@@ -15,6 +18,13 @@ n_{t} &= n_0 + \rho_n \, n_{t-1}
         + \frac{\phi_n }{2  \sigma_n^2}\, (u_{t-1} )^2
 \end{aligned}
 $$
+
+The parameter bounds are chosen to be:
+
+- $0 \leq p_0, n_0 < 10$,
+- $0 \leq \rho_p, \rho_n \leq 1$,
+- $0 \leq \phi_p,  \phi_n \leq 1$,
+- $10^{-5} < \sigma_p, \sigma_n < 2$.
 
 I have set the constraints below.
 

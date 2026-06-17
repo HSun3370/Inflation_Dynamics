@@ -27,6 +27,12 @@ restrictions are also estimated here:
 
 For the multi-start BEGE estimators, robust numerical standard errors are optional through `compute_se`. The default is `compute_se=False` for fast model search; the result collectors recompute standard errors for the reported top log-likelihood rows after selection.
 
+Likelihood evaluation uses the stabilized BEGE density implementation documented
+in `BEGE_Density/BEGE_Density.md`: exact hypergeometric evaluation is retained
+where stable, while large-shape observations use guarded saddlepoint and
+Gaussian-limit approximations to avoid spurious high likelihoods from numerical
+cancellation.
+
 ## Best-Model Reporting Screen
 
 Raw BEGE search outputs are kept in `output/raw/draw_###.csv`. The collectors
