@@ -365,6 +365,7 @@ def append_csv_links(lines: list[str], results_dir: Path, *, include_constant_sh
 def readme_markdown_from_best_model(markdown: str) -> str:
     """Keep folder README CSV links focused on by-mean cleaned rows."""
     out: list[str] = []
+    csv_links: list[tuple[str, str]] = []
     in_csv_outputs = False
     for line in markdown.splitlines():
         if line.strip() == "CSV outputs:":
@@ -373,13 +374,21 @@ def readme_markdown_from_best_model(markdown: str) -> str:
             continue
         if in_csv_outputs:
             if line.startswith("## "):
+                if csv_links:
+                    out.extend(["```{raw:typst}"])
+                    for label, url in csv_links:
+                        out.append(f'- #link("{url}")[{label}]')
+                    out.extend(["```", ""])
+                    csv_links = []
                 if out and out[-1] != "":
                     out.append("")
                 out.append(line)
                 in_csv_outputs = False
                 continue
             if "/results/by_mean/" in line:
-                out.append(line)
+                match = re.match(r"- \[([^\]]+)\]\(([^)]+)\)", line)
+                if match:
+                    csv_links.append((match.group(1), match.group(2)))
             elif line.strip() == "" and out and out[-1] != "":
                 out.append(line)
             continue

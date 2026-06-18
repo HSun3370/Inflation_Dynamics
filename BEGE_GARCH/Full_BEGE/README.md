@@ -14,10 +14,12 @@ This report shows only the single likelihood-best admissible estimate. Standard 
 
 CSV outputs:
 
-- [constant cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/constant.csv)
-- [ARX(1,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_1_1.csv)
-- [ARX(2,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_2_1.csv)
-- [ARX(2,2) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_2_2.csv)
+```{raw:typst}
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/constant.csv")[constant cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_1_1.csv")[ARX(1,1) cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_2_1.csv")[ARX(2,1) cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_2_2.csv")[ARX(2,2) cleaned rows]
+```
 
 ## Selected Best Model
 
