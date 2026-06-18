@@ -23,7 +23,7 @@ The parameter bounds are chosen to be:
 
 - $0 \leq p_0, n_0 < 10$,
 - $0 \leq \rho_p, \rho_n \leq 1$,
-- $0 \leq \phi_p,  \phi_n \leq 1$,
+- $0 \leq \phi_p,  \phi_n \leq 2$,
 - $10^{-5} < \sigma_p, \sigma_n < 2$.
 
 I have set the constraints below.
@@ -37,24 +37,12 @@ density is evaluated directly as long as the recursive shape series are finite;
 large shape states use the saddlepoint density backend. The collector writes
 the maximum shape path as a diagnostic in `results/selection_diagnostics.csv`.
 
-For the resubmitted stability test, the first recursive shape states are no
-longer initialized with the parameter-implied unconditional values. Instead,
-each mean process uses the corresponding Constant BEGE fixed-shape estimates
-from `BEGE_GARCH/Constant_BEGE/results/constant_bege_initial_shapes_by_mean.csv`:
-
-| Mean process | Fixed $p_{\mathrm{init}}$ | Fixed $n_{\mathrm{init}}$ |
-|---|---:|---:|
-| Constant | 2.6759 | 0.1860 |
-| ARX(1,1) | 2.6277 | 0.2811 |
-| ARX(2,1) | 3.3171 | 0.2281 |
-| ARX(2,2) | 2.6648 | 0.2821 |
-
-The recursion intercept parameters named `p0` and `n0` remain freely estimated
-model parameters. Only the starting states $p_{\mathrm{init}}$ and
-$n_{\mathrm{init}}$ are fixed. The raw output records these fixed states as
-`recursion_init_p` and `recursion_init_n`, and the collector uses those columns
-when recomputing corrected likelihoods and path diagnostics. The fixed
-starting states do not replace `p0` or `n0` in the parameter vector.
+The production search does not fix the first recursive shape states to
+Constant BEGE estimates. The recursion starts from the parameter-implied
+unconditional backcast inside `BG_GARCH`, while the intercept parameters named
+`p0` and `n0` remain freely estimated model parameters. The previous fixed
+starting-state experiment can still be reproduced with
+`USE_SHAPE_INITIALIZATION=1`, but it is not the default estimation standard.
 
 ## Estimation Workflow
 

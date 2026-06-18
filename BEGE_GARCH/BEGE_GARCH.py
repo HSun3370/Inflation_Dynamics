@@ -646,19 +646,19 @@ def BEGE_GARCH(
         mean_model = mean_ARX11
         num_param_mean = 3
         sv_mean=[0.0752,0.1650,0.8198]
-        bounds_mean=[(min(Y),max(Y)),(-0.999,0.999),(None,None)]
+        bounds_mean=[(min(Y),max(Y)),(-1.0, 1.0),(None,None)]
         name_mean = ['constant\t','Inflation.Lag(1)','SPF\t\t']
     elif mean_type=='ARX(2,1)':
         num_param_mean = 4
         mean_model = mean_ARX21
         sv_mean=[0.0753,0.1743,0.0574,0.7483]
-        bounds_mean=[(min(Y),max(Y)),(-1.999,1.999),(-0.999,0.999),(None,None)]
+        bounds_mean=[(min(Y),max(Y)),(-2.0, 2.0),(-1.0, 1.0),(None,None)]
         name_mean = ['constant\t','Inflation.Lag(1)','Inflation.Lag(2)','SPF\t\t']
     elif mean_type=='ARX(2,2)':
         mean_model = mean_ARX22
         num_param_mean = 5
         sv_mean=[0.08940,0.2081,0.0455,0.5584,0.1288]
-        bounds_mean=[(min(Y),max(Y)),(-1.999,1.999),(-0.999,0.999),(None,None),(None,None)]
+        bounds_mean=[(min(Y),max(Y)),(-2.0, 2.0),(-1.0, 1.0),(None,None),(None,None)]
         name_mean = ['constant\t','Inflation.Lag(1)','Inflation.Lag(2)','SPF\t\t','SPF.lag(1)\t']
  
     residual_function = _make_residual_function(Y, X, mean_type)
@@ -697,7 +697,7 @@ def BEGE_GARCH(
         starting_values= sv_mean + [ 1,0.3,0.5,0.7,1,0.3,0.5,0.7,0.4,1 ]
     else:
         starting_values= init_value
-    bounds =  bounds_mean+ [ (1e-5,None), (1e-5,0.999),(1e-5,1.999), (1e-5,1.999) ]+[ (1e-5,None), (1e-5,0.999),(1e-5,1.999),  (1e-5,1.999) ]+[(1e-5,10*np.std(Y))]+[(1e-5,10*np.std(Y))]
+    bounds =  bounds_mean+ [ (0.0,None), (0.0,1.0),(0.0,2.0), (0.0,2.0) ]+[ (0.0,None), (0.0,1.0),(0.0,2.0),  (0.0,2.0) ]+[(1e-5,10*np.std(Y))]+[(1e-5,10*np.std(Y))]
     
     constraints = [
         {'type': 'ineq', 'fun': lambda params: 2- 2*params[num_param_mean] - params[num_param_mean+1]- params[num_param_mean+2] },   #GJR Garch Constraints
@@ -766,19 +766,19 @@ def BEGE_GARCH(
 #         mean_model = mean_ARX11
 #         num_param_mean = 3
 #         sv_mean = [0.0752, 0.1650, 0.8198]
-#         bounds_mean = [(min(Y), max(Y)), (-0.999, 0.999), (None, None)]
+#         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (None, None)]
 #         name_mean = ['constant\t', 'Inflation.Lag(1)', 'SPF\t\t']
 #     elif mean_type == 'ARX(2,1)':
 #         num_param_mean = 4
 #         mean_model = mean_ARX21
 #         sv_mean = [0.0753, 0.1743, 0.0574, 0.7483]
-#         bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (None, None)]
+#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None)]
 #         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t\t']
 #     elif mean_type == 'ARX(2,2)':
 #         mean_model = mean_ARX22
 #         num_param_mean = 5
 #         sv_mean = [0.08940, 0.2081, 0.0455, 0.5584, 0.1288]
-#         bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (None, None), (None, None)]
+#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None), (None, None)]
 #         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t\t', 'SPF.lag(1)\t']
 
 #     # log likelihood function
@@ -899,19 +899,19 @@ def BEGE_GARCH(
 #         mean_model = mean_ARX11
 #         num_param_mean = 3
 #         sv_mean = [0.0752, 0.1650, 0.8198]
-#         bounds_mean = [(min(Y), max(Y)), (-0.999, 0.999), (None, None)]
+#         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (None, None)]
 #         name_mean = ['constant\t', 'Inflation.Lag(1)', 'SPF\t']
 #     elif mean_type == 'ARX(2,1)':
 #         num_param_mean = 4
 #         mean_model = mean_ARX21
 #         sv_mean = [0.0753, 0.1743, 0.0574, 0.7483]
-#         bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (None, None)]
+#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None)]
 #         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t']
 #     elif mean_type == 'ARX(2,2)':
 #         mean_model = mean_ARX22
 #         num_param_mean = 5
 #         sv_mean = [0.08940, 0.2081, 0.0455, 0.5584, 0.1288]
-#         bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (None, None), (None, None)]
+#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None), (None, None)]
 #         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t', 'SPF.lag(1)\t']
 
 
@@ -1032,15 +1032,15 @@ def BEGE_GARCH(
 #     elif mean_type == 'ARX(1,1)':
 #         mean_model, num_m = mean_ARX11, 3
 #         sv_mean = [0.0752, 0.1650, 0.8198]
-#         bounds_mean = [(min(Y), max(Y)), (-0.999, 0.999), (None, None)]
+#         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (None, None)]
 #         names_mean = ['const', 'Infl(1)', 'SPF']
 #     elif mean_type == 'ARX(2,1)':
 #         mean_model, num_m = mean_ARX21, 4
 #         sv_mean = [0.0753, 0.1743, 0.0574, 0.7483]
 #         bounds_mean = [
 #             (min(Y), max(Y)),
-#             (-1.999, 1.999),
-#             (-0.999, 0.999),
+#             (-2.0, 2.0),
+#             (-1.0, 1.0),
 #             (None, None)
 #         ]
 #         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
@@ -1049,8 +1049,8 @@ def BEGE_GARCH(
 #         sv_mean = [0.0894, 0.2081, 0.0455, 0.5584, 0.1288]
 #         bounds_mean = [
 #             (min(Y), max(Y)),
-#             (-1.999, 1.999),
-#             (-0.999, 0.999),
+#             (-2.0, 2.0),
+#             (-1.0, 1.0),
 #             (None, None),
 #             (None, None)
 #         ]
@@ -1165,15 +1165,15 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
     elif mean_type == 'ARX(1,1)':
         mean_model, num_m = mean_ARX11, 3
         sv_mean = [0.0752, 0.1650, 0.8198]
-        bounds_mean = [(min(Y), max(Y)), (-0.999, 0.999), (-10, 10)]
+        bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'SPF']
     elif mean_type == 'ARX(2,1)':
         mean_model, num_m = mean_ARX21, 4
         sv_mean = [0.0753, 0.1743, 0.0574, 0.7483]
         bounds_mean = [
             (min(Y), max(Y)),
-            (-1.999, 1.999),
-            (-0.999, 0.999),
+            (-2.0, 2.0),
+            (-1.0, 1.0),
             (-10, 10)
         ]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
@@ -1182,8 +1182,8 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
         sv_mean = [0.0894, 0.2081, 0.0455, 0.5584, 0.1288]
         bounds_mean = [
             (min(Y), max(Y)),
-            (-1.999, 1.999),
-            (-0.999, 0.999),
+            (-2.0, 2.0),
+            (-1.0, 1.0),
             (-10, 10),
             (-10, 10)
         ]
@@ -1211,10 +1211,10 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
 
     # ——— 4) build bounds
     dist_bounds = [
-        (0.1,   10),    # p
-        (0.1,  10),    # n
-        (0.05, 2),    # t_p
-        (0.05, 2)     # t_n
+        (0.0, 10.0),    # p
+        (0.0, 10.0),    # n
+        (1e-5, 2.0),    # t_p
+        (1e-5, 2.0)     # t_n
     ]
     full_bounds = bounds_mean + dist_bounds
 
@@ -1302,7 +1302,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         mean_param_ranges = []
     elif mean_type == 'ARX(1,1)':
         mean_model, num_m = mean_ARX11, 3
-        bounds_mean = [(min(Y), max(Y)), (-0.999, 0.999), (-10, 10)]
+        bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (-10, 10)]
         names_mean = ['c', 'rho_1', 'phi_1']
         # OLS +/- 2*SE from MeanProcess/README.md and MeanProcess/OLS_Results.md
         mean_param_ranges = [
@@ -1312,7 +1312,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         ]
     elif mean_type == 'ARX(2,1)':
         mean_model, num_m = mean_ARX21, 4
-        bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+        bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
         names_mean = ['c', 'rho_1', 'rho_2', 'phi_1']
         mean_param_ranges = [
             (0.0897 - 2*0.086, 0.0897 + 2*0.086),   # c
@@ -1322,7 +1322,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         ]
     elif mean_type == 'ARX(2,2)':
         mean_model, num_m = mean_ARX22, 5
-        bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+        bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
         names_mean = ['c', 'rho_1', 'rho_2', 'phi_1', 'phi_2']
         mean_param_ranges = [
             (0.0856 - 2*0.086, 0.0856 + 2*0.086),   # c
@@ -1336,10 +1336,10 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
 
     # -------- 2) Volatility bounds --------
     dist_bounds = [
-        (0.1,   10),    # p
-        (0.1,  10),    # n
-        (0.05, 2),    # t_p
-        (0.05, 2)     # t_n
+        (0.0, 10.0),    # p
+        (0.0, 10.0),    # n
+        (1e-5, 2.0),    # t_p
+        (1e-5, 2.0)     # t_n
     ]
     names_dist = ['GJR p', 'GJR n', 'σ₊', 'σ₋']
     full_bounds = bounds_mean + dist_bounds
@@ -1490,7 +1490,7 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         mean_param_ranges = []
     elif mean_type == 'ARX(1,1)':
         mean_model, num_m = mean_ARX11, 3
-        bounds_mean = [(min(Y), max(Y)), (-0.999, 0.999), (-10, 10)]
+        bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'SPF']
         mean_param_ranges = [
             (0.0792 - 2*0.087, 0.0792 + 2*0.087),
@@ -1499,7 +1499,7 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         ]
     elif mean_type == 'ARX(2,1)':
         mean_model, num_m = mean_ARX21, 4
-        bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+        bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
         mean_param_ranges = [
             (0.0792 - 2*0.087, 0.0792 + 2*0.087),
@@ -1509,7 +1509,7 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         ]
     elif mean_type == 'ARX(2,2)':
         mean_model, num_m = mean_ARX22, 5
-        bounds_mean = [(min(Y), max(Y)), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+        bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
         mean_param_ranges = [
             (0.0761 - 2*0.087, 0.0761 + 2*0.087),
@@ -1726,7 +1726,7 @@ def BEGE_AsymSharedGJR_MLE(
             bounds_mean, names_mean, ranges = [], [], []
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
-            bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
                 (0.0720 - 2*0.086, 0.0720 + 2*0.086),
@@ -1735,7 +1735,7 @@ def BEGE_AsymSharedGJR_MLE(
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
                 (0.0792 - 2*0.087, 0.0792 + 2*0.087),
@@ -1745,7 +1745,7 @@ def BEGE_AsymSharedGJR_MLE(
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
                 (0.0761 - 2*0.087, 0.0761 + 2*0.087),
@@ -2288,7 +2288,7 @@ def ID_GARCH(
             return (
                 mean_ARX11,
                 3,
-                [(ymin, ymax), (-0.999, 0.999), (-10, 10)],
+                [(ymin, ymax), (-1.0, 1.0), (-10, 10)],
                 ['c', 'rho_1', 'phi_1'],
                 [
                     (0.0824 - 2 * 0.086, 0.0824 + 2 * 0.086),
@@ -2300,7 +2300,7 @@ def ID_GARCH(
             return (
                 mean_ARX21,
                 4,
-                [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)],
+                [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)],
                 ['c', 'rho_1', 'rho_2', 'phi_1'],
                 [
                     (0.0897 - 2 * 0.086, 0.0897 + 2 * 0.086),
@@ -2313,7 +2313,7 @@ def ID_GARCH(
             return (
                 mean_ARX22,
                 5,
-                [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)],
+                [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)],
                 ['c', 'rho_1', 'rho_2', 'phi_1', 'phi_2'],
                 [
                     (0.0856 - 2 * 0.086, 0.0856 + 2 * 0.086),
@@ -2716,7 +2716,7 @@ def BEGE_FullGJR_MLE(
             bounds_mean, names_mean, ranges = [], [], []
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
-            bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
                 (0.0720 - .2*0.086, 0.0720 + .2*0.086),
@@ -2731,7 +2731,7 @@ def BEGE_FullGJR_MLE(
             
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
                 (0.0792 - 2*0.087, 0.0792 + 2*0.087),
@@ -2741,7 +2741,7 @@ def BEGE_FullGJR_MLE(
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
                 (0.0761 - 2*0.087, 0.0761 + 2*0.087),
@@ -3240,7 +3240,7 @@ def _BEGE_OneConstantFullGJR_MLE(
             bounds_mean, names_mean, ranges = [], [], []
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
-            bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
                 (0.0720 - .2*0.086, 0.0720 + .2*0.086),
@@ -3249,7 +3249,7 @@ def _BEGE_OneConstantFullGJR_MLE(
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
                 (0.0792 - 2*0.087, 0.0792 + 2*0.087),
@@ -3259,7 +3259,7 @@ def _BEGE_OneConstantFullGJR_MLE(
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
                 (0.0761 - 2*0.087, 0.0761 + 2*0.087),
@@ -3665,7 +3665,7 @@ def BG_GARCH(
             bounds_mean, names_mean, ranges = [], [], []
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
-            bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
                 (0.0824 - 2*0.086, 0.0824 + 2*0.086),
@@ -3674,7 +3674,7 @@ def BG_GARCH(
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
                 (0.0897 - 2*0.086, 0.0897 + 2*0.086),
@@ -3684,7 +3684,7 @@ def BG_GARCH(
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
                 (0.0856 - 2*0.086, 0.0856 + 2*0.086),
@@ -4041,9 +4041,9 @@ def _ID_GARCH_legacy(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
     sigma_bounds=(1e-5, 2.0),
-    p0n0_bounds=(0.005, 10.0),
-    rho_bounds=(1e-5, 0.999),
-    phi_bounds=(1e-5, 1.5),
+    p0n0_bounds=(0.0, 10.0),
+    rho_bounds=(0.0, 1.0),
+    phi_bounds=(0.0, 2.0),
     floor_eps=1e-6,
     print_summary=True,
     big_penalty=1e12,
@@ -4081,7 +4081,7 @@ def _ID_GARCH_legacy(
             bounds_mean, names_mean, ranges = [], [], []
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
-            bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
                 (0.0720 - 2*0.086, 0.0720 + 2*0.086),
@@ -4090,7 +4090,7 @@ def _ID_GARCH_legacy(
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
                 (0.0792 - 2*0.087, 0.0792 + 2*0.087),
@@ -4100,7 +4100,7 @@ def _ID_GARCH_legacy(
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
-            bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10, 10), (-10, 10)]
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
                 (0.0761 - 2*0.087, 0.0761 + 2*0.087),

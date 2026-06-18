@@ -1,0 +1,79 @@
+=== Constant_BEGE ===
+sbatch: Verify job submission ...
+sbatch: Using a shared partition ...
+sbatch: Partition: caslake
+sbatch: QOS-Flag: caslake
+sbatch: Account: pi-lhansen
+sbatch: Verification: ***PASSED***
+Submitted seed id 1: 50869830
+sbatch: Verify job submission ...
+sbatch: Using a shared partition ...
+sbatch: Partition: caslake
+sbatch: QOS-Flag: caslake
+sbatch: Account: pi-lhansen
+sbatch: Verification: ***PASSED***
+Submitted seed id 2: 50869831
+sbatch: Verify job submission ...
+sbatch: Using a shared partition ...
+sbatch: Partition: caslake
+sbatch: QOS-Flag: caslake
+sbatch: Account: pi-lhansen
+sbatch: Verification: ***PASSED***
+Submitted seed id 3: 50869832
+sbatch: Verify job submission ...
+sbatch: Using a shared partition ...
+sbatch: Partition: caslake
+sbatch: QOS-Flag: caslake
+sbatch: Account: pi-lhansen
+sbatch: Verification: ***PASSED***
+Submitted seed id 4: 50869833
+sbatch: Verify job submission ...
+sbatch: Using a shared partition ...
+sbatch: Partition: caslake
+sbatch: QOS-Flag: caslake
+sbatch: Account: pi-lhansen
+sbatch: Verification: ***PASSED***
+Submitted seed id 5: 50869834
+sbatch: Verify job submission ...
+sbatch: Using a shared partition ...
+sbatch: Partition: caslake
+sbatch: QOS-Flag: caslake
+sbatch: Account: pi-lhansen
+sbatch: Verification: ***PASSED***
+Submitted seed id 6: 50869835
+sbatch: Verify job submission ...
+sbatch: Using a shared partition ...
+sbatch: Partition: caslake
+sbatch: QOS-Flag: caslake
+sbatch: Account: pi-lhansen
+sbatch: Verification: ***PASSED***
+Submitted seed id 7: 50869836
+ARRAY Constant_BEGE tasks=8-50 job=50870029
+EXISTING Constant_BEGE dependency=50869830:50869831:50869832:50869833:50869834:50869835:50869836
+COLLECTOR Constant_BEGE job=50870030 dependency=afterany:50869830:50869831:50869832:50869833:50869834:50869835:50869836:50870029
+ARRAY Symmetric_BEGE tasks=1-50 job=50870031
+COLLECTOR Symmetric_BEGE job=50870032 dependency=afterany:50870031
+ARRAY InflationDeflation_BEGE tasks=1-50 job=50870033
+COLLECTOR InflationDeflation_BEGE job=50870034 dependency=afterany:50870033
+ARRAY Full_BEGE tasks=1-50 job=50870035
+COLLECTOR Full_BEGE job=50870036 dependency=afterany:50870035
+ARRAY ConstantP_BEGE tasks=1-50 job=50870037
+COLLECTOR ConstantP_BEGE job=50870038 dependency=afterany:50870037
+ARRAY ConstantN_BEGE tasks=1-50 job=50870039
+COLLECTOR ConstantN_BEGE job=50870040 dependency=afterany:50870039
+CANCELLED Symmetric_BEGE old_bad_array_jobs=see 50870031/35/37/39 and collectors
+ARRAY Symmetric_BEGE tasks=1-50 job=50870083
+COLLECTOR Symmetric_BEGE job=50870084 dependency=afterany:50870083
+CANCELLED Full_BEGE old_bad_array_jobs=see 50870031/35/37/39 and collectors
+ARRAY Full_BEGE tasks=1-50 job=50870085
+COLLECTOR Full_BEGE job=50870086 dependency=afterany:50870085
+CANCELLED ConstantP_BEGE old_bad_array_jobs=see 50870031/35/37/39 and collectors
+ARRAY ConstantP_BEGE tasks=1-50 job=50870087
+COLLECTOR ConstantP_BEGE job=50870088 dependency=afterany:50870087
+CANCELLED ConstantN_BEGE old_bad_array_jobs=see 50870031/35/37/39 and collectors
+ARRAY ConstantN_BEGE tasks=1-50 job=50870089
+COLLECTOR ConstantN_BEGE job=50870090 dependency=afterany:50870089
+ARCHIVE_TAG pre_systematic_noinit_stable_density_20260617_161539
+BADGOOD_CANONICAL_COLLECTOR job=50869805 dependency=afterany:50864431 output=BadGood_BEGE/results partition=caslake
+NOTE Constant_BEGE uses individual seed jobs 50869830-50869836 plus array 50870029 for seeds 8-50.
+NOTE Old malformed dynamic arrays 50870031/50870035/50870037/50870039 and collectors 50870032/50870036/50870038/50870040 were cancelled and replaced by 50870083/50870085/50870087/50870089.

@@ -227,7 +227,7 @@ def run_seed(
     compute_se: bool,
     mean_type_filter: str | None = None,
     output_dir: Path | None = None,
-    use_shape_initialization: bool = True,
+    use_shape_initialization: bool = False,
 ) -> None:
     output_dir = SCRIPT_DIR / "output" if output_dir is None else Path(output_dir)
     raw_dir = output_dir / "raw"
@@ -365,8 +365,16 @@ def parse_args() -> argparse.Namespace:
         help="Directory for raw output. Default is BadGood_BEGE/output.",
     )
     parser.add_argument(
+        "--shape-initialization",
+        dest="no_shape_initialization",
+        action="store_false",
+        help="Use fixed Constant-BEGE p/n initial states.",
+    )
+    parser.add_argument(
         "--no-shape-initialization",
+        dest="no_shape_initialization",
         action="store_true",
+        default=True,
         help="Use the parameter-implied unconditional recursion backcast instead of fixed Constant-BEGE p/n initial states.",
     )
     return parser.parse_args()

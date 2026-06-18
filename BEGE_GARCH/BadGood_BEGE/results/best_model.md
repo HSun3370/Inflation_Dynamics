@@ -4,10 +4,10 @@
 
 # BadGood BEGE Best Model Summary
 
-Generated: `2026-06-17T10:34:59`
+Generated: `2026-06-17T19:37:09`
 Total estimations: `8000`
 Converged estimations: `8000`
-Eligible estimations for best-model selection: `7998`
+Eligible estimations for best-model selection: `8000`
 
 Saved likelihoods are recomputed from the stored parameter paths before ranking. Large recursive shape states are evaluated by the BEGE saddlepoint density backend; `max(p_t, n_t)` is reported as a diagnostic, not as an exclusion rule.
 
@@ -20,7 +20,7 @@ Best admissible estimate ranked by corrected log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |
 |---|---:|---:|---:|---:|---:|---:|---:|:---:|
-| ARX(2,2) | 39 | 32 | -161.8929 | 349.7857 | 393.6040 | 36.9512 | 9.9009 | no |
+| ARX(2,1) | 39 | 14 | -163.5594 | 351.1188 | 391.5664 | 40.7220 | 8.9086 | no |
 
 Selection checks:
 
@@ -33,41 +33,35 @@ Selection checks:
 - Selection diagnostics: `eligible`
 - Standard errors: `computed`
 
-Recursion initialization:
-
-- Fixed $p_{\mathrm{init}}$ from Constant BEGE $\bar{p}$: `2.6648`
-- Fixed $n_{\mathrm{init}}$ from Constant BEGE $\bar{n}$: `0.2821`
-- Recursion intercept parameters `p0` and `n0`: `estimated`
-
 Empirical path quantiles:
 
 | Series | 5% | Median | 95% |
 |---|---:|---:|---:|
-| $p_t$ | 0.4762 | 0.6727 | 2.1080 |
-| $n_t$ | 0.3202 | 0.6730 | 3.5753 |
-| $\sigma_t^2$ | 0.1639 | 0.2906 | 1.1172 |
-| $s_t^2$ | -0.3077 | 0.0219 | 0.0539 |
-| $k_t^2$ | 0.2022 | 0.3569 | 1.3596 |
+| $p_t$ | 0.4097 | 0.5799 | 1.7285 |
+| $n_t$ | 0.2985 | 0.7108 | 3.8717 |
+| $\sigma_t^2$ | 0.1416 | 0.2554 | 1.0320 |
+| $s_t^2$ | -0.2196 | 0.0384 | 0.0683 |
+| $k_t^2$ | 0.1754 | 0.2991 | 1.1456 |
 
 Mean process:
 
 $$
-\pi_{t+1} = \underset{(0.0778)}{0.2237} + \underset{(0.0840)}{0.2175}\,\pi_t + \underset{(0.1826)}{0.2699}\,\pi_{t-1} + \underset{(0.3990)}{0.3343}\,SPF_t + \underset{(0.0670)}{-0.0651}\,SPF_{t-1} + u_{t+1}
+\pi_{t+1} = \underset{(0.0000)}{0.2119} + \underset{(0.0000)}{0.2240}\,\pi_t + \underset{(0.0000)}{0.2742}\,\pi_{t-1} + \underset{(0.0000)}{0.2699}\,SPF_t + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(0.1241)}{0.4598}\,\omega_{p,t} - \underset{(4.6752)}{0.4436}\,\omega_{n,t},\\
+u_t &= \underset{(0.0000)}{0.4778}\,\omega_{p,t} - \underset{(0.0000)}{0.4042}\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= \underset{(0.0527)}{0.2012} + \underset{(0.1966)}{0.5427}\,p_{t-1} + \frac{\underset{(11.2174)}{0.2512}}{2(\underset{(0.1241)}{0.4598})^2}\,u_{t-1}^2,\\
-n_t &= \underset{(0.1014)}{0.2108} + \underset{(7.9982)}{0.2756}\,n_{t-1} + \frac{\underset{(26.4471)}{0.7243}}{2(\underset{(4.6752)}{0.4436})^2}\,u_{t-1}^2
+p_t &= \underset{(0.0000)}{0.1575} + \underset{(0.0000)}{0.5795}\,p_{t-1} + \frac{\underset{(0.0000)}{0.2143}}{2(\underset{(0.0000)}{0.4778})^2}\,u_{t-1}^2,\\
+n_t &= \underset{(0.0000)}{0.1900} + \underset{(0.0000)}{0.2831}\,n_{t-1} + \frac{\underset{(0.0000)}{0.6633}}{2(\underset{(0.0000)}{0.4042})^2}\,u_{t-1}^2
 \end{aligned}
 $$
 
@@ -75,16 +69,15 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| c | 0.2237 | 0.0778 |
-| rho_1 | 0.2175 | 0.0840 |
-| rho_2 | 0.2699 | 0.1826 |
-| phi_1 | 0.3343 | 0.3990 |
-| phi_2 | -0.0651 | 0.0670 |
-| p0 | 0.2012 | 0.0527 |
-| n0 | 0.2108 | 0.1014 |
-| rho_p | 0.5427 | 0.1966 |
-| rho_n | 0.2756 | 7.9982 |
-| phi_p | 0.2512 | 11.2174 |
-| phi_n | 0.7243 | 26.4471 |
-| sigma_p | 0.4598 | 0.1241 |
-| sigma_n | 0.4436 | 4.6752 |
+| c | 0.2119 | 0.0000 |
+| rho_1 | 0.2240 | 0.0000 |
+| rho_2 | 0.2742 | 0.0000 |
+| phi_1 | 0.2699 | 0.0000 |
+| p0 | 0.1575 | 0.0000 |
+| n0 | 0.1900 | 0.0000 |
+| rho_p | 0.5795 | 0.0000 |
+| rho_n | 0.2831 | 0.0000 |
+| phi_p | 0.2143 | 0.0000 |
+| phi_n | 0.6633 | 0.0000 |
+| sigma_p | 0.4778 | 0.0000 |
+| sigma_n | 0.4042 | 0.0000 |

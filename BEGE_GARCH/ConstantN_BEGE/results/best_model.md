@@ -4,7 +4,7 @@
 
 # Constant-n Full BEGE Best Model Summary
 
-Generated: `2026-06-15T20:58:22`
+Generated: `2026-06-17T20:39:10`
 Total estimations: `8000`
 Converged estimations: `8000`
 Eligible estimations for best-model selection: `8000`
@@ -14,24 +14,20 @@ Saved likelihoods are recomputed from the stored parameter paths before ranking.
 Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, finite positive shape paths, positive conditional variance paths, EWMA implied-variance bounds, mean-process stationarity, and documented parameter/stability constraints. Corrected log likelihoods above `-150` are flagged for review but are not excluded by this threshold.
 This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage for this selected model.
 
-```{note}
-Flagged 2 estimate(s) with corrected log likelihood above `-150` for manual review. These rows remain eligible if they pass the admissibility checks.
-```
-
 ## Selected Best Model
 
 Best admissible estimate ranked by corrected log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |
 |---|---:|---:|---:|---:|---:|---:|---:|:---:|
-| constant | 43 | 36 | -134.6749 | 283.3499 | 306.9443 | 33062.2733 | 3.2741 | yes |
+| ARX(2,2) | 31 | 40 | -170.2704 | 364.5408 | 404.9885 | 10.3406 | 1.4912 | no |
 
 Selection checks:
 
 - Optimizer convergence: `yes`
 - Parameter bounds: `yes`
 - BEGE stability restrictions: `yes`
-- Shape upper-cap diagnostic: `flagged`
+- Shape upper-cap diagnostic: `not flagged`
 - Implied variance bounds: `yes`
 - Mean-process stationarity: `yes`
 - Selection diagnostics: `eligible`
@@ -41,33 +37,31 @@ Empirical path quantiles:
 
 | Series | 5% | Median | 95% |
 |---|---:|---:|---:|
-| $p_t$ | 55.7815 | 1097.3843 | 15730.8885 |
-| $n_t$ | 9.7141 | 9.7141 | 9.7141 |
-| $\sigma_t^2$ | 0.3153 | 0.4086 | 1.7204 |
-| $s_t^2$ | -0.1108 | -0.1090 | -0.0842 |
-| $k_t^2$ | 0.0595 | 0.0595 | 0.0602 |
+| $p_t$ | 0.6223 | 1.1422 | 5.6821 |
+| $n_t$ | 0.4055 | 0.4055 | 0.4055 |
+| $\sigma_t^2$ | 0.2157 | 0.2840 | 0.8798 |
+| $s_t^2$ | -0.0950 | -0.0455 | 0.3862 |
+| $k_t^2$ | 0.3302 | 0.3840 | 0.8532 |
 
 Mean process:
 
 $$
-\pi_{t+1} = SPF_t + u_{t+1}
+\pi_{t+1} = \underset{(0.0000)}{0.1460} + \underset{(0.0000)}{0.1849}\,\pi_t + \underset{(0.0000)}{0.0812}\,\pi_{t-1} + \underset{(0.0000)}{0.9787}\,SPF_t + \underset{(0.0000)}{-0.3699}\,SPF_{t-1} + u_{t+1}
 $$
-
-No estimated mean-process coefficients.
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(0.0001)}{0.0095}\,\omega_{p,t} - \underset{(0.0957)}{0.1787}\,\omega_{n,t},\\
+u_t &= \underset{(0.0000)}{0.3623}\,\omega_{p,t} - \underset{(0.0000)}{0.5750}\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= \underset{(1406.1875)}{4.5998} + \underset{(0.0000)}{0.5260}\,p_{t-1} + \frac{\underset{(19.4463)}{0.9425}}{2(\underset{(0.0001)}{0.0095})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(0.0000)}{0.0001}}{2(\underset{(0.0001)}{0.0095})^2}\,(u_{t-1}^-)^2,\\
-n_t &= \underset{(1.9364)}{9.7141}
+p_t &= \underset{(0.0000)}{0.1443} + \underset{(0.0000)}{0.7377}\,p_{t-1} + \frac{\underset{(0.0000)}{0.4074}}{2(\underset{(0.0000)}{0.3623})^2}\,(u_{t-1}^+)^2 + \frac{\underset{(0.0000)}{0.0184}}{2(\underset{(0.0000)}{0.3623})^2}\,(u_{t-1}^-)^2,\\
+n_t &= \underset{(0.0000)}{0.4055}
 \end{aligned}
 $$
 
@@ -75,10 +69,15 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| p0 | 4.5998 | 1406.1875 |
-| n0 | 9.7141 | 1.9364 |
-| rho_p | 0.5260 | 0.0000 |
-| phi_p_plus | 0.9425 | 19.4463 |
-| phi_p_minus | 0.0001 | 0.0000 |
-| sigma_p | 0.0095 | 0.0001 |
-| sigma_n | 0.1787 | 0.0957 |
+| c | 0.1460 | 0.0000 |
+| rho_1 | 0.1849 | 0.0000 |
+| rho_2 | 0.0812 | 0.0000 |
+| phi_1 | 0.9787 | 0.0000 |
+| phi_2 | -0.3699 | 0.0000 |
+| p0 | 0.1443 | 0.0000 |
+| n0 | 0.4055 | 0.0000 |
+| rho_p | 0.7377 | 0.0000 |
+| phi_p_plus | 0.4074 | 0.0000 |
+| phi_p_minus | 0.0184 | 0.0000 |
+| sigma_p | 0.3623 | 0.0000 |
+| sigma_n | 0.5750 | 0.0000 |

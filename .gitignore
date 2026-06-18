@@ -9,6 +9,9 @@ BEGE_GARCH/Full_BEGE/output/
 BEGE_GARCH/ConstantP_BEGE/output/
 BEGE_GARCH/ConstantN_BEGE/output/
 
+# Archived estimation result/output snapshots
+BEGE_GARCH/*_BEGE/archive/pre_systematic_noinit_stable_density_*/
+
 
 
 # Python

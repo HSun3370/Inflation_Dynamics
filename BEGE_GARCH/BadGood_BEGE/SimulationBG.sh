@@ -19,7 +19,7 @@ MEAN_TYPE="${MEAN_TYPE:-all}"
 RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:-${OUTPUT_DIR}}"
 COLLECT_OUTPUT_DIR="${COLLECT_OUTPUT_DIR:-${RUN_OUTPUT_DIR}}"
 COLLECT_RESULTS_DIR="${COLLECT_RESULTS_DIR:-${SCRIPT_DIR}/results}"
-USE_SHAPE_INITIALIZATION="${USE_SHAPE_INITIALIZATION:-1}"
+USE_SHAPE_INITIALIZATION="${USE_SHAPE_INITIALIZATION:-0}"
 DENSITY_HYPERU_METHOD="${DENSITY_HYPERU_METHOD:-scipy_approx}"
 COMPUTE_SE="${COMPUTE_SE:-0}"
 SUBMIT_COLLECTOR="${SUBMIT_COLLECTOR:-1}"
@@ -48,7 +48,7 @@ Environment overrides:
   RUN_OUTPUT_DIR=${RUN_OUTPUT_DIR}
   COLLECT_OUTPUT_DIR=${COLLECT_OUTPUT_DIR}
   COLLECT_RESULTS_DIR=${COLLECT_RESULTS_DIR}
-  USE_SHAPE_INITIALIZATION=${USE_SHAPE_INITIALIZATION}  # 1 uses Constant BEGE p/n initial states
+  USE_SHAPE_INITIALIZATION=${USE_SHAPE_INITIALIZATION}  # 0 uses parameter-implied p/n recursion starts
   DENSITY_HYPERU_METHOD=${DENSITY_HYPERU_METHOD}
   COMPUTE_SE=${COMPUTE_SE}         # 0 skips standard errors for fast search
   SUBMIT_COLLECTOR=${SUBMIT_COLLECTOR}
@@ -125,7 +125,9 @@ build_python_args() {
     if [ "${COMPUTE_SE}" = "1" ]; then
         args="${args} --compute-se"
     fi
-    if [ "${USE_SHAPE_INITIALIZATION}" != "1" ]; then
+    if [ "${USE_SHAPE_INITIALIZATION}" = "1" ]; then
+        args="${args} --shape-initialization"
+    else
         args="${args} --no-shape-initialization"
     fi
     printf '%s\n' "${args}"

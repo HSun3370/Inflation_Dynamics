@@ -181,21 +181,21 @@ def _bounds_for_row(spec: dict, mean_type: str) -> list[tuple[float | None, floa
     if mean_type == "constant":
         bounds_mean: list[tuple[float | None, float | None]] = []
     elif mean_type == "ARX(1,1)":
-        bounds_mean = [(ymin, ymax), (-0.999, 0.999), (-10.0, 10.0)]
+        bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10.0, 10.0)]
     elif mean_type == "ARX(2,1)":
-        bounds_mean = [(ymin, ymax), (-1.999, 1.999), (-0.999, 0.999), (-10.0, 10.0)]
+        bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10.0, 10.0)]
     elif mean_type == "ARX(2,2)":
         bounds_mean = [
             (ymin, ymax),
-            (-1.999, 1.999),
-            (-0.999, 0.999),
+            (-2.0, 2.0),
+            (-1.0, 1.0),
             (-10.0, 10.0),
             (-10.0, 10.0),
         ]
     else:
         raise ValueError(f"Unknown mean_type {mean_type!r}.")
 
-    return bounds_mean + [(0.1, 10.0), (0.1, 10.0), (0.05, 2.0), (0.05, 2.0)]
+    return bounds_mean + [(0.0, 10.0), (0.0, 10.0), (1e-5, 2.0), (1e-5, 2.0)]
 
 
 def _bounds_ok(theta: np.ndarray, bounds: list[tuple[float | None, float | None]]) -> bool:
