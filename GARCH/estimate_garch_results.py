@@ -21,6 +21,7 @@ from __future__ import annotations
 # ============================================================
 import argparse
 import os
+import re
 import tempfile
 import warnings
 from dataclasses import dataclass
@@ -62,16 +63,16 @@ COMMON_HOLD_BACK = 0
 
 DISTRIBUTION_LABEL = {
     "normal": "Normal",
-    "studentst": "$t$",
-    "mix_normal": "Mix of Normal",
+    "studentst": "Student's $t$",
+    "mix_normal": "Gaussian mixture",
 }
 DISTRIBUTION_ORDER = ["normal", "studentst", "mix_normal"]
 
 MEAN_LABEL = {
-    "Constant_anchor": "FC",
-    "ARX_1_1": "(1,1)",
-    "ARX_2_1": "(2,1)",
-    "ARX_2_2": "(2,2)",
+    "Constant_anchor": "Constant",
+    "ARX_1_1": "ARX(1,1)",
+    "ARX_2_1": "ARX(2,1)",
+    "ARX_2_2": "ARX(2,2)",
 }
 
 
@@ -102,7 +103,7 @@ class VolSpec:
 
 
 # ============================================================
-# 4) Mixture-of-Normals distribution for ARCH
+# 4) Gaussian mixture distribution for ARCH
 # ============================================================
 class MixNormal(Distribution, metaclass=AbstractDocStringInheritor):
     """Two-component Gaussian mixture with implied second component."""
@@ -114,7 +115,7 @@ class MixNormal(Distribution, metaclass=AbstractDocStringInheritor):
         seed: None | int | RandomState | Generator = None,
     ) -> None:
         super().__init__(random_state=random_state, seed=seed)
-        self._name = "Mixture of two Normal distributions"
+        self._name = "Two-component Gaussian mixture"
         self.num_params = 3
 
     @staticmethod
@@ -720,6 +721,77 @@ def _param_lookup(psub: pd.DataFrame, name: str) -> tuple[float, float]:
     return float(r["coef"]), float(r["std_err"])
 
 
+def _parameter_label(raw_name: str, family: str) -> str:
+    """Map arch/raw parameter names to notation used in the report equations."""
+    mean_labels = {
+        "Const": "$c$",
+        "Inflation_lag_1": "$\\rho_1$",
+        "Inflation_lag_2": "$\\rho_2$",
+        "SPF": "$\\phi_1$",
+        "SPF_lag_1": "$\\phi_2$",
+    }
+    if raw_name in mean_labels:
+        return mean_labels[raw_name]
+
+    scalar_labels = {
+        "omega": "$\\omega$",
+        "nu": "$\\nu$",
+        "p_1": "$p_1$",
+        "mu_1": "$\\mu_1$",
+        "sigma_1_sq": "$\\sigma_1^2$",
+    }
+    if raw_name in scalar_labels:
+        return scalar_labels[raw_name]
+
+    m = re.fullmatch(r"(alpha|beta|gamma)\[(\d+)\]", raw_name)
+    if m:
+        group, idx = m.groups()
+        if group == "gamma" and family == "GJR-GARCH":
+            return f"$\\gamma_{idx}-\\alpha_{idx}$"
+        symbols = {"alpha": "\\alpha", "beta": "\\beta", "gamma": "\\gamma"}
+        return f"${symbols[group]}_{idx}$"
+
+    return raw_name
+
+
+def _parameter_sort_key(raw_name: str, family: str) -> tuple[int, int, str]:
+    mean_order = {
+        "Const": 0,
+        "Inflation_lag_1": 1,
+        "Inflation_lag_2": 2,
+        "SPF": 3,
+        "SPF_lag_1": 4,
+    }
+    if raw_name in mean_order:
+        return (0, mean_order[raw_name], raw_name)
+
+    if raw_name == "omega":
+        return (1, 0, raw_name)
+
+    m = re.fullmatch(r"(alpha|gamma|beta)\[(\d+)\]", raw_name)
+    if m:
+        group, idx_s = m.groups()
+        idx = int(idx_s)
+        if family == "GJR-GARCH":
+            group_order = {"alpha": 0, "gamma": 1, "beta": 2}
+        else:
+            group_order = {"alpha": 0, "gamma": 1, "beta": 2}
+        return (1, 10 * idx + group_order[group], raw_name)
+
+    dist_order = {"nu": 0, "p_1": 1, "mu_1": 2, "sigma_1_sq": 3}
+    if raw_name in dist_order:
+        return (2, dist_order[raw_name], raw_name)
+
+    return (9, 0, raw_name)
+
+
+def _distribution_label(row: pd.Series) -> str:
+    dist = str(row.get("distribution", ""))
+    if dist in DISTRIBUTION_LABEL:
+        return DISTRIBUTION_LABEL[dist]
+    return str(row.get("distribution_label", dist))
+
+
 def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     m = best_row["mean_spec"]
     if m == "Constant_anchor":
@@ -743,7 +815,7 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
             f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(spf)}\\,SPF_t + \\mu_{{t+1}}\n"
             "$$"
         )
-        se = f"Robust SE: `Const` ({sc:.4f}), `Inflation_lag_1` ({si1:.4f}), `SPF` ({sspf:.4f})."
+        se = f"Robust SE: $c$ ({sc:.4f}), $\\rho_1$ ({si1:.4f}), $\\phi_1$ ({sspf:.4f})."
         return eq + "\n\n" + se
 
     i2, si2 = _param_lookup(psub, "Inflation_lag_2")
@@ -754,8 +826,8 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
             "$$"
         )
         se = (
-            f"Robust SE: `Const` ({sc:.4f}), `Inflation_lag_1` ({si1:.4f}), "
-            f"`Inflation_lag_2` ({si2:.4f}), `SPF` ({sspf:.4f})."
+            f"Robust SE: $c$ ({sc:.4f}), $\\rho_1$ ({si1:.4f}), "
+            f"$\\rho_2$ ({si2:.4f}), $\\phi_1$ ({sspf:.4f})."
         )
         return eq + "\n\n" + se
 
@@ -767,8 +839,8 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
         "$$"
     )
     se = (
-        f"Robust SE: `Const` ({sc:.4f}), `Inflation_lag_1` ({si1:.4f}), "
-        f"`Inflation_lag_2` ({si2:.4f}), `SPF` ({sspf:.4f}), `SPF_lag_1` ({sspf1:.4f})."
+        f"Robust SE: $c$ ({sc:.4f}), $\\rho_1$ ({si1:.4f}), "
+        f"$\\rho_2$ ({si2:.4f}), $\\phi_1$ ({sspf:.4f}), $\\phi_2$ ({sspf1:.4f})."
     )
     return eq + "\n\n" + se
 
@@ -841,13 +913,17 @@ def _volatility_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> st
 
 def _model_detail_markdown(best_row: pd.Series, param_df: pd.DataFrame) -> str:
     mid = best_row["model_id"]
-    psub = param_df[param_df["model_id"] == mid].copy().sort_values("parameter")
+    family = str(best_row["vol_family"])
+    psub = param_df[param_df["model_id"] == mid].copy()
+    if not psub.empty:
+        psub["_sort_key"] = psub["parameter"].map(lambda x: _parameter_sort_key(str(x), family))
+        psub = psub.sort_values("_sort_key")
 
     lines: list[str] = []
     lines.append(f"- Model ID: `{mid}`")
-    lines.append(f"- Distribution: `{best_row['distribution_label']}`")
-    lines.append(f"- Mean process: `{best_row['mean_label']}` ({best_row['mean_spec']})")
-    lines.append(f"- Volatility process: `{best_row['vol_spec']}`")
+    lines.append(f"- Distribution: {_distribution_label(best_row)}")
+    lines.append(f"- Mean process: {best_row['mean_label']} (`{best_row['mean_spec']}`)")
+    lines.append(f"- Volatility process: {best_row['vol_spec']}")
     lines.append("")
     lines.append(_mean_equation_markdown(best_row, psub))
     lines.append("")
@@ -858,17 +934,28 @@ def _model_detail_markdown(best_row: pd.Series, param_df: pd.DataFrame) -> str:
     lines.append(f"- AIC: **{best_row['aic']:.6f}**, BIC: **{best_row['bic']:.6f}**")
     lines.append(f"- Optimizer success: **{bool(best_row['optimizer_success'])}**")
     lines.append("")
+    if family == "GJR-GARCH":
+        lines.append(
+            "For GJR-GARCH, $\\gamma_i-\\alpha_i$ is the raw `arch` indicator coefficient; "
+            "the equation above reports the negative-shock coefficient $\\gamma_i$."
+        )
+        lines.append("")
     lines.append("| Parameter | Coef | Std Err | t-value | p-value |")
     lines.append("|---|---:|---:|---:|---:|")
     for _, r in psub.iterrows():
+        label = _parameter_label(str(r["parameter"]), family)
         lines.append(
-            f"| {r['parameter']} | {r['coef']:.6f} | {r['std_err']:.6f} | {r['t_value']:.6f} | {r['p_value']:.6f} |"
+            f"| {label} | {r['coef']:.6f} | {r['std_err']:.6f} | {r['t_value']:.6f} | {r['p_value']:.6f} |"
         )
     return "\n".join(lines)
 
 
 def build_markdown_report(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> str:
     lines: list[str] = []
+    lines.append("```{raw:typst}")
+    lines.append("#set page(margin: auto)")
+    lines.append("```")
+    lines.append("")
     lines.append("# Model Selection Report")
     lines.append("")
     lines.append(build_family_panel_table(summary_df, "aic"))
@@ -904,7 +991,7 @@ def build_markdown_report(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> s
     lines.append("")
     lines.append("- Effective sample is fixed at 215 observations for all models (`hold_back=0` with explicit lag regressors in the mean equation).")
     lines.append("- In `arch`, EGARCH uses the package's centered term `|z|-sqrt(2/pi)` in the recursion for all distributions.")
-    lines.append("- Under non-Gaussian errors (e.g., Student's t or mixture), this is an intercept reparameterization; fitted dynamics and likelihood are still valid.")
+    lines.append("- Under non-Gaussian errors (e.g., Student's t or Gaussian mixture), this is an intercept reparameterization; fitted dynamics and likelihood are still valid.")
     lines.append("- The recursion start (`backcast`) is updated iteratively during estimation in this script: fit -> implied initial variance from current parameters -> refit.")
     lines.append("- Stability is monitored using a persistence proxy (`<1`):")
     lines.append("  GARCH uses `sum(alpha)+sum(beta)`, GJR uses `sum(alpha)+0.5*sum(gamma)+sum(beta)`, EGARCH uses `sum(beta)`.")

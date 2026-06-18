@@ -620,14 +620,6 @@ def _append_best_by_mean_section(
             f"{format_value(overall_best.get('loglik'))} | {format_value(overall_best.get('AIC'))} | "
             f"{format_value(overall_best.get('BIC'))} |",
             "",
-            "Selection checks:",
-            "",
-            f"- Optimizer convergence: `{_bool_text(overall_best.get('optimizer_success', overall_best.get('success', np.nan)))}`",
-            f"- Parameter bounds: `{_bool_text(overall_best.get('selection_bounds_ok', np.nan))}`",
-            f"- Implied variance bounds: `{_bool_text(overall_best.get('selection_implied_variance_bounds_ok', np.nan))}`",
-            f"- Mean-process stationarity: `{_bool_text(overall_best.get('selection_mean_stationary', np.nan))}`",
-            f"- Standard errors: `{overall_best.get('se_message', 'not computed')}`",
-            "",
         ]
     )
     _append_path_quantile_table(lines, overall_best)
@@ -660,9 +652,6 @@ def write_markdown_summary(
         f"Successful estimations: `{int(success_mask(df).sum())}`",
         f"Eligible estimations for best-model selection: `{int(df.get('selection_eligible', pd.Series(False, index=df.index)).fillna(False).sum())}`",
         "",
-        "Selection screen: successful optimizer status, finite positive BEGE parameters, "
-        "documented parameter bounds, EWMA implied-variance bounds, positive conditional variance, "
-        "and mean-process stationarity.",
         "This report shows only the single likelihood-best admissible estimate across mean processes. "
         "Standard errors are computed at the reporting stage and reported in the parameter table.",
         "",

@@ -363,11 +363,23 @@ def append_csv_links(lines: list[str], results_dir: Path, *, include_constant_sh
 
 
 def readme_markdown_from_best_model(markdown: str) -> str:
-    """Keep folder README CSV links focused on by-mean cleaned rows."""
+    """Keep folder README focused on by-mean links and reported estimates."""
     out: list[str] = []
     csv_links: list[tuple[str, str]] = []
     in_csv_outputs = False
+    in_selection_checks = False
     for line in markdown.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Selection screen:"):
+            continue
+        if stripped == "Selection checks:":
+            in_selection_checks = True
+            continue
+        if in_selection_checks:
+            if stripped == "" or stripped.startswith("- "):
+                continue
+            in_selection_checks = False
+
         if line.strip() == "CSV outputs:":
             in_csv_outputs = True
             out.append(line)
@@ -1606,15 +1618,6 @@ def _append_best_model_section(
             f"| {mean_type} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
             f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} |",
             "",
-            "Selection checks:",
-            "",
-            f"- Optimizer convergence: `{_bool_text(row.get('optimizer_success', row.get('success', np.nan)))}`",
-            f"- Parameter bounds: `{_bool_text(row.get('selection_bounds_ok', np.nan))}`",
-            f"- BEGE stability restrictions: `{_bool_text(row.get('selection_constraints_ok', np.nan))}`",
-            f"- Implied variance bounds: `{_bool_text(row.get('selection_implied_variance_bounds_ok', np.nan))}`",
-            f"- Mean-process stationarity: `{_bool_text(row.get('selection_mean_stationary', np.nan))}`",
-            f"- Standard errors: `{row.get('se_message', 'not computed')}`",
-            "",
         ]
     )
     _append_path_quantile_table(lines, row)
@@ -1652,9 +1655,6 @@ def write_markdown_summary(
         f"Converged estimations: `{converged_count}`",
         f"Eligible estimations for best-model selection: `{eligible_count}`",
         "",
-        "Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, "
-        "finite positive shape paths, positive conditional variance paths, EWMA implied-variance "
-        "bounds, mean-process stationarity, and documented parameter/stability constraints.",
         "This report shows only the single likelihood-best admissible estimate. "
         "Standard errors are computed at the reporting stage and reported in the parameter table.",
         "",

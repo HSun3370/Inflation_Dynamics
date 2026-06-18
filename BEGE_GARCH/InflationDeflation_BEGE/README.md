@@ -9,7 +9,6 @@ Total estimations: `8000`
 Converged estimations: `8000`
 Eligible estimations for best-model selection: `8000`
 
-Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, finite positive shape paths, positive conditional variance paths, EWMA implied-variance bounds, mean-process stationarity, and documented parameter/stability constraints.
 This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage and reported in the parameter table.
 
 CSV outputs:
@@ -28,15 +27,6 @@ Best admissible estimate ranked by corrected log likelihood.
 | Mean | Seed | Draw | LogLik | AIC | BIC |
 |---|---:|---:|---:|---:|---:|
 | ARX(2,2) | 3 | 39 | -167.9018 | 361.8035 | 405.6218 |
-
-Selection checks:
-
-- Optimizer convergence: `yes`
-- Parameter bounds: `yes`
-- BEGE stability restrictions: `yes`
-- Implied variance bounds: `yes`
-- Mean-process stationarity: `yes`
-- Standard errors: `sandwich`
 
 Empirical path quantiles:
 

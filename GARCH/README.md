@@ -4,13 +4,13 @@
 ```
 # GARCH Family
 
-This section presents three GARCH-type volatility models — GARCH, GJR-GARCH, and EGARCH — each combined with one of three conditional distributions for residuals: normal, Student's $t$, and a finite mixture of normals.
+This section presents three GARCH-type volatility models — GARCH, GJR-GARCH, and EGARCH — each combined with one of three conditional distributions for residuals: normal, Student's $t$, and a two-component Gaussian mixture.
 
 Let $\{u_t\}_{t=1}^{T}$ denote the residual process, and let $\mathcal{F}_{t-1}$ denote the information set available at time $t-1$. We assume
 $$
 u_t = \sigma_t \, z_t, \qquad z_t | \mathcal{F}_{t-1} \stackrel{\text{i.i.d.}}{\sim} D(0,1),
 $$
-where $\sigma_t^2 = \operatorname{Var}(u_t | \mathcal{F}_{t-1})$ is the conditional variance and $D(0,1)$ is a standardized distribution (normal, Student's $t$, or mixture of normals) with zero mean and unit variance. Throughout, $z_t = u_t / \sigma_t$ denotes the standardized residual and $\theta$ denotes the full parameter vector (mean process, volatility process parameters together with any distributional parameters).
+where $\sigma_t^2 = \operatorname{Var}(u_t | \mathcal{F}_{t-1})$ is the conditional variance and $D(0,1)$ is a standardized distribution (normal, Student's $t$, or Gaussian mixture) with zero mean and unit variance. Throughout, $z_t = u_t / \sigma_t$ denotes the standardized residual and $\theta$ denotes the full parameter vector (mean process, volatility process parameters together with any distributional parameters).
 
 ## Volatility Recursion Specifications
 
@@ -34,36 +34,6 @@ $$
 $$
 
 
-
-**EGARCH$(p,q)$:**
-$$
-\ln\sigma_{t}^{2} \;=\; \omega \;+\; \sum_{i=1}^{p}\alpha_{i} \left(\,|z_{t-i}| - \mathbb{E}|z_{t-i}|\,\right) \;+\; \sum_{j=1}^{p}\gamma_{j}\, z_{t-j} \;+\; \sum_{k=1}^{q}\beta_{k}\,\ln\sigma_{t-k}^{2},
-$$
-where $z_t = u_t / \sigma_t$ is the standardized residual. The term $\alpha_i$ captures the magnitude effect (response to the size of shocks), while $\gamma_j$ captures the sign / leverage effect. Modeling $\ln\sigma_t^2$ guarantees positivity of $\sigma_t^2$ without sign restrictions on $(\alpha_i, \gamma_j, \beta_k)$, and the recursion is covariance-stationary in $\ln\sigma_t^2$ whenever
-$$
-\sum_{k=1}^{q}\beta_{k} \;<\; 1.
-$$
-
-The constant $\mathbb{E}|z_t|$ depends on the assumed distribution of the standardized innovation:
-
-- **Standard normal**, $z_t \sim \mathcal{N}(0,1)$:
-$$
-\mathbb{E}|z_t| \;=\; \sqrt{\tfrac{2}{\pi}}.
-$$
-
-- **Standardized Student's $t$** with $\nu > 2$ degrees of freedom (rescaled to unit variance):
-$$
-\mathbb{E}|z_t| \;=\; \frac{2\,\sqrt{\nu-2}\;\Gamma \left(\tfrac{\nu+1}{2}\right)}{(\nu-1)\,\sqrt{\pi}\;\Gamma \left(\tfrac{\nu}{2}\right)}.
-$$
-As $\nu \to \infty$ this collapses to the normal value $\sqrt{2/\pi}$; for finite $\nu$ it is strictly larger, reflecting the heavier tails.
-
-- **Mixture of two normals** with parameters $(p_1, \mu_1, \sigma_1^{2})$ and induced $(p_2, \mu_2, \sigma_2^{2})$ (as defined in the likelihood section): using $\mathbb{E}|X| = \mu\,[2\Phi(\mu/s) - 1] + 2s\,\varphi(\mu/s)$ for $X \sim \mathcal{N}(\mu, s^{2})$ (a folded-normal mean), where $\Phi$ and $\varphi$ are the standard normal CDF and PDF,
-$$
-\mathbb{E}|z_t| \;=\; \sum_{m=1}^{2} p_m \left[\,\mu_m \left(2\Phi(\mu_m/\sigma_m) - 1\right) \;+\; 2\sigma_m\,\varphi(\mu_m/\sigma_m)\right].
-$$
-
-
-
 **EGARCH$(p,q)$:**
 $$
 \ln\sigma_{t}^{2} \;=\; \omega \;+\; \sum_{i=1}^{p}\alpha_{i}\!\left(|z_{t-i}| - \sqrt{\tfrac{2}{\pi}}\right) \;+\; \sum_{j=1}^{p}\gamma_{j}\, z_{t-j} \;+\; \sum_{k=1}^{q}\beta_{k}\,\ln\sigma_{t-k}^{2},
@@ -77,7 +47,7 @@ $$
 $$
 \mathbb{E}[\ln\sigma_t^2] \;=\; \frac{\omega}{1 - \sum_{k=1}^{q}\beta_k}.
 $$
-Following the convention of the `arch` Python package, we retain $\sqrt{2/\pi}$ as a fixed constant in the recursion even when the innovation distribution is Student's $t$ or a mixture of normals. Under those distributions, $\mathbb{E}|z_t| \neq \sqrt{2/\pi}$, so the centered term $|z_{t-i}| - \sqrt{2/\pi}$ no longer has zero mean and $\omega$ loses the unconditional-mean interpretation above. This choice is observationally innocuous: replacing $\sqrt{2/\pi}$ with the distribution-specific constant $c_D = \mathbb{E}_D|z_t|$ yields an equivalent model whose fitted $\hat\alpha_i, \hat\gamma_j, \hat\beta_k$ are unchanged, with only the intercept shifted by
+Following the convention of the `arch` Python package, we retain $\sqrt{2/\pi}$ as a fixed constant in the recursion even when the innovation distribution is Student's $t$ or a Gaussian mixture. Under those distributions, $\mathbb{E}|z_t| \neq \sqrt{2/\pi}$, so the centered term $|z_{t-i}| - \sqrt{2/\pi}$ no longer has zero mean and $\omega$ loses the unconditional-mean interpretation above. This choice is observationally innocuous: replacing $\sqrt{2/\pi}$ with the distribution-specific constant $c_D = \mathbb{E}_D|z_t|$ yields an equivalent model whose fitted $\hat\alpha_i, \hat\gamma_j, \hat\beta_k$ are unchanged, with only the intercept shifted by
 $$
 \omega \;=\; \omega^{*} \;+\; \left(\sqrt{\tfrac{2}{\pi}} - c_D\right)\sum_{i=1}^{p}\alpha_{i}.
 $$
@@ -129,9 +99,9 @@ $$
 \ln L(\theta) \;=\; T \left[\ln\Gamma \left(\tfrac{\nu+1}{2}\right) - \ln\Gamma \left(\tfrac{\nu}{2}\right) - \tfrac{1}{2}\ln \big(\pi(\nu-2)\big)\right] - \tfrac{1}{2}\sum_{t=1}^{T}\ln\sigma_t^{2} - \tfrac{\nu+1}{2}\sum_{t=1}^{T}\ln \left(1 + \frac{u_t^{2}}{(\nu-2)\,\sigma_t^{2}}\right).
 $$
 
-### Mixture of two normals
+### Gaussian mixture distribution
 
-The standardized innovation follows a two-component Gaussian mixture with parameters $(p_1, \mu_1, \sigma_1^{2})$:
+The standardized innovation follows a two-component Gaussian mixture. This is the same specification sometimes described as a mixture of two normals; I use the Gaussian-mixture notation here. The free parameters are $(p_1, \mu_1, \sigma_1^{2})$:
 $$
 f_{\mathrm{mix}}(z) \;=\; p_1\,\varphi(z;\,\mu_1,\sigma_1^{2}) \;+\; p_2\,\varphi(z;\,\mu_2,\sigma_2^{2}), \qquad \varphi(z;\mu,s^{2}) \;=\; \frac{1}{\sqrt{2\pi s^{2}}}\exp \left\{-\frac{(z-\mu)^{2}}{2 s^{2}}\right\}.
 $$
@@ -159,85 +129,4 @@ and the sample log-likelihood is
 $$
 \ln L(\theta) \;=\; -\sum_{t=1}^{T}\ln\sigma_t \;+\; \sum_{t=1}^{T}\ln \left[\,p_1\,\varphi(z_t;\,\mu_1,\sigma_1^{2}) \;+\; p_2\,\varphi(z_t;\,\mu_2,\sigma_2^{2})\right].
 $$
-
-
-
-### Gaussian Mixture distribution
-The mixture of 2 normal distribution given parameters $p_1$,$\mu_1$,$\sigma^2_1$ is 
-$$
- f\left(z_t\right) =   
- p_1  \frac{1}{\sqrt{ 2\pi\sigma_1^2} } exp\{ -\frac{(z_t-\mu_1)^2}{2\sigma_1^2} \}
-+p_2\frac{1}{\sqrt{ 2\pi\sigma_2^2} } exp\{ -\frac{(z_t-\mu_2)^2}{2\sigma_2^2} \}
-$$
-where $p_2 = 1- p_1 $,$\mu_2 = \frac{-p_1\mu_1}{p_2}$, and
-$\sigma_2^2 =\frac{1-p_2\mu_2^2 -p_1(\sigma_1^2 + \mu_1^2 )}{p_2} $
-
-N th order moment can be calculated as:
-$$
-E[z^n] = \int z^n   \left[p_1 \frac{1}{\sqrt{ 2\pi\sigma_1^2} } exp\{ -\frac{(z-\mu_1)^2}{2\sigma_1^2} \}
-+(1-p_1)\frac{1}{\sqrt{ 2\pi\sigma_2^2} } exp\{ -\frac{(z-\mu_2)^2}{2\sigma_2^2} \}  \right] dz
-$$
-
-$$
-E[z^n] =  p_1 E[x_1^n|x_1 \sim N(\mu_1,\sigma_1^2) ] + p_2 E[x_2^n|x_2 \sim N(\mu_2,\sigma_2^2) ]
-$$
-
-
-Similary, CDF can be calculated analytically by
-$$
-\Phi(a) = \int_{-\inf}^{a} z   \left[p_1 \frac{1}{\sqrt{ 2\pi\sigma_1^2} } exp\{ -\frac{(z-\mu_1)^2}{2\sigma_1^2} \}
-+p_2\frac{1}{\sqrt{ 2\pi\sigma_2^2} } exp\{ -\frac{(z-\mu_2)^2}{2\sigma_2^2} \}  \right] dz
-$$
-
-$$
-\Phi(a) = p_1\Phi_{x_1}(a) + p_2\Phi_{x_2}(a)
-$$
-
-We can think mixture of two normal distributions generated by three random variable $Z$,$X_1$,$X_2$. $Z$ follows Bernoulli($P_1$), $X_1 \sim  N(\mu_1,\sigma_1^2)$ and $X_2 \sim  N(\mu_2,\sigma_2^2)$. In order to generate a random sample point, we can first use $Z$ to decide which normal distributions to use, and then randomly pick a point in that normal distribution. 
-
-
-Log likelihood function is
-$$
- L\left(u_t\right) =  \sum_{t=1}^{T} \ln \frac{1}{\sigma_t} \left[
- p_1  \frac{1}{\sqrt{ 2\pi\sigma_1^2} } exp\{ -\frac{(z_t-\mu_1)^2}{2\sigma_1^2} \}
-+p_2\frac{1}{\sqrt{ 2\pi\sigma_2^2} } exp\{ -\frac{(z_t-\mu_2)^2}{2\sigma_2^2} \} \right]
-$$,
-where $z_t = \frac{u_t}{\sigma_t}$
-
-
-<!-- ## Estimation Summary
-
-
-
-
-## Best Estimation Illustrations
-
- 
-**Table 2: Model selection by AIC: GJR vs EGARCH**
-
-| Distribution   | GJR Mean | GJR Vol | GJR AIC                          | EGARCH Mean | EGARCH Vol | EGARCH AIC |
-|----------------|----------|---------|----------------------------------|-------------|------------|------------|
-| Normal         | (1,1)    | (2,1)   | 359.4710                         | (1,1)       | (1,1)      | 368.2429   |
-| $t$            | (1,1)    | (2,1)   | <span style="color:red">343.1431</span> | (2,1)       | (1,1)      | 344.6254   |
-| Skew $t$       | (1,1)    | (2,1)   | 345.1312                         | (2,1)       | (1,1)      | 346.5791   |
-| GED            | (1,1)    | (2,1)   | 345.1925                         | (1,1)       | (1,1)      | 347.6934   |
-| Mix of Normal  | (1,1)    | (2,1)   | 345.8222                         | (2,1)       | (2,1)      | 343.5023   |
-
-**Table 3: Model selection by BIC: GJR vs EGARCH**
-
-| Distribution   | GJR Mean | GJR Vol | GJR BIC  | EGARCH Mean | EGARCH Vol | EGARCH BIC                       |
-|----------------|----------|---------|----------|-------------|------------|----------------------------------|
-| Normal         | FC       | (2,1)   | 381.4280 | FC          | (1,1)      | 383.4754                         |
-| $t$            | FC       | (1,1)   | 367.8350 | FC          | (1,1)      | <span style="color:red">367.1732</span> |
-| Skew $t$       | FC       | (1,1)   | 370.4242 | FC          | (1,1)      | 369.6649                         |
-| GED            | FC       | (1,1)   | 371.8489 | FC          | (1,1)      | 370.9644                         |
-| Mix of Normal  | FC       | (1,1)   | 373.7106 | FC          | (1,1)      | 371.0689                         |
-
-
-
- -->
-
-
-
-
 
