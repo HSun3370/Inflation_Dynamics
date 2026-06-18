@@ -4,34 +4,41 @@
 
 # BadGood BEGE Best Model Summary
 
-Generated: `2026-06-17T19:37:09`
+Generated: `2026-06-18T10:10:22`
 Total estimations: `8000`
 Converged estimations: `8000`
 Eligible estimations for best-model selection: `8000`
 
-Saved likelihoods are recomputed from the stored parameter paths before ranking. Large recursive shape states are evaluated by the BEGE saddlepoint density backend; `max(p_t, n_t)` is reported as a diagnostic, not as an exclusion rule.
+Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, finite positive shape paths, positive conditional variance paths, EWMA implied-variance bounds, mean-process stationarity, and documented parameter/stability constraints.
+This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage and reported in the parameter table.
 
-Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, finite positive shape paths, positive conditional variance paths, EWMA implied-variance bounds, mean-process stationarity, and documented parameter/stability constraints. Corrected log likelihoods above `-150` are flagged for review but are not excluded by this threshold.
-This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage for this selected model.
+CSV outputs:
+
+- [all estimations](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/all_estimations.csv)
+- [best model with SE](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/best_loglik_with_se.csv)
+- [selection diagnostics](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/selection_diagnostics.csv)
+- [path quantiles](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/path_quantile_diagnostics.csv)
+- [constant cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/by_mean/constant.csv)
+- [ARX(1,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/by_mean/ARX_1_1.csv)
+- [ARX(2,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/by_mean/ARX_2_1.csv)
+- [ARX(2,2) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BadGood_BEGE/results/by_mean/ARX_2_2.csv)
 
 ## Selected Best Model
 
 Best admissible estimate ranked by corrected log likelihood.
 
-| Mean | Seed | Draw | LogLik | AIC | BIC | Max Shape | Max Implied Var | Above -150 Diagnostic |
-|---|---:|---:|---:|---:|---:|---:|---:|:---:|
-| ARX(2,1) | 39 | 14 | -163.5594 | 351.1188 | 391.5664 | 40.7220 | 8.9086 | no |
+| Mean | Seed | Draw | LogLik | AIC | BIC |
+|---|---:|---:|---:|---:|---:|
+| ARX(2,1) | 39 | 14 | -163.5594 | 351.1188 | 391.5664 |
 
 Selection checks:
 
 - Optimizer convergence: `yes`
 - Parameter bounds: `yes`
 - BEGE stability restrictions: `yes`
-- Shape upper-cap diagnostic: `not flagged`
 - Implied variance bounds: `yes`
 - Mean-process stationarity: `yes`
-- Selection diagnostics: `eligible`
-- Standard errors: `computed`
+- Standard errors: `OPG inverse fallback`
 
 Empirical path quantiles:
 
@@ -46,22 +53,22 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\pi_{t+1} = \underset{(0.0000)}{0.2119} + \underset{(0.0000)}{0.2240}\,\pi_t + \underset{(0.0000)}{0.2742}\,\pi_{t-1} + \underset{(0.0000)}{0.2699}\,SPF_t + u_{t+1}
+\pi_{t+1} = 0.2119 + 0.2240\,\pi_t + 0.2742\,\pi_{t-1} + 0.2699\,SPF_t + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \underset{(0.0000)}{0.4778}\,\omega_{p,t} - \underset{(0.0000)}{0.4042}\,\omega_{n,t},\\
+u_t &= 0.4778\,\omega_{p,t} - 0.4042\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= \underset{(0.0000)}{0.1575} + \underset{(0.0000)}{0.5795}\,p_{t-1} + \frac{\underset{(0.0000)}{0.2143}}{2(\underset{(0.0000)}{0.4778})^2}\,u_{t-1}^2,\\
-n_t &= \underset{(0.0000)}{0.1900} + \underset{(0.0000)}{0.2831}\,n_{t-1} + \frac{\underset{(0.0000)}{0.6633}}{2(\underset{(0.0000)}{0.4042})^2}\,u_{t-1}^2
+p_t &= 0.1575 + 0.5795\,p_{t-1} + \frac{0.2143}{2(0.4778)^2}\,u_{t-1}^2,\\
+n_t &= 0.1900 + 0.2831\,n_{t-1} + \frac{0.6633}{2(0.4042)^2}\,u_{t-1}^2
 \end{aligned}
 $$
 
@@ -69,15 +76,15 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| c | 0.2119 | 0.0000 |
-| rho_1 | 0.2240 | 0.0000 |
-| rho_2 | 0.2742 | 0.0000 |
-| phi_1 | 0.2699 | 0.0000 |
-| p0 | 0.1575 | 0.0000 |
-| n0 | 0.1900 | 0.0000 |
-| rho_p | 0.5795 | 0.0000 |
-| rho_n | 0.2831 | 0.0000 |
-| phi_p | 0.2143 | 0.0000 |
-| phi_n | 0.6633 | 0.0000 |
-| sigma_p | 0.4778 | 0.0000 |
-| sigma_n | 0.4042 | 0.0000 |
+| $c$ | 0.2119 | 0.0283 |
+| $\rho_1$ | 0.2240 | 0.0281 |
+| $\rho_2$ | 0.2742 | 0.0140 |
+| $\phi_1$ | 0.2699 | 0.0447 |
+| $p_0$ | 0.1575 | 0.0329 |
+| $n_0$ | 0.1900 | 0.0469 |
+| $\rho_p$ | 0.5795 | 0.0474 |
+| $\rho_n$ | 0.2831 | 0.0315 |
+| $\phi_p$ | 0.2143 | 0.0433 |
+| $\phi_n$ | 0.6633 | 0.0058 |
+| $\sigma_p$ | 0.4778 | 0.0509 |
+| $\sigma_n$ | 0.4042 | 0.0328 |

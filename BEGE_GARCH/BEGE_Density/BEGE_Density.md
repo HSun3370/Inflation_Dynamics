@@ -5,7 +5,53 @@
 
 #  BEGE Density
 
-BEGE density function $f ( u | p, n, \sigma_p, \sigma_n)$ is the function that calculates the density of the observation $u$ given the parameters $\{p, n, \sigma_p, \sigma_n\}$. We have three code on table--Numerical Integration, Justin's code, and my improved code. I compare three code by computing the sum of log likelihood function on real residuals instead of sythetic data. This gives relative comparision between codes. 
+The BEGE density $f(u\mid p,n,\sigma_p,\sigma_n)$ is the conditional density
+of one inflation residual given the two gamma shape parameters and two scale
+parameters. This section compares three implementations:
+
+- numerical integration, which is slow but useful as an independent benchmark;
+- Justin's closed-form hypergeometric implementation;
+- the current stabilized implementation in `BEGE_density.py`.
+
+The main conclusion is that Justin's closed-form formula is correct in stable
+regions, but its direct numerical evaluation can fail when the shape parameters
+enter the transition range where the BEGE distribution is already close to a
+Gaussian law. In those cases, very large terms in the hypergeometric expression
+nearly cancel. Finite-precision evaluation can then create artificial
+pointwise log densities that are economically impossible and can dominate the
+likelihood search.
+
+## Executive Summary
+
+- For moderate shape values, the current implementation and Justin's analytic
+  implementation agree to numerical precision.
+- On the fixed-shape timing tests below, the current implementation is about
+  1.5 times faster than Justin's implementation and about 957 times faster
+  than 5,000-grid numerical integration at the median across the five test
+  cases.
+- The old job-side density produced implausibly large likelihoods on some
+  dynamic BEGE estimates. For example, one BadGood ARX(2,1) row had stored
+  LogLik 4920.7089, while the stabilized density gives -722.4342 and the
+  saddlepoint check gives -722.7255.
+- At the pointwise level, one old high-likelihood row reported
+  $\ell_t=90.3648$ for an observation with conditional variance 42.9373. The
+  stabilized, saddlepoint, and Fourier-inversion values are all about -2.8008.
+  This identifies a numerical failure of the hypergeometric evaluation, not an
+  economic feature of the BEGE recursion.
+
+## What Changed In `BEGE_density.py`
+
+| Issue | Justin implementation | Current implementation | Reason |
+|---|---|---|---|
+| Hypergeometric evaluation | Direct `scipy.special.hyperu` or scalar `mpmath.hyperu` fallback. | Vectorized SciPy where stable, selective high-precision fallback, and log-domain asymptotic fallbacks when hyperu is nonfinite. | Avoid paying high-precision cost for every observation while keeping stable exact values. |
+| Large-shape transition region | Uses the closed-form branch until a hard max-shape switch. | Guards exact values once $p_t+n_t\geq 40$, blends exact and saddlepoint between total shape 50 and 80, and replaces exact values when exact and saddlepoint differ by more than 2 log units. | The failure is driven by cancellation in total shape, and it can occur before a max-shape cutoff is reached. |
+| Near-normal limit | No explicit analytic normal-limit rule. | Uses a Gaussian density when total shape is at least 500 and standardized skewness and excess kurtosis are both below 0.03. | Gamma shocks converge analytically to a normal law under variance-preserving shape rescaling. |
+| Density continuity | Hard branch switches can create likelihood discontinuities. | Uses log-sum-exp blending in the transition band. | Keeps the objective smoother for optimization. |
+| Failure diagnostics | High likelihoods can silently enter estimation results. | The collector recomputes stored estimates with the stabilized density and writes path/layer diagnostics to CSV. | Prevents stale or unstable density values from determining best models. |
+
+The current thresholds are deliberately conservative: exact hypergeometric
+values are still used when they agree with saddlepoint values, while suspicious
+large-shape exact values are replaced by the saddlepoint approximation.
 
 I compare three fixed-shape BEGE density implementations on the ARX(1,1) residuals from the canonical effective sample. As a benchmark, the Gaussian OLS log-likelihood is −207.381. The residuals are mean-zero (0.00) with a standard deviation of 0.636326, a negative skewness of −1.047441 and a large excess kurtosis of 8.210174.
 
@@ -33,7 +79,7 @@ The log likelihood and timing comparison uses the following five BadGood-based p
 
 `BEGE_density.py` is the current implementation. `BEGE_density_Justin.py` is Justin's analytic formula, and the numerical columns use `BEGE_density_Numerical_Integration.py::loglikedgam_constant` at the stated grid size.
 
-| Parameter set | My function | Justin function | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
+| Parameter set | Current implementation | Justin function | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | p q05, n median | -214.162839 | -214.162839 | -223.900355 | -213.330306 | -214.116656 | -214.148282 | -214.146613 | -214.160080 |
 | p median, n median | -188.957117 | -188.957117 | -196.801762 | -188.438308 | -189.359597 | -189.033173 | -188.947127 | -188.954400 |
@@ -41,13 +87,13 @@ The log likelihood and timing comparison uses the following five BadGood-based p
 | p median, n q05 | -212.877473 | -212.877473 | -380.654962 | -214.556763 | -214.448495 | -212.976377 | -213.323667 | -212.904257 |
 | p median, n q95 | -235.887717 | -235.887717 | -234.563988 | -235.609633 | -235.748009 | -235.859932 | -235.873999 | -235.885265 |
 
-- The old numerical integration method converges toward Justin's  likelihood function as the number of grid points increases, but the convergence is slow and requires very fine grids.
+- The old numerical integration method converges toward Justin's likelihood function as the number of grid points increases, but the convergence is slow and requires very fine grids.
 - For small or moderate grid sizes, the numerical integration *overestimates* the log-likelihood.   
 
 
 ## Evaluation Speed Comparison
 
-| Parameter set | My function | Justin function | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
+| Parameter set | Current implementation | Justin function | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | p q05, n median | 0.0003 | 0.0005 | 0.0086 | 0.0427 | 0.0883 | 0.4326 | 0.9102 | 4.5478 |
 | p median, n median | 0.0004 | 0.0006 | 0.0075 | 0.0358 | 0.0730 | 0.3674 | 0.7613 | 3.8117 |
@@ -55,7 +101,12 @@ The log likelihood and timing comparison uses the following five BadGood-based p
 | p median, n q05 | 0.0003 | 0.0005 | 0.0076 | 0.0358 | 0.0737 | 0.3567 | 0.7479 | 3.6527 |
 | p median, n q95 | 0.0004 | 0.0006 | 0.0059 | 0.0284 | 0.0611 | 0.2900 | 0.5937 | 2.9724 |
 
-- My improved code provides an equavalent accurate and more computationally efficient evaluation.
+- The current stabilized analytic implementation is slightly faster than
+  Justin's direct analytic implementation in these moderate-shape cases
+  (median speedup about 1.5 times).
+- The current implementation is orders of magnitude faster than numerical
+  integration. Relative to the 5,000-grid integration line, the median speedup
+  is about 957 times across the five parameter sets.
 
 
 ![Numerical integration convergence](results/BEGE_Density_numerical_convergence.png)

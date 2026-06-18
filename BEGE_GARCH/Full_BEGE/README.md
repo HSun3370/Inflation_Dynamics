@@ -2,76 +2,88 @@
 #set page(margin: auto)
 ```
 
+# Full BEGE Best Model Summary
 
+Generated: `2026-06-18T10:11:22`
+Total estimations: `8000`
+Converged estimations: `8000`
+Eligible estimations for best-model selection: `8000`
 
-## Full BEGE
+Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, finite positive shape paths, positive conditional variance paths, EWMA implied-variance bounds, mean-process stationarity, and documented parameter/stability constraints.
+This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage and reported in the parameter table.
 
-BEGE GARCH has mean process and higher:
+CSV outputs:
+
+- [constant cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/constant.csv)
+- [ARX(1,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_1_1.csv)
+- [ARX(2,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_2_1.csv)
+- [ARX(2,2) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/Full_BEGE/results/by_mean/ARX_2_2.csv)
+
+## Selected Best Model
+
+Best admissible estimate ranked by corrected log likelihood.
+
+| Mean | Seed | Draw | LogLik | AIC | BIC |
+|---|---:|---:|---:|---:|---:|
+| ARX(2,2) | 13 | 33 | -165.2805 | 360.5611 | 411.1206 |
+
+Selection checks:
+
+- Optimizer convergence: `yes`
+- Parameter bounds: `yes`
+- BEGE stability restrictions: `yes`
+- Implied variance bounds: `yes`
+- Mean-process stationarity: `yes`
+- Standard errors: `OPG inverse fallback; boundary, numerically unidentified, or below-display-precision SE reported as NA`
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $p_t$ | 0.9806 | 1.1858 | 2.3678 |
+| $n_t$ | 0.0849 | 0.2556 | 2.8363 |
+| $\sigma_t^2$ | 0.1834 | 0.2969 | 1.1546 |
+| $s_t^2$ | -0.9826 | 0.0427 | 0.1478 |
+| $k_t^2$ | 0.1925 | 0.3661 | 2.0843 |
+
+Mean process:
+
+$$
+\pi_{t+1} = 0.1937 + 0.1415\,\pi_t + 0.1380\,\pi_{t-1} + 0.2283\,SPF_t + 0.3635\,SPF_{t-1} + u_{t+1}
+$$
+
+BEGE volatility process:
 
 $$
 \begin{aligned}
-\pi_{t+1} &= \hat{\pi}_{t+1} + u_{t+1}, \\
-u_{t+1} &= \sigma_p \, \omega_{p} - \sigma_n \, \omega_{n},
+u_t &= 0.3802\,\omega_{p,t} - 0.5787\,\omega_{n,t},\\
+\omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
-
-where
-
-$$
-\omega_{p} \sim \tilde{\Gamma}(p_t, 1), \quad \omega_{n} \sim \tilde{\Gamma}(n_t, 1).
-$$
-
-Here $n_t, p_t$ is generated recursively through a GJR-type updating equation with parameters $(p_0, n_0, \rho_p, \rho_n, \phi^+_p, \phi_p^-, \phi_n^+, \phi_n^-)$:
 
 $$
 \begin{aligned}
-p_{t} &= p_0 + \rho_p \, p_{t-1}
-        + \frac{\phi^+_p }{2  \sigma_p^2}\, (u_{t-1}^+)^2 + \frac{\phi^-_p }{2  \sigma_p^2}\,(u_{t-1}^-)^2,\\
-n_{t} &= n_0 + \rho_n \, n_{t-1}
-        + \frac{\phi^+_n }{2  \sigma_n^2}\, (u_{t-1}^+)^2 + \frac{\phi^- _n}{2  \sigma_n^2} \,(u_{t-1}^-)^2
+p_t &= 0.0347 + 0.9561\,p_{t-1} + \frac{0.0000}{2(0.3802)^2}\,(u_{t-1}^+)^2 + \frac{0.0334}{2(0.3802)^2}\,(u_{t-1}^-)^2,\\
+n_t &= 0.0295 + 0.5611\,n_{t-1} + \frac{0.7784}{2(0.5787)^2}\,(u_{t-1}^+)^2 + \frac{0.0720}{2(0.5787)^2}\,(u_{t-1}^-)^2
 \end{aligned}
 $$
 
-The parameter bounds are chosen to be:
+Parameter table:
 
-- $0 \leq p_0, n_0 < 10$,
-- $0 \leq \rho_p, \rho_n \leq 1$,
-- $0 \leq \phi^+_p, \phi_p^-, \phi_n^+, \phi_n^- \leq 2$,
-- $10^{-5} < \sigma_p, \sigma_n < 2$.
-
- I have set the constraints below.
-
-- $\rho + \frac{\phi^+}{2} + \frac{\phi^-}{2} < 1$ for both BE and GE shape processes.
-- The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.
-
-The hard cap $\max\{p_t, n_t\} < 200$ is not imposed during raw multi-start
-optimization or reported best-model selection by default. The stabilized BEGE
-density is evaluated directly as long as the recursive shape series are finite;
-large shape states use the saddlepoint density backend. The collector writes
-the maximum shape path as a diagnostic in `results/selection_diagnostics.csv`.
-
-## Batch Estimation
-
-`BEGE_GJR1.py` estimates the Full BEGE specification on the canonical effective sample from `DataSummary/README.md`, **1969Q2--2022Q4** with **215 observations**. The runner uses the precomputed lag columns when they are available, so lagged ARX regressors do not trim the sample again.
-
-The script estimates the four mean-process specifications:
-
-- Constant
-- ARX(1,1)
-- ARX(2,1)
-- ARX(2,2)
-
-Results are checkpointed to `output/raw/draw_###.csv` after each draw. This keeps completed mean-process rows when a seed job is interrupted, while the final write still contains all requested rows when the seed finishes.
-
-`collect_full_results.py` merges the raw seed files and writes:
-
-- `results/all_estimations.csv`, without standard-error columns or optimizer messages.
-- `results/by_mean/constant.csv`, `results/by_mean/ARX_1_1.csv`, `results/by_mean/ARX_2_1.csv`, and `results/by_mean/ARX_2_2.csv`, which split the eligible cleaned estimations by mean process and retain empirical path quantiles.
-- `results/selection_diagnostics.csv`, with stored and corrected likelihood criteria plus selection diagnostics.
-- `results/path_quantile_diagnostics.csv`, with each estimate's parameters and empirical 5%, median, and 95% quantiles for $p_t$, $n_t$, $\sigma_t^2$, $s_t^2$, and $k_t^2$ from the fixed effective-sample recursion.
-- `results/best_loglik_with_se.csv`, with standard errors for the likelihood-best admissible fit.
-- `results/best_model.md`, with only the likelihood-best admissible fit, reported as substituted mean and BEGE volatility equations with standard errors shown below the parameter values.
-
-When `START_ID` and `END_ID` are set, the collector only merges `draw_###.csv` files in that seed range. This prevents older seed files from entering a new smaller resubmission.
-
-`SimulationGJR.sh` defaults to 50 seed jobs, 40 draws per mean process, 25 optimizer starts per draw, and 800 SLSQP iterations per start. This gives 50,000 optimizer starts for each mean process and Full BEGE specification. With all four mean processes, that is 200,000 optimizer starts total.
+| Parameter | Estimate | Std. Error |
+|---|---:|---:|
+| $c$ | 0.1937 | 0.0783 |
+| $\rho_1$ | 0.1415 | 0.0611 |
+| $\rho_2$ | 0.1380 | 0.0618 |
+| $\phi_1$ | 0.2283 | 0.2319 |
+| $\phi_2$ | 0.3635 | 0.1626 |
+| $p_0$ | 0.0347 | 0.0277 |
+| $n_0$ | 0.0295 | 0.0258 |
+| $\rho_p$ | 0.9561 | 0.0242 |
+| $\rho_n$ | 0.5611 | 0.0879 |
+| $\phi_p^+$ | 0.0000 | NA |
+| $\phi_p^-$ | 0.0334 | 0.0159 |
+| $\phi_n^+$ | 0.7784 | 0.1702 |
+| $\phi_n^-$ | 0.0720 | 0.0947 |
+| $\sigma_p$ | 0.3802 | 0.0621 |
+| $\sigma_n$ | 0.5787 | 0.1108 |

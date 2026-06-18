@@ -2,57 +2,85 @@
 #set page(margin: auto)
 ```
 
-## Constant-p Full BEGE
+# Constant-p Full BEGE Best Model Summary
 
-This specification is an explicitly requested extension of the baseline BEGE menu. It keeps the good-news shape process constant while allowing the bad-news shape process to follow the unrestricted Full BEGE GJR update:
+Generated: `2026-06-18T10:11:11`
+Total estimations: `8000`
+Converged estimations: `8000`
+Eligible estimations for best-model selection: `8000`
+
+Selection screen: finite corrected AIC/BIC/log-likelihood, successful optimizer status, finite positive shape paths, positive conditional variance paths, EWMA implied-variance bounds, mean-process stationarity, and documented parameter/stability constraints.
+This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage and reported in the parameter table.
+
+CSV outputs:
+
+- [constant cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/constant.csv)
+- [ARX(1,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_1_1.csv)
+- [ARX(2,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_2_1.csv)
+- [ARX(2,2) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_2_2.csv)
+
+## Selected Best Model
+
+Best admissible estimate ranked by corrected log likelihood.
+
+| Mean | Seed | Draw | LogLik | AIC | BIC |
+|---|---:|---:|---:|---:|---:|
+| ARX(2,2) | 28 | 25 | -166.7909 | 357.5819 | 398.0296 |
+
+Selection checks:
+
+- Optimizer convergence: `yes`
+- Parameter bounds: `yes`
+- BEGE stability restrictions: `yes`
+- Implied variance bounds: `yes`
+- Mean-process stationarity: `yes`
+- Standard errors: `OPG inverse fallback`
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $p_t$ | 0.4727 | 0.4727 | 0.4727 |
+| $n_t$ | 0.4590 | 0.9268 | 7.3165 |
+| $\sigma_t^2$ | 0.1990 | 0.2674 | 1.2023 |
+| $s_t^2$ | -0.6797 | 0.0355 | 0.0878 |
+| $k_t^2$ | 0.2795 | 0.3396 | 1.1602 |
+
+Mean process:
+
+$$
+\pi_{t+1} = 0.1831 + 0.1660\,\pi_t + 0.0787\,\pi_{t-1} + 0.2999\,SPF_t + 0.3076\,SPF_{t-1} + u_{t+1}
+$$
+
+BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= \sigma_p \omega_{p,t} - \sigma_n \omega_{n,t},\\
-\omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad
-\omega_{n,t}\sim \tilde{\Gamma}(n_t,1),\\
-p_t &= p_0,\\
-n_t &= n_0 + \rho_n n_{t-1}
-      + \frac{\phi_n^+}{2\sigma_n^2}(u_{t-1}^+)^2
-      + \frac{\phi_n^-}{2\sigma_n^2}(u_{t-1}^-)^2.
+u_t &= 0.5281\,\omega_{p,t} - 0.3825\,\omega_{n,t},\\
+\omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
-The parameter bounds follow the Full BEGE bounds:
-
-- $0 \leq p_0, n_0 < 10$,
-- $0 \leq \rho_n \leq 1$,
-- $0 \leq \phi_n^+, \phi_n^- \leq 2$,
-- $10^{-5} < \sigma_p, \sigma_n < 2$.
-
-The dynamic shape process satisfies
-
 $$
-\rho_n + \frac{\phi_n^+ + \phi_n^-}{2} < 1.
+\begin{aligned}
+p_t &= 0.4727,\\
+n_t &= 0.2113 + 0.4747\,n_{t-1} + \frac{0.7577}{2(0.3825)^2}\,(u_{t-1}^+)^2 + \frac{0.2362}{2(0.3825)^2}\,(u_{t-1}^-)^2
+\end{aligned}
 $$
 
-The implied variance path $\sigma_p^2 p_t + \sigma_n^2 n_t$ must satisfy the project EWMA lower and upper bounds at every effective-sample observation.
+Parameter table:
 
-## Batch Estimation
-
-`BEGE_constant_p1.py` estimates the Constant-p Full BEGE specification on the canonical effective sample from `DataSummary/README.md`, **1969Q2--2022Q4** with **215 observations**. The runner uses precomputed lag columns when available, so lagged ARX regressors do not trim the sample again.
-
-The script estimates all four mean-process specifications:
-
-- Constant
-- ARX(1,1)
-- ARX(2,1)
-- ARX(2,2)
-
-Results are checkpointed to `output/raw/draw_###.csv` after each draw.
-
-`collect_constant_p_results.py` merges raw seed files and writes:
-
-- `results/all_estimations.csv`, without standard-error columns or optimizer messages.
-- `results/by_mean/constant.csv`, `results/by_mean/ARX_1_1.csv`, `results/by_mean/ARX_2_1.csv`, and `results/by_mean/ARX_2_2.csv`, which split the eligible cleaned estimations by mean process and retain empirical path quantiles.
-- `results/selection_diagnostics.csv`, with stored and corrected likelihood criteria plus selection diagnostics.
-- `results/path_quantile_diagnostics.csv`, with each estimate's parameters and empirical 5%, median, and 95% quantiles for $p_t$, $n_t$, $\sigma_t^2$, $s_t^2$, and $k_t^2$ from the fixed effective-sample recursion.
-- `results/best_loglik_with_se.csv`, with standard errors for the likelihood-best admissible fit.
-- `results/best_model.md`, with only the likelihood-best admissible fit.
-
-`SimulationConstantP.sh` defaults to 50 seed jobs, 40 draws per mean process, 25 optimizer starts per draw, and 800 SLSQP iterations per start. This gives 50,000 optimizer starts for each mean process and Constant-p BEGE specification. With all four mean processes, that is 200,000 optimizer starts total.
+| Parameter | Estimate | Std. Error |
+|---|---:|---:|
+| $c$ | 0.1831 | 0.0290 |
+| $\rho_1$ | 0.1660 | 0.0376 |
+| $\rho_2$ | 0.0787 | 0.0273 |
+| $\phi_1$ | 0.2999 | 0.1631 |
+| $\phi_2$ | 0.3076 | 0.1028 |
+| $p_0$ | 0.4727 | 0.1424 |
+| $n_0$ | 0.2113 | 0.0517 |
+| $\rho_n$ | 0.4747 | 0.0291 |
+| $\phi_n^+$ | 0.7577 | 0.0098 |
+| $\phi_n^-$ | 0.2362 | 0.0348 |
+| $\sigma_p$ | 0.5281 | 0.1365 |
+| $\sigma_n$ | 0.3825 | 0.0364 |

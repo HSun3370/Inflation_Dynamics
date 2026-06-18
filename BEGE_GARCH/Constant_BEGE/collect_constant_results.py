@@ -24,13 +24,15 @@ from BEGE_GARCH.bege_batch import (
     _path_quantile_columns,
     _path_quantile_metrics,
     _project_to_bounds,
-    _safe_inv_with_ridge,
-    _sym_matrix,
+    _standard_error_result,
+    append_csv_links,
     build_model_specs,
     eligible_result_rows,
     load_effective_sample,
     optimizer_success_mask,
+    parameter_label,
     path_quantile_diagnostics_view,
+    readme_markdown_from_best_model,
     write_mean_split_csvs,
 )
 
@@ -268,34 +270,15 @@ def compute_standard_errors_for_row(row: pd.Series, *, spec: dict) -> dict:
     if not np.isfinite(obj_value) or obj_value >= 1e12:
         raise ValueError("Likelihood is not finite at the supplied estimate.")
 
-    hessian = approx_hess(theta_eval, negloglik, epsilon=1e-5)
-    hessian = _sym_matrix(hessian)
-    hessian_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(hessian)
-
     scores = _central_diff_scores(theta_eval, ind_negloglik, bounds, n_obs)
-    opg = scores.T @ scores
-    opg_scale = np.linalg.norm(opg) / max(1, opg.size)
-    used_opg_fallback = (not np.isfinite(opg_scale)) or opg_scale < 1e-8
-    if used_opg_fallback:
-        covariance = hessian_inv.copy()
-    else:
-        covariance = hessian_inv @ _sym_matrix(opg) @ hessian_inv
-
-    covariance = _sym_matrix(covariance)
-    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
-    eigenvalues = np.maximum(eigenvalues, 0.0)
-    covariance = (eigenvectors * eigenvalues) @ eigenvectors.T
-    standard_errors = np.sqrt(np.diag(covariance))
-
-    result = {
-        "se_message": "computed",
-        "se_hessian_ridge": float(used_ridge),
-        "se_used_pseudoinverse": bool(used_pseudo),
-        "se_used_opg_fallback": bool(used_opg_fallback),
-    }
-    for name, se in zip(names, standard_errors):
-        result[f"se_{name}"] = float(se)
-    return result
+    hessian = approx_hess(theta_eval, negloglik, epsilon=1e-5)
+    return _standard_error_result(
+        names=names,
+        theta=theta_eval,
+        bounds=bounds,
+        hessian=hessian,
+        scores=scores,
+    )
 
 
 def add_standard_errors_for_rows(rows: list[pd.Series], *, project_root: Path) -> list[dict]:
@@ -446,11 +429,7 @@ def best_overall(df: pd.DataFrame) -> pd.Series:
 
 def _math_param(row: dict, name: str) -> str:
     estimate = row.get(f"param_{name}", np.nan)
-    se = row.get(f"se_{name}", np.nan)
-    estimate_text = format_value(estimate)
-    if pd.isna(se):
-        return estimate_text
-    return rf"\underset{{({format_value(se)})}}{{{estimate_text}}}"
+    return format_value(estimate)
 
 
 def _mean_equation(row: dict) -> list[str]:
@@ -505,7 +484,7 @@ def _append_parameter_table(lines: list[str], row: dict, names: list[str]) -> No
     lines.extend(["| Parameter | Estimate | Std. Error |", "|---|---:|---:|"])
     for name in names:
         lines.append(
-            f"| {name} | {format_value(row.get(f'param_{name}'))} | "
+            f"| {parameter_label(name)} | {format_value(row.get(f'param_{name}'))} | "
             f"{format_value(row.get(f'se_{name}'))} |"
         )
     lines.append("")
@@ -521,16 +500,15 @@ def _append_top20_section(lines: list[str], mean_type: str, rows: list[dict]) ->
         [
             f"Top {len(rows)} admissible estimates ranked by log likelihood.",
             "",
-            "| Rank | Seed | Draw | LogLik | AIC | BIC | Implied Var | Above -150 Diagnostic |",
-            "|---:|---:|---:|---:|---:|---:|---:|:---:|",
+            "| Rank | Seed | Draw | LogLik | AIC | BIC | Implied Var |",
+            "|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in rows:
-        high_flag = "yes" if not bool(row.get("selection_loglik_plausible", True)) else "no"
         lines.append(
             f"| {format_int(row.get('rank'))} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
             f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
-            f"{format_value(row.get('selection_cond_var_max'))} | {high_flag} |"
+            f"{format_value(row.get('selection_cond_var_max'))} |"
         )
     lines.append("")
 
@@ -619,101 +597,46 @@ def _append_best_by_mean_section(
     *,
     initial_shapes_path: Path | None = None,
 ) -> None:
-    lines.extend(["## Selected Best Models by Mean Process", ""])
+    lines.extend(["## Selected Best Model", ""])
     if not rows:
         lines.extend(["No eligible estimates found for best-model selection.", ""])
         return
 
-    rows_by_mean = {row.get("mean_type"): row for row in rows}
     overall_best = max(
         rows,
         key=lambda row: float(row.get("loglik", -np.inf))
         if pd.notna(row.get("loglik", np.nan))
         else -np.inf,
     )
-    overall_best_mean = overall_best.get("mean_type")
+    mean_type = overall_best.get("mean_type")
 
     lines.extend(
         [
-            "Best admissible estimates are ranked by log likelihood within each mean process. "
-            "The marked `p_bar` and `n_bar` values are the fixed Constant BEGE shape estimates; "
-            "they are also the recommended initial `p_0` and `n_0` values for follow-up dynamic-shape tests.",
+            "Best admissible estimate ranked by log likelihood across mean processes.",
+            "",
+            "| Mean | Seed | Draw | LogLik | AIC | BIC |",
+            "|---|---:|---:|---:|---:|---:|",
+            f"| {mean_type} | {format_int(overall_best.get('seed'))} | {format_int(overall_best.get('draw'))} | "
+            f"{format_value(overall_best.get('loglik'))} | {format_value(overall_best.get('AIC'))} | "
+            f"{format_value(overall_best.get('BIC'))} |",
+            "",
+            "Selection checks:",
+            "",
+            f"- Optimizer convergence: `{_bool_text(overall_best.get('optimizer_success', overall_best.get('success', np.nan)))}`",
+            f"- Parameter bounds: `{_bool_text(overall_best.get('selection_bounds_ok', np.nan))}`",
+            f"- Implied variance bounds: `{_bool_text(overall_best.get('selection_implied_variance_bounds_ok', np.nan))}`",
+            f"- Mean-process stationarity: `{_bool_text(overall_best.get('selection_mean_stationary', np.nan))}`",
+            f"- Standard errors: `{overall_best.get('se_message', 'not computed')}`",
             "",
         ]
     )
-    if initial_shapes_path is not None:
-        try:
-            display_path = initial_shapes_path.resolve().relative_to(PROJECT_ROOT).as_posix()
-        except ValueError:
-            display_path = initial_shapes_path.as_posix()
-        lines.extend(
-            [
-                f"Initial-shape values saved to `{display_path}`.",
-                "",
-            ]
-        )
-
-    lines.extend(
-        [
-            "| Mean | Overall Pick | Seed | Draw | LogLik | AIC | BIC | **p_bar** | **n_bar** | Initial p_0 | Initial n_0 | Implied Var | Above -150 Diagnostic |",
-            "|---|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---:|",
-        ]
-    )
-    for mean_type in MEAN_TYPES:
-        row = rows_by_mean.get(mean_type)
-        if row is None:
-            lines.append(f"| {mean_type} |  | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA | NA |")
-            continue
-        high_flag = "yes" if not bool(row.get("selection_loglik_plausible", True)) else "no"
-        overall_flag = "yes" if mean_type == overall_best_mean else "no"
-        p_bar = row.get("param_shape_p")
-        n_bar = row.get("param_shape_n")
-        lines.append(
-            f"| {mean_type} | {overall_flag} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
-            f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
-            f"**{format_value(p_bar)}** | **{format_value(n_bar)}** | "
-            f"{format_value(p_bar)} | {format_value(n_bar)} | "
-            f"{format_value(row.get('selection_cond_var_median'))} | {high_flag} |"
-        )
-    lines.append("")
-
-    for mean_type in MEAN_TYPES:
-        row = rows_by_mean.get(mean_type)
-        lines.extend([f"### {mean_type}", ""])
-        if row is None:
-            lines.extend(["No eligible estimates found for this mean process.", ""])
-            continue
-
-        high_flag = "yes" if not bool(row.get("selection_loglik_plausible", True)) else "no"
-        lines.extend(
-            [
-                "| Seed | Draw | LogLik | AIC | BIC | **p_bar** | **n_bar** | Implied Var | Above -150 Diagnostic |",
-                "|---:|---:|---:|---:|---:|---:|---:|---:|:---:|",
-                f"| {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
-                f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
-                f"**{format_value(row.get('param_shape_p'))}** | **{format_value(row.get('param_shape_n'))}** | "
-                f"{format_value(row.get('selection_cond_var_median'))} | {high_flag} |",
-                "",
-                "Selection checks:",
-                "",
-                f"- Optimizer convergence: `{_bool_text(row.get('optimizer_success', row.get('success', np.nan)))}`",
-                f"- Parameter bounds: `{_bool_text(row.get('selection_bounds_ok', np.nan))}`",
-                "- BEGE stability and variance restrictions: `not applicable for fixed-shape Constant BEGE`",
-                "- Shape upper-cap diagnostic: `not applicable for fixed-shape Constant BEGE`",
-                f"- Implied variance bounds: `{_bool_text(row.get('selection_implied_variance_bounds_ok', np.nan))}`",
-                f"- Mean-process stationarity: `{_bool_text(row.get('selection_mean_stationary', np.nan))}`",
-                f"- Selection diagnostics: `{row.get('selection_reason', 'NA')}`",
-                f"- Standard errors: `{row.get('se_message', 'not computed')}`",
-                "",
-            ]
-        )
-        _append_path_quantile_table(lines, row)
-        lines.extend(["Mean process:", ""])
-        lines.extend(_mean_equation(row))
-        lines.extend(["", "BEGE volatility process:", ""])
-        lines.extend(_constant_volatility_equation(row))
-        lines.extend(["", "Parameter table:", ""])
-        _append_parameter_table(lines, row, PARAMETER_NAMES[mean_type])
+    _append_path_quantile_table(lines, overall_best)
+    lines.extend(["Mean process:", ""])
+    lines.extend(_mean_equation(overall_best))
+    lines.extend(["", "BEGE volatility process:", ""])
+    lines.extend(_constant_volatility_equation(overall_best))
+    lines.extend(["", "Parameter table:", ""])
+    _append_parameter_table(lines, overall_best, PARAMETER_NAMES[mean_type])
 
 
 def write_markdown_summary(
@@ -724,11 +647,6 @@ def write_markdown_summary(
 ) -> None:
     observed_means = set(df.get("mean_type", pd.Series(dtype=str)).dropna().unique())
     missing_means = [mean_type for mean_type in MEAN_TYPES if mean_type not in observed_means]
-    selection_artifacts = success_mask(df) & numerical_artifact_mask(df)
-    high_loglik_count = int(
-        (pd.to_numeric(df.get("loglik", pd.Series(np.nan, index=df.index)), errors="coerce")
-         > IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD).sum()
-    )
 
     lines = [
         "```{raw:typst}",
@@ -744,46 +662,18 @@ def write_markdown_summary(
         "",
         "Selection screen: successful optimizer status, finite positive BEGE parameters, "
         "documented parameter bounds, EWMA implied-variance bounds, positive conditional variance, "
-        "and mean-process stationarity. Log likelihoods above "
-        f"`{IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD:g}` are flagged for review but are not excluded by this threshold.",
-        "This report shows the likelihood-best admissible estimate for each mean process. "
-        "Standard errors are computed at the reporting stage for these selected models.",
+        "and mean-process stationarity.",
+        "This report shows only the single likelihood-best admissible estimate across mean processes. "
+        "Standard errors are computed at the reporting stage and reported in the parameter table.",
         "",
     ]
+    append_csv_links(lines, summary_path.parent, include_constant_shapes=True)
 
     if missing_means:
         lines.extend(
             [
                 "```{warning}",
                 "Missing expected mean process results: " + ", ".join(missing_means),
-                "```",
-                "",
-            ]
-        )
-
-    if selection_artifacts.any():
-        excluded = df.loc[selection_artifacts].sort_values("loglik", ascending=False)
-        top = excluded.iloc[0]
-        lines.extend(
-            [
-                "```{warning}",
-                f"Excluded {len(excluded)} successful estimate(s) from best-model selection because "
-                "`shape_p + shape_n` is numerically an integer, a known unstable point for the "
-                "SciPy hyperu BEGE-density evaluation. Top excluded row: "
-                f"`{top['mean_type']}`, seed `{format_int(top.get('seed'))}`, "
-                f"draw `{format_int(top.get('draw'))}`, reported LogLik "
-                f"`{format_value(top.get('loglik'))}`.",
-                "```",
-                "",
-            ]
-        )
-
-    if high_loglik_count:
-        lines.extend(
-            [
-                "```{note}",
-                f"Flagged {high_loglik_count} estimate(s) with log likelihood above "
-                f"`{IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD:g}` for manual review. These rows remain eligible if they pass the admissibility checks.",
                 "```",
                 "",
             ]
@@ -942,6 +832,12 @@ def main() -> None:
         best_loglik_rows=best_loglik_rows,
         initial_shapes_path=initial_shapes_path,
     )
+    readme_path = script_dir / "README.md"
+    if results_dir.resolve() == (script_dir / "results").resolve():
+        readme_path.write_text(
+            readme_markdown_from_best_model(out_md.read_text(encoding="utf-8")),
+            encoding="utf-8",
+        )
 
     if start_seed is not None or end_seed is not None:
         print(f"Seed file filter: START_ID={start_seed}, END_ID={end_seed}")
@@ -955,6 +851,8 @@ def main() -> None:
     print(f"Wrote selected best models with SEs: {best_se_path}")
     print(f"Wrote selected initial shapes: {initial_shapes_path}")
     print(f"Wrote summary markdown: {out_md}")
+    if results_dir.resolve() == (script_dir / "results").resolve():
+        print(f"Wrote summary README: {readme_path}")
 
 
 if __name__ == "__main__":
