@@ -10,6 +10,7 @@ Estimated combinations
 Outputs
 - CSV summary for all models
 - CSV parameters for all models
+- CSV diagnostics for combinations with no stable converged fit
 - TXT line-by-line printout (AIC/BIC/LogLik)
 - Markdown report with best model by AIC and by BIC
 """
@@ -60,6 +61,7 @@ ORDERS = ((1, 1), (1, 2), (2, 1), (2, 2))
 DISTRIBUTIONS = ("normal", "studentst", "mix_normal")
 VOL_FAMILIES = ("GARCH", "GJR-GARCH", "EGARCH")
 COMMON_HOLD_BACK = 0
+STABILITY_MARGIN = 1e-6
 
 DISTRIBUTION_LABEL = {
     "normal": "Normal",
@@ -405,14 +407,13 @@ def make_arch_fit_func(
         rescale=False,
     )
 
-    def _fit(backcast: float, starting_values: np.ndarray | None):
+    def _fit(starting_values: np.ndarray | None):
         kwargs: dict[str, Any] = {
             "disp": "off",
             "update_freq": 0,
             "cov_type": "robust",
             "show_warning": False,
             "options": {"maxiter": 3000},
-            "backcast": float(backcast),
         }
         if starting_values is not None:
             kwargs["starting_values"] = starting_values
@@ -469,14 +470,13 @@ def make_sparch_fit_func(
     )
     mix_model.distribution = MixNormal()
 
-    def _fit(backcast: float, starting_values: np.ndarray | None):
+    def _fit(starting_values: np.ndarray | None):
         kwargs: dict[str, Any] = {
             "disp": "off",
             "update_freq": 0,
             "cov_type": "robust",
             "show_warning": False,
             "options": {"maxiter": 4000},
-            "backcast": float(backcast),
         }
         kwargs["starting_values"] = initial if starting_values is None else starting_values
         with warnings.catch_warnings():
@@ -489,47 +489,163 @@ def make_sparch_fit_func(
 
 
 # ============================================================
-# 8) Iterative initialization + estimation
+# 8) Default ARCH initialization + restart search
 # ============================================================
-def fit_with_iterative_initialization(
-    fit_func: Callable[[float, np.ndarray | None], Any],
-    vol_spec: VolSpec,
-    y: pd.Series,
-    initial_starting_values: np.ndarray | None = None,
-    max_iter: int = 10,
-    tol: float = 1e-8,
-):
-    backcast = float(np.var(np.asarray(y), ddof=1))
-    sv = None if initial_starting_values is None else np.asarray(initial_starting_values)
+def optimizer_converged(result: Any) -> bool:
+    return bool(result.optimization_result.success) and int(result.convergence_flag) == 0
 
-    iterations = 0
-    converged_backcast = False
-    result = None
-    unc_var = np.nan
-    persistence = np.nan
-    unc_status = "not_computed"
 
-    for i in range(max_iter):
-        iterations = i + 1
-        result = fit_func(backcast, sv)
-        unc_var, persistence, unc_status = implied_initial_variance(result.params, vol_spec)
-        sv = np.asarray(result.params, dtype=float)
-
-        if not np.isfinite(unc_var) or unc_var <= 0.0:
-            break
-
-        rel_diff = abs(unc_var - backcast) / max(1.0, abs(backcast))
-        backcast = float(unc_var)
-        if rel_diff <= tol:
-            converged_backcast = True
-            break
-
-    if result is None:
-        raise RuntimeError("Model fit did not return a result.")
-
-    result = fit_func(backcast, sv)
+def stable_converged(result: Any, vol_spec: VolSpec) -> tuple[bool, float, float, str]:
     unc_var, persistence, unc_status = implied_initial_variance(result.params, vol_spec)
-    return result, float(backcast), float(unc_var), float(persistence), unc_status, iterations, converged_backcast
+    stable = bool(np.isfinite(persistence) and persistence < 1.0 - STABILITY_MARGIN)
+    return optimizer_converged(result) and stable, float(unc_var), float(persistence), unc_status
+
+
+def _random_mix_params(rng: np.random.Generator) -> tuple[float, float, float]:
+    for _ in range(100):
+        p1 = float(rng.uniform(0.15, 0.85))
+        p2 = 1.0 - p1
+        mu1 = float(rng.uniform(-0.8, 0.8))
+        mu2 = -p1 * mu1 / p2
+        max_sigma1 = (1.0 - p1 * mu1 * mu1 - p2 * mu2 * mu2) / p1
+        if max_sigma1 > 0.08:
+            sigma1_sq = float(rng.uniform(0.05, min(2.0, 0.9 * max_sigma1)))
+            return p1, mu1, sigma1_sq
+    return 0.5, 0.0, 0.7
+
+
+def randomized_starting_values(
+    base_params: pd.Series,
+    vol_spec: VolSpec,
+    dist: str,
+    y: pd.Series,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    params = base_params.copy().astype(float)
+    y_var = float(np.var(np.asarray(y, dtype=float), ddof=1))
+    scale = max(y_var, 1e-4)
+
+    for name in params.index:
+        if name in {"Const", "Inflation_lag_1", "Inflation_lag_2", "SPF", "SPF_lag_1"}:
+            base = float(params[name])
+            params[name] = base + float(rng.normal(0.0, 0.15 * max(1.0, abs(base))))
+
+    if vol_spec.family == "EGARCH":
+        beta_weights = rng.dirichlet(np.ones(vol_spec.q))
+        beta_total = float(rng.uniform(0.05, 0.95))
+        params["omega"] = float(rng.normal(np.log(scale) * (1.0 - beta_total), 0.25))
+        for i in range(1, vol_spec.p + 1):
+            params[f"alpha[{i}]"] = float(rng.uniform(0.02, 0.7))
+        for i in range(1, vol_spec.o + 1):
+            params[f"gamma[{i}]"] = float(rng.uniform(-0.35, 0.35))
+        for i, weight in enumerate(beta_weights, start=1):
+            params[f"beta[{i}]"] = float(beta_total * weight)
+    elif vol_spec.family == "GJR-GARCH":
+        shock_weights = rng.dirichlet(np.ones(2 * vol_spec.p + vol_spec.q))
+        persistence = float(rng.uniform(0.15, 0.96))
+        shock_mass = persistence * shock_weights[: 2 * vol_spec.p]
+        beta_mass = persistence * shock_weights[2 * vol_spec.p :]
+        omega = scale * (1.0 - persistence) * float(rng.uniform(0.5, 1.5))
+        params["omega"] = max(omega, 1e-8)
+        for i in range(1, vol_spec.p + 1):
+            pos_coef = float(2.0 * shock_mass[2 * (i - 1)])
+            neg_coef = float(2.0 * shock_mass[2 * (i - 1) + 1])
+            params[f"alpha[{i}]"] = max(pos_coef, 1e-8)
+            params[f"gamma[{i}]"] = neg_coef - pos_coef
+        for i, mass in enumerate(beta_mass, start=1):
+            params[f"beta[{i}]"] = max(float(mass), 1e-8)
+    else:
+        weights = rng.dirichlet(np.ones(vol_spec.p + vol_spec.q))
+        persistence = float(rng.uniform(0.15, 0.96))
+        omega = scale * (1.0 - persistence) * float(rng.uniform(0.5, 1.5))
+        params["omega"] = max(omega, 1e-8)
+        for i in range(1, vol_spec.p + 1):
+            params[f"alpha[{i}]"] = max(float(persistence * weights[i - 1]), 1e-8)
+        for i in range(1, vol_spec.q + 1):
+            params[f"beta[{i}]"] = max(float(persistence * weights[vol_spec.p + i - 1]), 1e-8)
+
+    if dist == "studentst" and "nu" in params.index:
+        params["nu"] = float(rng.uniform(3.2, 35.0))
+    elif dist == "mix_normal":
+        p1, mu1, sigma1_sq = _random_mix_params(rng)
+        if "p_1" in params.index:
+            params["p_1"] = p1
+        if "mu_1" in params.index:
+            params["mu_1"] = mu1
+        if "sigma_1_sq" in params.index:
+            params["sigma_1_sq"] = sigma1_sq
+
+    return np.asarray(params, dtype=float)
+
+
+def fit_with_restarts(
+    fit_func: Callable[[np.ndarray | None], Any],
+    vol_spec: VolSpec,
+    dist: str,
+    y: pd.Series,
+    rng: np.random.Generator,
+    n_starts: int,
+    initial_starting_values: np.ndarray | None = None,
+) -> tuple[Any | None, list[dict[str, Any]]]:
+    attempts: list[dict[str, Any]] = []
+    valid_results: list[Any] = []
+    base_params: pd.Series | None = None
+
+    start_values: list[np.ndarray | None] = [initial_starting_values]
+
+    for attempt_idx in range(max(1, n_starts)):
+        sv = start_values[attempt_idx] if attempt_idx < len(start_values) else None
+        label = "default" if sv is None else f"random_{attempt_idx}"
+        try:
+            result = fit_func(sv)
+            usable, unc_var, persistence, unc_status = stable_converged(result, vol_spec)
+            if base_params is None:
+                base_params = result.params.copy()
+            attempts.append(
+                {
+                    "attempt": attempt_idx + 1,
+                    "start_type": label,
+                    "loglikelihood": float(result.loglikelihood),
+                    "optimizer_success": bool(result.optimization_result.success),
+                    "convergence_flag": int(result.convergence_flag),
+                    "stable_by_proxy": bool(
+                        np.isfinite(persistence) and persistence < 1.0 - STABILITY_MARGIN
+                    ),
+                    "persistence_proxy": persistence,
+                    "implied_initial_variance": unc_var,
+                    "implied_initial_variance_status": unc_status,
+                    "error_message": "",
+                }
+            )
+            if usable:
+                valid_results.append(result)
+            if attempt_idx == 0 and base_params is not None:
+                for _ in range(max(0, n_starts - 1)):
+                    start_values.append(
+                        randomized_starting_values(base_params, vol_spec, dist, y, rng)
+                    )
+        except Exception as exc:
+            attempts.append(
+                {
+                    "attempt": attempt_idx + 1,
+                    "start_type": label,
+                    "loglikelihood": np.nan,
+                    "optimizer_success": False,
+                    "convergence_flag": np.nan,
+                    "stable_by_proxy": False,
+                    "persistence_proxy": np.nan,
+                    "implied_initial_variance": np.nan,
+                    "implied_initial_variance_status": "fit_failed",
+                    "error_message": str(exc),
+                }
+            )
+            if attempt_idx == 0 and base_params is None:
+                break
+
+    if not valid_results:
+        return None, attempts
+    best = max(valid_results, key=lambda res: float(res.loglikelihood))
+    return best, attempts
 
 
 # ============================================================
@@ -562,15 +678,16 @@ def summary_row(
     mean_spec: MeanSpec,
     vol_spec: VolSpec,
     result: Any,
-    backcast: float,
     unc_var: float,
     persistence: float,
     unc_status: str,
-    backcast_iterations: int,
-    backcast_converged: bool,
+    attempts: list[dict[str, Any]],
 ) -> dict[str, Any]:
     diag = residual_diagnostics(result)
-    stable_flag = bool(np.isfinite(persistence) and persistence < 1.0)
+    stable_flag = bool(np.isfinite(persistence) and persistence < 1.0 - STABILITY_MARGIN)
+    valid_attempts = [
+        a for a in attempts if bool(a.get("optimizer_success")) and bool(a.get("stable_by_proxy"))
+    ]
     return {
         "model_id": model_id,
         "distribution": distribution,
@@ -592,9 +709,9 @@ def summary_row(
         "stable_by_proxy": stable_flag,
         "implied_initial_variance": unc_var,
         "implied_initial_variance_status": unc_status,
-        "initial_variance_backcast_used": backcast,
-        "backcast_iterations": backcast_iterations,
-        "backcast_converged": bool(backcast_converged),
+        "initialization_method": "arch_default",
+        "restart_attempts": len(attempts),
+        "valid_restart_attempts": len(valid_attempts),
         "optimizer_success": bool(result.optimization_result.success),
         "convergence_flag": int(result.convergence_flag),
         "covariance_type": "robust",
@@ -625,6 +742,13 @@ def _format_value(x: float, digits: int = 4) -> str:
     if not np.isfinite(x):
         return "NA"
     return f"{x:.{digits}f}"
+
+
+def _mean_label(row: pd.Series) -> str:
+    mean_spec = str(row.get("mean_spec", ""))
+    if mean_spec in MEAN_LABEL:
+        return MEAN_LABEL[mean_spec]
+    return str(row.get("mean_label", mean_spec))
 
 
 def _candidate_pool(summary_df: pd.DataFrame, criterion: str) -> pd.DataFrame:
@@ -697,11 +821,11 @@ def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
                 return f"<span style=\"color:red\">{txt}</span>"
             return txt
 
-        gar_mean = gar["mean_label"] if gar is not None else "NA"
+        gar_mean = _mean_label(gar) if gar is not None else "NA"
         gar_vol = gar["vol_order"] if gar is not None else "NA"
-        gjr_mean = gjr["mean_label"] if gjr is not None else "NA"
+        gjr_mean = _mean_label(gjr) if gjr is not None else "NA"
         gjr_vol = gjr["vol_order"] if gjr is not None else "NA"
-        ega_mean = ega["mean_label"] if ega is not None else "NA"
+        ega_mean = _mean_label(ega) if ega is not None else "NA"
         ega_vol = ega["vol_order"] if ega is not None else "NA"
 
         lines.append(
@@ -772,10 +896,9 @@ def _parameter_sort_key(raw_name: str, family: str) -> tuple[int, int, str]:
     if m:
         group, idx_s = m.groups()
         idx = int(idx_s)
-        if family == "GJR-GARCH":
-            group_order = {"alpha": 0, "gamma": 1, "beta": 2}
-        else:
-            group_order = {"alpha": 0, "gamma": 1, "beta": 2}
+        if group == "beta":
+            return (1, 100 + idx, raw_name)
+        group_order = {"alpha": 0, "gamma": 1}
         return (1, 10 * idx + group_order[group], raw_name)
 
     dist_order = {"nu": 0, "p_1": 1, "mu_1": 2, "sigma_1_sq": 3}
@@ -792,6 +915,16 @@ def _distribution_label(row: pd.Series) -> str:
     return str(row.get("distribution_label", dist))
 
 
+def _model_params(best_row: pd.Series, param_df: pd.DataFrame) -> pd.DataFrame:
+    mid = best_row["model_id"]
+    family = str(best_row["vol_family"])
+    psub = param_df[param_df["model_id"] == mid].copy()
+    if not psub.empty:
+        psub["_sort_key"] = psub["parameter"].map(lambda x: _parameter_sort_key(str(x), family))
+        psub = psub.sort_values("_sort_key")
+    return psub
+
+
 def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     m = best_row["mean_spec"]
     if m == "Constant_anchor":
@@ -805,44 +938,32 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     def s(v: float) -> str:
         return f"{v:+.4f}"
 
-    c, sc = _param_lookup(psub, "Const")
-    i1, si1 = _param_lookup(psub, "Inflation_lag_1")
-    spf, sspf = _param_lookup(psub, "SPF")
+    c, _ = _param_lookup(psub, "Const")
+    i1, _ = _param_lookup(psub, "Inflation_lag_1")
+    spf, _ = _param_lookup(psub, "SPF")
 
     if m == "ARX_1_1":
-        eq = (
+        return (
             "$$\n"
             f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(spf)}\\,SPF_t + \\mu_{{t+1}}\n"
             "$$"
         )
-        se = f"Robust SE: $c$ ({sc:.4f}), $\\rho_1$ ({si1:.4f}), $\\phi_1$ ({sspf:.4f})."
-        return eq + "\n\n" + se
 
-    i2, si2 = _param_lookup(psub, "Inflation_lag_2")
+    i2, _ = _param_lookup(psub, "Inflation_lag_2")
     if m == "ARX_2_1":
-        eq = (
+        return (
             "$$\n"
             f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} {s(spf)}\\,SPF_t + \\mu_{{t+1}}\n"
             "$$"
         )
-        se = (
-            f"Robust SE: $c$ ({sc:.4f}), $\\rho_1$ ({si1:.4f}), "
-            f"$\\rho_2$ ({si2:.4f}), $\\phi_1$ ({sspf:.4f})."
-        )
-        return eq + "\n\n" + se
 
-    spf1, sspf1 = _param_lookup(psub, "SPF_lag_1")
-    eq = (
+    spf1, _ = _param_lookup(psub, "SPF_lag_1")
+    return (
         "$$\n"
         f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} "
         f"{s(spf)}\\,SPF_t {s(spf1)}\\,SPF_{{t-1}} + \\mu_{{t+1}}\n"
         "$$"
     )
-    se = (
-        f"Robust SE: $c$ ({sc:.4f}), $\\rho_1$ ({si1:.4f}), "
-        f"$\\rho_2$ ({si2:.4f}), $\\phi_1$ ({sspf:.4f}), $\\phi_2$ ({sspf1:.4f})."
-    )
-    return eq + "\n\n" + se
 
 
 def _volatility_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
@@ -912,28 +1033,31 @@ def _volatility_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> st
 
 
 def _model_detail_markdown(best_row: pd.Series, param_df: pd.DataFrame) -> str:
-    mid = best_row["model_id"]
     family = str(best_row["vol_family"])
-    psub = param_df[param_df["model_id"] == mid].copy()
-    if not psub.empty:
-        psub["_sort_key"] = psub["parameter"].map(lambda x: _parameter_sort_key(str(x), family))
-        psub = psub.sort_values("_sort_key")
+    psub = _model_params(best_row, param_df)
 
     lines: list[str] = []
-    lines.append(f"- Model ID: `{mid}`")
-    lines.append(f"- Distribution: {_distribution_label(best_row)}")
-    lines.append(f"- Mean process: {best_row['mean_label']} (`{best_row['mean_spec']}`)")
-    lines.append(f"- Volatility process: {best_row['vol_spec']}")
+    lines.append("| Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |")
+    lines.append("|---|---|---|---|---:|---:|---:|")
+    lines.append(
+        "| "
+        + f"`{best_row['model_id']}` | {_distribution_label(best_row)} | {_mean_label(best_row)} | "
+        + f"{best_row['vol_spec']} | {_format_value(float(best_row['loglikelihood']))} | "
+        + f"{_format_value(float(best_row['aic']))} | {_format_value(float(best_row['bic']))} |"
+    )
+    lines.append("")
+    lines.append("Mean process:")
     lines.append("")
     lines.append(_mean_equation_markdown(best_row, psub))
     lines.append("")
+    lines.append("Volatility process:")
+    lines.append("")
     lines.append(_volatility_equation_markdown(best_row, psub))
     lines.append("")
-    lines.append(f"- Number of observations: **{int(best_row['nobs'])}**")
-    lines.append(f"- Log-likelihood: **{best_row['loglikelihood']:.6f}**")
-    lines.append(f"- AIC: **{best_row['aic']:.6f}**, BIC: **{best_row['bic']:.6f}**")
-    lines.append(f"- Optimizer success: **{bool(best_row['optimizer_success'])}**")
-    lines.append("")
+    dist_params = _distribution_parameters_markdown(best_row, psub)
+    if dist_params:
+        lines.append(dist_params)
+        lines.append("")
     if family == "GJR-GARCH":
         lines.append(
             "For GJR-GARCH, $\\gamma_i-\\alpha_i$ is the raw `arch` indicator coefficient; "
@@ -945,12 +1069,142 @@ def _model_detail_markdown(best_row: pd.Series, param_df: pd.DataFrame) -> str:
     for _, r in psub.iterrows():
         label = _parameter_label(str(r["parameter"]), family)
         lines.append(
-            f"| {label} | {r['coef']:.6f} | {r['std_err']:.6f} | {r['t_value']:.6f} | {r['p_value']:.6f} |"
+            f"| {label} | {_format_value(float(r['coef']))} | {_format_value(float(r['std_err']))} | "
+            + f"{_format_value(float(r['t_value']))} | {_format_value(float(r['p_value']))} |"
         )
     return "\n".join(lines)
 
 
-def build_markdown_report(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> str:
+def _distribution_parameters_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
+    dist = str(best_row.get("distribution", ""))
+    if dist == "studentst":
+        nu, _ = _param_lookup(psub, "nu")
+        return "\n".join(
+            [
+                "Distribution parameters:",
+                "",
+                "| Parameter | Estimate |",
+                "|---|---:|",
+                f"| $\\nu$ | {_format_value(nu)} |",
+            ]
+        )
+
+    if dist != "mix_normal":
+        return ""
+
+    p1, _ = _param_lookup(psub, "p_1")
+    mu1, _ = _param_lookup(psub, "mu_1")
+    sigma1_sq, _ = _param_lookup(psub, "sigma_1_sq")
+    p2 = 1.0 - p1
+    if np.isfinite(p1) and np.isfinite(mu1) and np.isfinite(sigma1_sq) and p2 > 0.0:
+        mu2 = -p1 * mu1 / p2
+        sigma2_sq = (1.0 - p1 * (sigma1_sq + mu1 * mu1) - p2 * mu2 * mu2) / p2
+    else:
+        p2 = mu2 = sigma2_sq = np.nan
+
+    return "\n".join(
+        [
+            "Distribution parameters:",
+            "",
+            "| Parameter | Estimate |",
+            "|---|---:|",
+            f"| $p_1$ | {_format_value(p1)} |",
+            f"| $\\mu_1$ | {_format_value(mu1)} |",
+            f"| $\\sigma_1^2$ | {_format_value(sigma1_sq)} |",
+            f"| $p_2$ | {_format_value(p2)} |",
+            f"| $\\mu_2$ | {_format_value(mu2)} |",
+            f"| $\\sigma_2^2$ | {_format_value(sigma2_sq)} |",
+        ]
+    )
+
+
+def build_unit_order_comparison_section(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> str:
+    pool = summary_df[
+        (summary_df["optimizer_success"] == True)
+        & np.isfinite(summary_df["loglikelihood"])
+        & (summary_df["vol_family"].isin(["GARCH", "GJR-GARCH"]))
+        & (summary_df["p"] == 1)
+        & (summary_df["q"] == 1)
+    ].copy()
+
+    lines: list[str] = []
+    lines.append("## GARCH(1,1) and GJR-GARCH(1,1) Comparisons")
+    lines.append("")
+    lines.append(
+        "These estimates are reported by mean process and innovation distribution because "
+        "the GARCH(1,1) and GJR-GARCH(1,1) recursions are useful benchmarks for the BEGE specifications."
+    )
+    lines.append("")
+
+    for mean_spec in MEAN_LABEL:
+        mean_rows = pool[pool["mean_spec"] == mean_spec]
+        if mean_rows.empty:
+            continue
+        lines.append(f"### {_mean_label(mean_rows.iloc[0])}")
+        lines.append("")
+        for dist in DISTRIBUTION_ORDER:
+            dist_rows = mean_rows[mean_rows["distribution"] == dist]
+            if dist_rows.empty:
+                continue
+            lines.append(f"#### {DISTRIBUTION_LABEL[dist]}")
+            lines.append("")
+            for family in ["GARCH", "GJR-GARCH"]:
+                sub = dist_rows[dist_rows["vol_family"] == family]
+                if sub.empty:
+                    lines.append(f"##### {family}(1,1)")
+                    lines.append("")
+                    lines.append("No successful model.")
+                    lines.append("")
+                    continue
+                row = sub.iloc[0]
+                stable_note = ""
+                if bool(row.get("stable_by_proxy", True)) is not True:
+                    stable_note = " (persistence proxy not satisfied)"
+                lines.append(f"##### {family}(1,1){stable_note}")
+                lines.append("")
+                lines.append(_model_detail_markdown(row, param_df))
+                lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
+def build_excluded_models_section(failed_df: pd.DataFrame | None) -> str:
+    if failed_df is None or failed_df.empty:
+        return "\n".join(
+            [
+                "## Excluded Model Combinations",
+                "",
+                "No model combinations were excluded after the restart search.",
+            ]
+        )
+
+    lines: list[str] = []
+    lines.append("## Excluded Model Combinations")
+    lines.append("")
+    lines.append(
+        "The combinations below did not produce an optimizer-converged fit satisfying "
+        "the stationarity proxy with the `1e-6` margin after the restart search. "
+        "They are omitted from the model-selection tables and retained in "
+        "`garch_family_failed_models.csv` for audit."
+    )
+    lines.append("")
+    lines.append("| Model ID | Distribution | Mean process | Volatility process | Attempts | Best attempted LogLik |")
+    lines.append("|---|---|---|---|---:|---:|")
+    for _, row in failed_df.iterrows():
+        lines.append(
+            "| "
+            + f"`{row['model_id']}` | {_distribution_label(row)} | {_mean_label(row)} | "
+            + f"{row['vol_spec']} | {int(row['attempts'])} | "
+            + f"{_format_value(float(row['best_attempt_loglikelihood']))} |"
+        )
+    return "\n".join(lines)
+
+
+def build_markdown_report(
+    summary_df: pd.DataFrame,
+    param_df: pd.DataFrame,
+    failed_df: pd.DataFrame | None = None,
+) -> str:
     lines: list[str] = []
     lines.append("```{raw:typst}")
     lines.append("#set page(margin: auto)")
@@ -968,6 +1222,9 @@ def build_markdown_report(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> s
     lines.append(
         "For each criterion and each volatility family, the selected model is the best "
         "across mean-process choices, orders, and distributions using stable & successful fits."
+    )
+    lines.append(
+        f"The main result tables contain {len(summary_df)} accepted model combinations."
     )
     lines.append("")
 
@@ -987,13 +1244,22 @@ def build_markdown_report(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> s
             lines.append(_model_detail_markdown(best, param_df))
             lines.append("")
 
+    lines.append(build_unit_order_comparison_section(summary_df, param_df))
+    lines.append("")
+    lines.append("")
+
+    lines.append(build_excluded_models_section(failed_df))
+    lines.append("")
+    lines.append("")
+
     lines.append("## EGARCH and Initialization Notes")
     lines.append("")
     lines.append("- Effective sample is fixed at 215 observations for all models (`hold_back=0` with explicit lag regressors in the mean equation).")
     lines.append("- In `arch`, EGARCH uses the package's centered term `|z|-sqrt(2/pi)` in the recursion for all distributions.")
     lines.append("- Under non-Gaussian errors (e.g., Student's t or Gaussian mixture), this is an intercept reparameterization; fitted dynamics and likelihood are still valid.")
-    lines.append("- The recursion start (`backcast`) is updated iteratively during estimation in this script: fit -> implied initial variance from current parameters -> refit.")
-    lines.append("- Stability is monitored using a persistence proxy (`<1`):")
+    lines.append("- Conditional-variance recursion starts use the default initialization implemented by the `arch` package; this report no longer iterates the `backcast` to the parameter-implied unconditional variance.")
+    lines.append("- Each model combination is estimated from the package default start plus randomized feasible starts, and only optimizer-converged fits that pass the stationarity proxy with a `1e-6` margin below one are collected in the main result tables.")
+    lines.append("- Stability is monitored using a persistence proxy (`< 1 - 1e-6`):")
     lines.append("  GARCH uses `sum(alpha)+sum(beta)`, GJR uses `sum(alpha)+0.5*sum(gamma)+sum(beta)`, EGARCH uses `sum(beta)`.")
     lines.append("")
     return "\n".join(lines)
@@ -1002,13 +1268,15 @@ def build_markdown_report(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> s
 # ============================================================
 # 11) Main estimation routine
 # ============================================================
-def run_estimation(data_path: Path, output_dir: Path) -> None:
+def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) -> None:
     df = load_quarterly_data(data_path)
     mean_specs = build_mean_specs()
     vol_specs = build_vol_specs()
+    rng = np.random.default_rng(seed)
 
     summary_rows: list[dict[str, Any]] = []
     param_rows: list[dict[str, Any]] = []
+    failed_rows: list[dict[str, Any]] = []
     text_lines: list[str] = []
 
     model_counter = 0
@@ -1043,13 +1311,48 @@ def run_estimation(data_path: Path, output_dir: Path) -> None:
                             hold_back=COMMON_HOLD_BACK,
                         )
 
-                    result, backcast, unc_var, persistence, unc_status, n_iter, bc_conv = (
-                        fit_with_iterative_initialization(
+                    result, attempts = (
+                        fit_with_restarts(
                             fit_func=fit_func,
                             vol_spec=vol_spec,
+                            dist=dist,
                             y=y,
+                            rng=rng,
+                            n_starts=n_starts,
                             initial_starting_values=init_sv,
                         )
+                    )
+
+                    if result is None:
+                        failed_rows.append(
+                            {
+                                "model_id": model_id,
+                                "distribution": dist,
+                                "distribution_label": DISTRIBUTION_LABEL[dist],
+                                "mean_spec": mean_spec.name,
+                                "mean_label": MEAN_LABEL[mean_spec.name],
+                                "vol_family": vol_spec.family,
+                                "vol_spec": vol_spec.label,
+                                "vol_order": f"({vol_spec.p},{vol_spec.q})",
+                                "attempts": len(attempts),
+                                "best_attempt_loglikelihood": np.nanmax(
+                                    [a["loglikelihood"] for a in attempts]
+                                )
+                                if attempts
+                                else np.nan,
+                                "last_error_message": attempts[-1]["error_message"]
+                                if attempts
+                                else "no attempts",
+                            }
+                        )
+                        text_lines.append(
+                            f"{model_id} dist={dist:<10} mean={mean_spec.name:<16} vol={vol_spec.label:<15} "
+                            f"FAILED_STABLE_CONVERGED attempts={len(attempts)}"
+                        )
+                        continue
+
+                    unc_var, persistence, unc_status = implied_initial_variance(
+                        result.params, vol_spec
                     )
 
                     srow = summary_row(
@@ -1058,44 +1361,33 @@ def run_estimation(data_path: Path, output_dir: Path) -> None:
                         mean_spec=mean_spec,
                         vol_spec=vol_spec,
                         result=result,
-                        backcast=backcast,
                         unc_var=unc_var,
                         persistence=persistence,
                         unc_status=unc_status,
-                        backcast_iterations=n_iter,
-                        backcast_converged=bc_conv,
+                        attempts=attempts,
                     )
                     summary_rows.append(srow)
                     param_rows.extend(parameter_rows(model_id, result))
 
                     text_lines.append(
                         f"{model_id} dist={dist:<10} mean={mean_spec.name:<16} vol={vol_spec.label:<15} "
-                        f"LogLik={result.loglikelihood:.6f} AIC={result.aic:.6f} BIC={result.bic:.6f}"
+                        f"LogLik={result.loglikelihood:.6f} AIC={result.aic:.6f} BIC={result.bic:.6f} "
+                        f"valid_starts={srow['valid_restart_attempts']}/{srow['restart_attempts']}"
                     )
 
                 except Exception as exc:
-                    summary_rows.append(
+                    failed_rows.append(
                         {
                             "model_id": model_id,
                             "distribution": dist,
+                            "distribution_label": DISTRIBUTION_LABEL[dist],
                             "mean_spec": mean_spec.name,
+                            "mean_label": MEAN_LABEL[mean_spec.name],
                             "vol_family": vol_spec.family,
                             "vol_spec": vol_spec.label,
-                            "p": vol_spec.p,
-                            "o": vol_spec.o,
-                            "q": vol_spec.q,
-                            "nobs": np.nan,
-                            "loglikelihood": np.nan,
-                            "aic": np.nan,
-                            "bic": np.nan,
-                            "persistence_proxy": np.nan,
-                            "implied_initial_variance": np.nan,
-                            "implied_initial_variance_status": "fit_failed",
-                            "initial_variance_backcast_used": np.nan,
-                            "backcast_iterations": np.nan,
-                            "backcast_converged": False,
-                            "optimizer_success": False,
-                            "convergence_flag": np.nan,
+                            "vol_order": f"({vol_spec.p},{vol_spec.q})",
+                            "attempts": 0,
+                            "best_attempt_loglikelihood": np.nan,
                             "error_message": str(exc),
                         }
                     )
@@ -1111,26 +1403,30 @@ def run_estimation(data_path: Path, output_dir: Path) -> None:
 
     summary_csv = output_dir / "garch_family_estimation_summary.csv"
     params_csv = output_dir / "garch_family_estimation_parameters.csv"
+    failed_csv = output_dir / "garch_family_failed_models.csv"
     summary_txt = output_dir / "garch_family_estimation_summary.txt"
     report_md = output_dir / "garch_family_best_models.md"
 
     summary_df.to_csv(summary_csv, index=False)
     param_df.to_csv(params_csv, index=False)
+    pd.DataFrame(failed_rows).to_csv(failed_csv, index=False)
 
     txt_header = [
-        "GARCH-family estimation summary (all models)",
+        "GARCH-family estimation summary (accepted stable and converged models)",
         "",
         "Columns in line printout: model_id, distribution, mean, vol, LogLik, AIC, BIC",
         "",
     ]
     summary_txt.write_text("\n".join(txt_header + text_lines) + "\n", encoding="utf-8")
 
-    report_text = build_markdown_report(summary_df, param_df)
+    failed_df = pd.DataFrame(failed_rows)
+    report_text = build_markdown_report(summary_df, param_df, failed_df)
     report_md.write_text(report_text + "\n", encoding="utf-8")
 
     print("\nSaved:")
     print(f"  - {summary_csv}")
     print(f"  - {params_csv}")
+    print(f"  - {failed_csv}")
     print(f"  - {summary_txt}")
     print(f"  - {report_md}")
     print("\n" + "\n".join(text_lines))
@@ -1158,12 +1454,29 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_OUTPUT_DIR,
         help=f"Output directory (default: {DEFAULT_OUTPUT_DIR})",
     )
+    parser.add_argument(
+        "--n-starts",
+        type=int,
+        default=25,
+        help="Number of optimizer starts per model combination, including the default ARCH start.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=20260622,
+        help="Random seed used for restart starting values.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    run_estimation(data_path=args.data_path, output_dir=args.output_dir)
+    run_estimation(
+        data_path=args.data_path,
+        output_dir=args.output_dir,
+        n_starts=args.n_starts,
+        seed=args.seed,
+    )
 
 
 if __name__ == "__main__":

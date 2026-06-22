@@ -51,7 +51,7 @@ stationarity check; the SPF coefficients $\phi_1$ and $\phi_2$ are treated as
 exogenous-regressor loadings and are not included in the AR polynomial.
 
 Starting values for the estimated mean parameters are drawn uniformly from
-OLS-centered intervals, approximately $\hat\theta_j \pm 2\,SE(\hat\theta_j)$.
+OLS-centered intervals,  $\hat\theta_j \pm 2\,SE(\hat\theta_j)$.
 
 ## Residual Dynamics
 
@@ -67,13 +67,10 @@ $$
 where $\tilde{\Gamma}(a,1)$ is a centered gamma shock with shape $a$ and unit
 scale. Conditional on $p_t$ and $n_t$,
 
-- conditional variance: $\operatorname{Var}_t(u_t)=\sigma_p^2p_t+\sigma_n^2n_t$,
+- conditional variance: $\sigma_p^2p_t+\sigma_n^2n_t$,
 - conditional skewness numerator: $2(\sigma_p^3p_t-\sigma_n^3n_t)$,
 - conditional excess-kurtosis numerator: $6(\sigma_p^4p_t+\sigma_n^4n_t)$.
 
-The baseline BEGE menu consists of Constant, Symmetric, BadGood,
-Inflation/Deflation, and Full BEGE. Constant-p Full BEGE and Constant-n Full
-BEGE are explicitly requested restrictions of Full BEGE.
 
 ## BEGE Volatility Specifications
 
@@ -87,8 +84,7 @@ The common parameter bounds used in estimation and result collection are:
 | Scale parameters $\sigma_p,\sigma_n$ | $[10^{-5},2]$ |
 
 
-To rule out numerically degenerate variance paths without tightly shaping the
-estimated dynamics, I use an EWMA path as a scale-adaptive reference for the
+To rule out numerically degenerate and explosive variance paths, I use an EWMA path as a scale-adaptive reference for the
 BEGE implied variance. This is a loose numerical safeguard, not a
 variance-targeting restriction.[^ewma-bound] For residuals $u_t$, define
 
@@ -102,44 +98,32 @@ $$
 
 The EWMA implied-variance bounds are imposed during optimization and checked
 again during collection. With $\lambda=0.94$ and $\tau=\min(75,T)$, let
-$s_u^2:=\widehat{\operatorname{Var}}(u_1,\ldots,u_T)$,
-$M_u:=1+\max_{1\leq s\leq T}u_s^2$, and
-$v_t^{\mathrm{BEGE}}:=\sigma_p^2p_t+\sigma_n^2n_t$. Then
+$s_u^2:=1/T \sum_{j=1}^{T} u_j^2$ and
+$M_u:=1+\max_{1\leq s\leq T}u_s^2$. Then
 
 $$
 \begin{aligned}
 \underline v_t
-&:= \max\!\left\{10^{-6}EWMA_t,\;10^{-8}s_u^2\right\},\\
+&:= \max \left\{10^{-6}EWMA_t,\;10^{-8}s_u^2\right\},\\
 \overline v_t
-&:= \max\!\left\{\min\!\left(10^6EWMA_t,\;10^7M_u\right),\;M_u\right\},\\
+&:= \max \left\{\min\left(10^6EWMA_t,\;10^7M_u\right),\;M_u\right\},\\
 \underline v_t
-&\leq v_t^{\mathrm{BEGE}} \leq \overline v_t,
+&\leq \sigma_p^2p_t+\sigma_n^2n_t \leq \overline v_t,
 \qquad t=1,\ldots,T.
 \end{aligned}
 $$
 
-[^ewma-bound]: The EWMA recursion follows the variance-forecasting construction
-    in J.P. Morgan/Reuters, [*RiskMetrics---Technical Document*, Fourth Edition
-    (1996), Chapter 5](https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a).
-    RiskMetrics motivates exponential weighting as a simple way to respond to
-    recent volatility shocks and obtains $\lambda=0.94$ for daily variance
-    forecasts using an RMSE criterion. The complete envelope used here---the
-    75-observation backcast, $0.94$ decay, and factors $10^{-6}$, $10^{-8}$,
-    $10^6$, and $10^7$---is adapted from the `arch` package's
-    [`VolatilityProcess.variance_bounds`](https://arch.readthedocs.io/en/latest/_modules/arch/univariate/volatility.html#VolatilityProcess.variance_bounds),
-    which describes these as loose bounds designed to prevent NaNs in likelihood
-    evaluation. The adaptation replaces a GARCH conditional variance with
-    $v_t^{\mathrm{BEGE}}$. For quarterly inflation residuals, $0.94$ is therefore
-    a transparent smoothing benchmark, not a claimed frequency-specific
-    optimum: the newest squared residual receives weight $1-\lambda=0.06$, the
-    weight half-life is $\log(0.5)/\log(0.94)=11.2$ quarters, and
-    $0.94^{75}=0.0097$, so 75 observations retain more than 99% of the infinite
-    geometric weight. The envelope is deliberately wide: the sample-variance
-    term prevents collapse toward zero, $M_u$ keeps the upper bound above every
-    observed $u_t^2$, and $10^7M_u$ excludes only extremely explosive paths.
-    Its justification is numerical robustness, not statistical optimality;
-    estimates near either bound should therefore be accompanied by a sensitivity
-    check.
+[^ewma-bound]: The exponential weights follow the variance-forecasting idea in
+    J.P. Morgan/Reuters, [*RiskMetrics---Technical Document*, Fourth Edition
+    (1996), Chapter 5](https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a),
+    where recent squared shocks receive more weight than older shocks. Here the
+    EWMA path is only a smoothed proxy for the local scale of $u_t^2$, not a
+    BEGE variance target. The loose envelope is adapted from the `arch`
+    package's
+    [`VolatilityProcess.variance_bounds`](https://arch.readthedocs.io/en/latest/_modules/arch/univariate/volatility.html#VolatilityProcess.variance_bounds):
+    the lower bound prevents the implied BEGE variance from collapsing toward
+    zero, while the upper bound screens out explosive variance paths that would
+    make likelihood evaluation numerically unreliable.
 
 ### Constant BEGE
 
@@ -307,7 +291,7 @@ $p_0/(1-\rho-\tfrac{1}{2}(\phi^+ + \phi^-))$ or the corresponding restricted
 formula, with a small positive numerical floor.[^shape-floor] Constant-p and
 Constant-n models set the constant shape path directly.
 
-[^shape-floor]: The numerical floor is $10^{-4}$: if the initial backcast or a later recursion update produces a smaller value, the
+[^shape-floor]: The numerical floor is $10^{-4}$: if the initial backcast or a later recursion produces a smaller value $p_t,n_t$, the
     code uses $0.0001$ instead.
 
 ## Density Evaluation
@@ -333,7 +317,7 @@ excess-kurtosis numerator.
 
 ## Standard Errors
 
-I compute standard errors only for the reported best estimate. For each
+I compute standard errors for the reported best estimate. For each
 observation, I approximate the score---the first derivative of that
 observation's log likelihood with respect to the parameters---using centered
 finite differences. I approximate the Hessian---the matrix of second

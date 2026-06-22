@@ -31,16 +31,15 @@ For the quarterly data, forecast inflation ($SPF_t$) is available from **1969Q1*
 This same trimmed sample is then used for all mean specifications, so the residual series has the same length across models.
  
 
-For GARCH-type recursion, the first few conditional variances are unobserved (for example, $\sigma_0^2$, $\sigma_{-1}^2$, $u_0^2$, $u_{-1}^2$ ).  I initialize these pre-sample variances using the model-implied unconditional variance, for example in GARCH model:
+For GARCH-type recursion, the first few conditional variances are unobserved
+(for example, $\sigma_0^2$, $\sigma_{-1}^2$, $u_0^2$, $u_{-1}^2$).  In the
+GARCH-family estimates reported here, I use the default initialization
+implemented by the `arch` package rather than iterating the recursion start to
+the parameter-implied unconditional variance. The unconditional-variance
+formula remains useful for interpreting stationarity in a GARCH model:
 
 $$
 \bar{\sigma}^2 = \frac{\omega}{1-\sum_i \alpha_i - \sum_j \beta_j},
-$$
-
-and set
-
-$$
-u_0^2 = u_{-1}^2 = \cdots = \sigma_0^2 = \sigma_{-1}^2 = \cdots = \bar{\sigma}^2.
 $$
 
 
@@ -70,4 +69,3 @@ I report the summary statistics for trimmed effect sample. Skewness and Kurtosis
 | AC(4)         |      0.4708 | 0.8929 |      0.0881 |
 | AC(12)        |      0.2918 | 0.6949 |      0.0011 |
 ```
-

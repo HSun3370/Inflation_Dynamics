@@ -53,6 +53,21 @@ $$
 $$
 The likelihood, the fitted $\sigma_t^2$ path, and all forecasts are identical under the two parameterizations.
 
+## Estimation Initialization And Collection
+
+The GARCH-family estimation script uses the default conditional-variance
+initialization implemented by the `arch` package. It does not override the
+recursion start with a parameter-implied unconditional variance and does not
+iterate the `backcast` value to match the estimated parameters.
+
+For each distribution, mean process, volatility family, and order, the script
+tries the package default optimizer start and additional randomized feasible
+starts. The collected result for a model combination is the highest
+log-likelihood estimate among starts that both converged according to the
+optimizer and passed the relevant stationarity proxy with a small numerical
+margin below one (`1e-6`). Fits that fail these checks are excluded from the
+main result tables and written to a failed-model diagnostic file.
+
 
 ## Log-Likelihood Specifications
 
@@ -129,4 +144,3 @@ and the sample log-likelihood is
 $$
 \ln L(\theta) \;=\; -\sum_{t=1}^{T}\ln\sigma_t \;+\; \sum_{t=1}^{T}\ln \left[\,p_1\,\varphi(z_t;\,\mu_1,\sigma_1^{2}) \;+\; p_2\,\varphi(z_t;\,\mu_2,\sigma_2^{2})\right].
 $$
-

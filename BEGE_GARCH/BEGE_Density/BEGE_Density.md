@@ -5,7 +5,7 @@
 
 #  BEGE Density
 
-The BEGE density $f(u| p,n,\sigma_p,\sigma_n)$ is the conditional density
+The BEGE density $f(u_t| p_t,n_t,\sigma_p,\sigma_n)$ is the conditional density
 of one inflation residual given the two gamma shape parameters and two scale
 parameters. This section compares three implementations:
 
