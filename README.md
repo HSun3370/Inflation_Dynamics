@@ -12,7 +12,7 @@ This project studies U.S. quarterly inflation dynamics by combining survey-based
 
 4. **Regime-switching GARCH.** The regime-switching section studies state-dependent mean  dynamics with normal and standardized Student's $t$ innovations.
 
-5. **BEGE-GARCH models.** The BEGE section estimates the baseline volatility specifications: Constant, Symmetric, InflationDeflation, BadGood and Full BEGE models. It also includes the requested Constant-p Full BEGE and Constant-n Full BEGE extensions.
+5. **BEGE-GARCH models.** The BEGE section estimates the baseline volatility specifications: Constant, Symmetric, InflationDeflation, BadGood, constant-p Full BEGE, Constant-n Full BEGE, and Full BEGE models
 
 Notations:
 - $\pi_t$: realized inflation.

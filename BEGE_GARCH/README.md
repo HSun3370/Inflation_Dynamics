@@ -8,7 +8,7 @@
 All BEGE specifications use the same effective sample, residual definition,
 mean-process menu, random-search protocol, density evaluator, and result
 selection rules. The model-specific shape recursions and restrictions are
-collected here so the individual model folders only need to report results.
+reported.
 
 ## Mean Processes
 
@@ -51,8 +51,7 @@ stationarity check; the SPF coefficients $\phi_1$ and $\phi_2$ are treated as
 exogenous-regressor loadings and are not included in the AR polynomial.
 
 Starting values for the estimated mean parameters are drawn uniformly from
-OLS-centered intervals, approximately $\hat\theta_j \pm 2\,SE(\hat\theta_j)$,
-and then clipped to the documented parameter bounds.
+OLS-centered intervals, approximately $\hat\theta_j \pm 2\,SE(\hat\theta_j)$.
 
 ## Residual Dynamics
 
@@ -87,10 +86,60 @@ The common parameter bounds used in estimation and result collection are:
 | Shock-loading parameters $\phi^\pm,\phi_p,\phi_n,\phi_p^\pm,\phi_n^\pm$ | $[0,2]$ |
 | Scale parameters $\sigma_p,\sigma_n$ | $[10^{-5},2]$ |
 
-All dynamic-shape specifications also impose their stated persistence and
-loading restrictions. The implied variance path
-$\sigma_p^2p_t+\sigma_n^2n_t$ is screened by the EWMA bounds described in the
-selection section.
+
+To rule out numerically degenerate variance paths without tightly shaping the
+estimated dynamics, I use an EWMA path as a scale-adaptive reference for the
+BEGE implied variance. This is a loose numerical safeguard, not a
+variance-targeting restriction.[^ewma-bound] For residuals $u_t$, define
+
+$$
+EWMA_1 =
+\frac{\sum_{j=1}^{\tau}\lambda^{j-1}u_j^2}
+     {\sum_{j=1}^{\tau}\lambda^{j-1}},
+\qquad
+EWMA_t = \lambda EWMA_{t-1} + (1-\lambda)u_{t-1}^2,\quad t\geq 2.
+$$
+
+The EWMA implied-variance bounds are imposed during optimization and checked
+again during collection. With $\lambda=0.94$ and $\tau=\min(75,T)$, let
+$s_u^2:=\widehat{\operatorname{Var}}(u_1,\ldots,u_T)$,
+$M_u:=1+\max_{1\leq s\leq T}u_s^2$, and
+$v_t^{\mathrm{BEGE}}:=\sigma_p^2p_t+\sigma_n^2n_t$. Then
+
+$$
+\begin{aligned}
+\underline v_t
+&:= \max\!\left\{10^{-6}EWMA_t,\;10^{-8}s_u^2\right\},\\
+\overline v_t
+&:= \max\!\left\{\min\!\left(10^6EWMA_t,\;10^7M_u\right),\;M_u\right\},\\
+\underline v_t
+&\leq v_t^{\mathrm{BEGE}} \leq \overline v_t,
+\qquad t=1,\ldots,T.
+\end{aligned}
+$$
+
+[^ewma-bound]: The EWMA recursion follows the variance-forecasting construction
+    in J.P. Morgan/Reuters, [*RiskMetrics---Technical Document*, Fourth Edition
+    (1996), Chapter 5](https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a).
+    RiskMetrics motivates exponential weighting as a simple way to respond to
+    recent volatility shocks and obtains $\lambda=0.94$ for daily variance
+    forecasts using an RMSE criterion. The complete envelope used here---the
+    75-observation backcast, $0.94$ decay, and factors $10^{-6}$, $10^{-8}$,
+    $10^6$, and $10^7$---is adapted from the `arch` package's
+    [`VolatilityProcess.variance_bounds`](https://arch.readthedocs.io/en/latest/_modules/arch/univariate/volatility.html#VolatilityProcess.variance_bounds),
+    which describes these as loose bounds designed to prevent NaNs in likelihood
+    evaluation. The adaptation replaces a GARCH conditional variance with
+    $v_t^{\mathrm{BEGE}}$. For quarterly inflation residuals, $0.94$ is therefore
+    a transparent smoothing benchmark, not a claimed frequency-specific
+    optimum: the newest squared residual receives weight $1-\lambda=0.06$, the
+    weight half-life is $\log(0.5)/\log(0.94)=11.2$ quarters, and
+    $0.94^{75}=0.0097$, so 75 observations retain more than 99% of the infinite
+    geometric weight. The envelope is deliberately wide: the sample-variance
+    term prevents collapse toward zero, $M_u$ keeps the upper bound above every
+    observed $u_t^2$, and $10^7M_u$ excludes only extremely explosive paths.
+    Its justification is numerical robustness, not statistical optimality;
+    estimates near either bound should therefore be accompanied by a sensitivity
+    check.
 
 ### Constant BEGE
 
@@ -167,28 +216,7 @@ $$
 \rho_n+\frac{\phi_n^-}{2}<1.
 $$
 
-### Full BEGE
 
-The Full BEGE model allows each shape process to respond separately to
-positive and negative residuals:
-
-$$
-\begin{aligned}
-p_t &= p_0 + \rho_p p_{t-1}
-      + \frac{\phi_p^+}{2\sigma_p^2}(u_{t-1}^+)^2
-      + \frac{\phi_p^-}{2\sigma_p^2}(u_{t-1}^-)^2,\\
-n_t &= n_0 + \rho_n n_{t-1}
-      + \frac{\phi_n^+}{2\sigma_n^2}(u_{t-1}^+)^2
-      + \frac{\phi_n^-}{2\sigma_n^2}(u_{t-1}^-)^2.
-\end{aligned}
-$$
-
-The stability restrictions are
-
-$$
-\rho_p+\frac{\phi_p^++\phi_p^-}{2}<1,\qquad
-\rho_n+\frac{\phi_n^++\phi_n^-}{2}<1.
-$$
 
 ### Constant-p Full BEGE
 
@@ -230,6 +258,30 @@ $$
 \rho_p+\frac{\phi_p^++\phi_p^-}{2}<1.
 $$
 
+### Full BEGE
+
+The Full BEGE model allows each shape process to respond separately to
+positive and negative residuals:
+
+$$
+\begin{aligned}
+p_t &= p_0 + \rho_p p_{t-1}
+      + \frac{\phi_p^+}{2\sigma_p^2}(u_{t-1}^+)^2
+      + \frac{\phi_p^-}{2\sigma_p^2}(u_{t-1}^-)^2,\\
+n_t &= n_0 + \rho_n n_{t-1}
+      + \frac{\phi_n^+}{2\sigma_n^2}(u_{t-1}^+)^2
+      + \frac{\phi_n^-}{2\sigma_n^2}(u_{t-1}^-)^2.
+\end{aligned}
+$$
+
+The stability restrictions are
+
+$$
+\rho_p+\frac{\phi_p^++\phi_p^-}{2}<1,\qquad
+\rho_n+\frac{\phi_n^++\phi_n^-}{2}<1.
+$$
+
+
 ## Random Search
 
 BEGE estimation uses 50 independent seed jobs for each volatility
@@ -249,20 +301,21 @@ $[0,10]$, scale starts $\sigma_p,\sigma_n$ from $[10^{-5},2]$, and persistence
 and shock-loading starts are drawn so the relevant stability restriction is
 satisfied before optimization begins.
 
-When a dynamic BEGE recursion is evaluated, `gjr_recursion` initializes the
+When a dynamic BEGE recursion is evaluated, I initialize the
 pre-sample $p$ or $n$ state by the parameter-implied unconditional backcast,
 $p_0/(1-\rho-\tfrac{1}{2}(\phi^+ + \phi^-))$ or the corresponding restricted
-formula, with a small positive numerical floor. Constant-p and Constant-n
-models set the constant shape path directly.
+formula, with a small positive numerical floor.[^shape-floor] Constant-p and
+Constant-n models set the constant shape path directly.
+
+[^shape-floor]: The numerical floor is $10^{-4}$: if the initial backcast or a later recursion update produces a smaller value, the
+    code uses $0.0001$ instead.
 
 ## Density Evaluation
 
 Likelihood evaluation uses the stabilized BEGE density implementation
 documented in the BEGE Density section. The current evaluator keeps the
 closed-form hypergeometric expression in stable regions, switches to a guarded
-saddlepoint approximation when the closed form becomes numerically fragile,
-and uses the Gaussian limit only when the BEGE cumulants imply a near-normal
-distribution.
+saddlepoint approximation when the closed form becomes numerically fragile.
 
 ## Selection And Reporting
 
@@ -273,27 +326,6 @@ requires successful optimizer convergence, mean-process stationarity,
 documented parameter and stability constraints, and EWMA implied-variance
 bounds.
 
-To avoid explosive implied variance paths, I impose a loose constraint on BEGE
-implied variance. For effective-sample residuals $u_t$, define
-
-$$
-EWMA_1 =
-\frac{\sum_{j=1}^{\tau}\lambda^{j-1}u_j^2}
-     {\sum_{j=1}^{\tau}\lambda^{j-1}},
-\qquad
-EWMA_t = \lambda EWMA_{t-1} + (1-\lambda)u_{t-1}^2,\quad t\geq 2.
-$$
-
-The EWMA implied-variance bounds are imposed during optimization and checked
-again during collection. With $\lambda=0.94$ and $\tau=\min(75,T)$,
-
-$$
-\max(EWMA_t/10^6,\operatorname{Var}(u_t)/10^8)
-\leq
-\sigma_p^2p_t+\sigma_n^2n_t
-\leq
-\max\{\min(EWMA_t\cdot10^6,\ 10^7(1+\max u_t^2)),\ 1+\max u_t^2\}.
-$$
 
 Each report also gives empirical 5%, median, and 95% quantiles for $p_t$,
 $n_t$, $\operatorname{Var}_t(u_t)$, the skewness numerator, and the
@@ -301,12 +333,15 @@ excess-kurtosis numerator.
 
 ## Standard Errors
 
-Random-search jobs do not compute standard errors. After
-selection, the collector recomputes standard errors only for the reported
-best estimate. The current calculation uses the selected parameter vector,
-the corrected likelihood, a numerical Hessian of the negative log likelihood,
-and numerical per-observation scores. The default covariance is the sandwich
-matrix
+I compute standard errors only for the reported best estimate. For each
+observation, I approximate the score---the first derivative of that
+observation's log likelihood with respect to the parameters---using centered
+finite differences. I approximate the Hessian---the matrix of second
+derivatives of the total negative log likelihood---using the four-point
+centered finite-difference method implemented by
+`statsmodels.tools.numdiff.approx_hess`.
+
+The default covariance is the sandwich matrix
 
 $$
 \widehat{V}(\hat\theta)
@@ -318,8 +353,6 @@ $$
 
 where $\widehat{H}$ is the Hessian of the negative log likelihood and
 $\hat g_t$ is the numerical score contribution for observation $t$. If the
-Hessian calculation is numerically degenerate because the estimate is near a
-constraint or a penalty boundary, the collector falls back to an inverse-OPG
-covariance. Parameters on active bounds, parameters whose numerical SE is
-effectively unidentified, and SEs below the four-decimal reporting precision
-are reported as `NA` rather than as artificial zero standard errors.
+sandwich calculation is numerically unstable, the collector uses an
+observed-information or inverse-OPG fallback. Standard errors that cannot be
+reliably identified are reported as `NA`.

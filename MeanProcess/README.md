@@ -8,12 +8,12 @@
 
 Four types of mean processes are of interest:
 
-- **Constant**: $\pi_{t+1} = SPF_t + \mu_{t+1}$
-- **ARX(1,1)**: $\pi_{t+1} = c + \rho_1 \pi_t + \phi_1 SPF_t + \mu_{t+1}$
-- **ARX(2,1)**: $\pi_{t+1} = c + \rho_1 \pi_t + \rho_2 \pi_{t-1} + \phi_1 SPF_t + \mu_{t+1}$
-- **ARX(2,2)** : $\pi_{t+1} = c + \rho_1 \pi_t + \rho_2 \pi_{t-1} + \phi_1 SPF_t + \phi_2 SPF_{t-1} + \mu_{t+1}$
+- **Constant**: $\pi_{t+1} = SPF_t + u_{t+1}$
+- **ARX(1,1)**: $\pi_{t+1} = c + \rho_1 \pi_t + \phi_1 SPF_t + u_{t+1}$
+- **ARX(2,1)**: $\pi_{t+1} = c + \rho_1 \pi_t + \rho_2 \pi_{t-1} + \phi_1 SPF_t + u_{t+1}$
+- **ARX(2,2)** : $\pi_{t+1} = c + \rho_1 \pi_t + \rho_2 \pi_{t-1} + \phi_1 SPF_t + \phi_2 SPF_{t-1} + u_{t+1}$
 
-where $\mu_{t+1}$ is the residual term.
+where $u_{t+1}$ is the residual term.
 
 
 <!-- [^1]: In the GARCH family estimation exercise, we found that  ARX(2,2) is always dominated by other three specifications. Thus, we stop estimating ARX(2,2) in BEGE estimation to saving computational resources. -->
@@ -28,7 +28,7 @@ $$
 \hat{\pi}_{t+1} = SPF_t
 $$
 
-No estimated coefficients. Residuals $\mu_{t+1} = \pi_{t+1} - SPF_t$.
+No estimated coefficients. Residuals $u_{t+1} = \pi_{t+1} - SPF_t$.
 
 - Log-likelihood: **-222.664**
 - AIC: **447.329**, BIC: **450.700**

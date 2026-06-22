@@ -5,20 +5,20 @@
 
 #  BEGE Density
 
-The BEGE density $f(u\mid p,n,\sigma_p,\sigma_n)$ is the conditional density
+The BEGE density $f(u| p,n,\sigma_p,\sigma_n)$ is the conditional density
 of one inflation residual given the two gamma shape parameters and two scale
 parameters. This section compares three implementations:
 
 - numerical integration, which is slow but useful as an independent benchmark;
 - Justin's closed-form hypergeometric implementation;
-- the current stabilized implementation in `BEGE_density.py`.
+- my stabilized modification on Justin's implementation.
 
 The main conclusion is that Justin's closed-form formula is correct in stable
 regions, but its direct numerical evaluation can fail when the shape parameters
 enter the transition range where the BEGE distribution is already close to a
 Gaussian law. In those cases, very large terms in the hypergeometric expression
 nearly cancel. Finite-precision evaluation can then create artificial
-pointwise log densities that are economically impossible and can dominate the
+pointwise log densities that are numerically impossible and can dominate the
 likelihood search.
 
 ## Executive Summary
