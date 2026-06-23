@@ -62,6 +62,18 @@ DISTRIBUTIONS = ("normal", "studentst", "mix_normal")
 VOL_FAMILIES = ("GARCH", "GJR-GARCH", "EGARCH")
 COMMON_HOLD_BACK = 0
 STABILITY_MARGIN = 1e-6
+DEFAULT_N_STARTS = 100
+DEFAULT_RETRY_FAILED_STARTS = 400
+DEFAULT_MAXITER = 8000
+SUMMARY_SORT_COLUMNS = ["distribution", "mean_spec", "vol_family", "p", "q"]
+MIN_SUMMARY_COLUMNS = [
+    *SUMMARY_SORT_COLUMNS,
+    "optimizer_success",
+    "stable_by_proxy",
+    "loglikelihood",
+    "aic",
+    "bic",
+]
 
 DISTRIBUTION_LABEL = {
     "normal": "Normal",
@@ -392,6 +404,7 @@ def make_arch_fit_func(
     vol_spec: VolSpec,
     dist: str,
     hold_back: int,
+    maxiter: int,
 ):
     am = arch_model(
         y=y,
@@ -413,7 +426,7 @@ def make_arch_fit_func(
             "update_freq": 0,
             "cov_type": "robust",
             "show_warning": False,
-            "options": {"maxiter": 3000},
+            "options": {"maxiter": maxiter},
         }
         if starting_values is not None:
             kwargs["starting_values"] = starting_values
@@ -431,6 +444,7 @@ def make_sparch_fit_func(
     lags: int | list[int],
     vol_spec: VolSpec,
     hold_back: int,
+    maxiter: int,
 ):
     benchmark = arch_model(
         y=y,
@@ -449,7 +463,7 @@ def make_sparch_fit_func(
         update_freq=0,
         cov_type="robust",
         show_warning=False,
-        options={"maxiter": 3000},
+        options={"maxiter": maxiter},
     )
 
     initial = np.concatenate(
@@ -476,7 +490,7 @@ def make_sparch_fit_func(
             "update_freq": 0,
             "cov_type": "robust",
             "show_warning": False,
-            "options": {"maxiter": 4000},
+            "options": {"maxiter": maxiter},
         }
         kwargs["starting_values"] = initial if starting_values is None else starting_values
         with warnings.catch_warnings():
@@ -586,6 +600,8 @@ def fit_with_restarts(
     rng: np.random.Generator,
     n_starts: int,
     initial_starting_values: np.ndarray | None = None,
+    phase: str = "primary",
+    attempt_offset: int = 0,
 ) -> tuple[Any | None, list[dict[str, Any]]]:
     attempts: list[dict[str, Any]] = []
     valid_results: list[Any] = []
@@ -595,7 +611,13 @@ def fit_with_restarts(
 
     for attempt_idx in range(max(1, n_starts)):
         sv = start_values[attempt_idx] if attempt_idx < len(start_values) else None
-        label = "default" if sv is None else f"random_{attempt_idx}"
+        attempt_number = attempt_offset + attempt_idx + 1
+        if sv is None:
+            label = "default"
+        elif attempt_idx == 0 and initial_starting_values is not None:
+            label = "initial"
+        else:
+            label = f"random_{attempt_number}"
         try:
             result = fit_func(sv)
             usable, unc_var, persistence, unc_status = stable_converged(result, vol_spec)
@@ -603,7 +625,8 @@ def fit_with_restarts(
                 base_params = result.params.copy()
             attempts.append(
                 {
-                    "attempt": attempt_idx + 1,
+                    "phase": phase,
+                    "attempt": attempt_number,
                     "start_type": label,
                     "loglikelihood": float(result.loglikelihood),
                     "optimizer_success": bool(result.optimization_result.success),
@@ -627,7 +650,8 @@ def fit_with_restarts(
         except Exception as exc:
             attempts.append(
                 {
-                    "attempt": attempt_idx + 1,
+                    "phase": phase,
+                    "attempt": attempt_number,
                     "start_type": label,
                     "loglikelihood": np.nan,
                     "optimizer_success": False,
@@ -646,6 +670,11 @@ def fit_with_restarts(
         return None, attempts
     best = max(valid_results, key=lambda res: float(res.loglikelihood))
     return best, attempts
+
+
+def model_phase_rng(seed: int, model_counter: int, phase_id: int) -> np.random.Generator:
+    """Create an independent reproducible RNG for one model and search phase."""
+    return np.random.default_rng(np.random.SeedSequence([seed, model_counter, phase_id]))
 
 
 # ============================================================
@@ -735,6 +764,48 @@ def parameter_rows(model_id: str, result: Any) -> list[dict[str, Any]]:
     return rows
 
 
+def attempt_detail_rows(
+    model_id: str,
+    distribution: str,
+    mean_spec: MeanSpec,
+    vol_spec: VolSpec,
+    attempts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for attempt in attempts:
+        rows.append(
+            {
+                "model_id": model_id,
+                "distribution": distribution,
+                "distribution_label": DISTRIBUTION_LABEL[distribution],
+                "mean_spec": mean_spec.name,
+                "mean_label": MEAN_LABEL[mean_spec.name],
+                "vol_family": vol_spec.family,
+                "vol_spec": vol_spec.label,
+                "vol_order": f"({vol_spec.p},{vol_spec.q})",
+                **attempt,
+            }
+        )
+    return rows
+
+
+def attempt_count(attempts: list[dict[str, Any]], key: str) -> int:
+    return sum(1 for attempt in attempts if bool(attempt.get(key)))
+
+
+def best_attempt_loglikelihood(
+    attempts: list[dict[str, Any]], *, optimizer_success_only: bool = False
+) -> float:
+    vals: list[float] = []
+    for attempt in attempts:
+        if optimizer_success_only and not bool(attempt.get("optimizer_success")):
+            continue
+        val = float(attempt.get("loglikelihood", np.nan))
+        if np.isfinite(val):
+            vals.append(val)
+    return max(vals) if vals else np.nan
+
+
 # ============================================================
 # 10) Markdown best-model reporting
 # ============================================================
@@ -752,17 +823,19 @@ def _mean_label(row: pd.Series) -> str:
 
 
 def _candidate_pool(summary_df: pd.DataFrame, criterion: str) -> pd.DataFrame:
+    crit_values = pd.to_numeric(summary_df[criterion], errors="coerce")
+    finite_criterion = np.isfinite(crit_values.to_numpy(dtype=float))
     pool = summary_df[
         (summary_df["optimizer_success"] == True)
-        & np.isfinite(summary_df[criterion])
+        & finite_criterion
         & (summary_df["stable_by_proxy"] == True)
     ].copy()
     if pool.empty:
         pool = summary_df[
-            (summary_df["optimizer_success"] == True) & np.isfinite(summary_df[criterion])
+            (summary_df["optimizer_success"] == True) & finite_criterion
         ].copy()
     if pool.empty:
-        pool = summary_df[np.isfinite(summary_df[criterion])].copy()
+        pool = summary_df[finite_criterion].copy()
     return pool
 
 
@@ -789,7 +862,7 @@ def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
     global_min = min(values) if values else np.nan
 
     if criterion == "aic":
-        title = "**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**"
+        title = "**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**[^garch-aic-sample-note]"
         c_g = "GARCH AIC"
         c_gjr = "GJR AIC"
         c_eg = "EGARCH AIC"
@@ -833,6 +906,15 @@ def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
             + f"{DISTRIBUTION_LABEL[dist]} | {gar_mean} | {gar_vol} | {crit_fmt(gar)} | "
             + f"{gjr_mean} | {gjr_vol} | {crit_fmt(gjr)} | "
             + f"{ega_mean} | {ega_vol} | {crit_fmt(ega)} |"
+        )
+    if criterion == "aic":
+        lines.append("")
+        lines.append(
+            "[^garch-aic-sample-note]: These numbers differ from earlier GARCH tables because "
+            "earlier code used inconsistent effective sample sizes across model settings due "
+            "to a sample-trimming error. The correction is discussed in the "
+            "[Data Summary effective-sample section](../../DataSummary/README.md#effective-sample). "
+            "The current estimates use the common **1969Q2--2022Q4** sample with **215 observations**."
         )
     return "\n".join(lines)
 
@@ -1119,9 +1201,11 @@ def _distribution_parameters_markdown(best_row: pd.Series, psub: pd.DataFrame) -
 
 
 def build_unit_order_comparison_section(summary_df: pd.DataFrame, param_df: pd.DataFrame) -> str:
+    loglik_values = pd.to_numeric(summary_df["loglikelihood"], errors="coerce")
+    finite_loglik = np.isfinite(loglik_values.to_numpy(dtype=float))
     pool = summary_df[
         (summary_df["optimizer_success"] == True)
-        & np.isfinite(summary_df["loglikelihood"])
+        & finite_loglik
         & (summary_df["vol_family"].isin(["GARCH", "GJR-GARCH"]))
         & (summary_df["p"] == 1)
         & (summary_df["q"] == 1)
@@ -1188,13 +1272,19 @@ def build_excluded_models_section(failed_df: pd.DataFrame | None) -> str:
         "`garch_family_failed_models.csv` for audit."
     )
     lines.append("")
-    lines.append("| Model ID | Distribution | Mean process | Volatility process | Attempts | Best attempted LogLik |")
-    lines.append("|---|---|---|---|---:|---:|")
+    lines.append(
+        "| Model ID | Distribution | Mean process | Volatility process | Attempts | "
+        "Optimizer-success attempts | Stable attempts | Best attempted LogLik |"
+    )
+    lines.append("|---|---|---|---|---:|---:|---:|---:|")
     for _, row in failed_df.iterrows():
+        opt_attempts = int(row.get("optimizer_success_attempts", 0))
+        stable_attempts = int(row.get("stable_attempts", 0))
         lines.append(
             "| "
             + f"`{row['model_id']}` | {_distribution_label(row)} | {_mean_label(row)} | "
             + f"{row['vol_spec']} | {int(row['attempts'])} | "
+            + f"{opt_attempts} | {stable_attempts} | "
             + f"{_format_value(float(row['best_attempt_loglikelihood']))} |"
         )
     return "\n".join(lines)
@@ -1204,6 +1294,8 @@ def build_markdown_report(
     summary_df: pd.DataFrame,
     param_df: pd.DataFrame,
     failed_df: pd.DataFrame | None = None,
+    n_starts: int = DEFAULT_N_STARTS,
+    retry_failed_starts: int = DEFAULT_RETRY_FAILED_STARTS,
 ) -> str:
     lines: list[str] = []
     lines.append("```{raw:typst}")
@@ -1258,7 +1350,14 @@ def build_markdown_report(
     lines.append("- In `arch`, EGARCH uses the package's centered term `|z|-sqrt(2/pi)` in the recursion for all distributions.")
     lines.append("- Under non-Gaussian errors (e.g., Student's t or Gaussian mixture), this is an intercept reparameterization; fitted dynamics and likelihood are still valid.")
     lines.append("- Conditional-variance recursion starts use the default initialization implemented by the `arch` package; this report no longer iterates the `backcast` to the parameter-implied unconditional variance.")
-    lines.append("- Each model combination is estimated from the package default start plus randomized feasible starts, and only optimizer-converged fits that pass the stationarity proxy with a `1e-6` margin below one are collected in the main result tables.")
+    lines.append(
+        f"- Each model combination is estimated from the package default start plus "
+        f"{max(0, n_starts - 1)} randomized feasible starts. If no stable "
+        f"converged fit is found, the script tries {retry_failed_starts} additional "
+        "retry starts using an independent model-specific retry seed."
+    )
+    lines.append("- Attempt-level diagnostics are saved in `garch_family_restart_attempts.csv`.")
+    lines.append("- Only optimizer-converged fits that pass the stationarity proxy with a `1e-6` margin below one are collected in the main result tables.")
     lines.append("- Stability is monitored using a persistence proxy (`< 1 - 1e-6`):")
     lines.append("  GARCH uses `sum(alpha)+sum(beta)`, GJR uses `sum(alpha)+0.5*sum(gamma)+sum(beta)`, EGARCH uses `sum(beta)`.")
     lines.append("")
@@ -1268,14 +1367,21 @@ def build_markdown_report(
 # ============================================================
 # 11) Main estimation routine
 # ============================================================
-def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) -> None:
+def run_estimation(
+    data_path: Path,
+    output_dir: Path,
+    n_starts: int,
+    retry_failed_starts: int,
+    maxiter: int,
+    seed: int,
+) -> None:
     df = load_quarterly_data(data_path)
     mean_specs = build_mean_specs()
     vol_specs = build_vol_specs()
-    rng = np.random.default_rng(seed)
 
     summary_rows: list[dict[str, Any]] = []
     param_rows: list[dict[str, Any]] = []
+    attempt_rows: list[dict[str, Any]] = []
     failed_rows: list[dict[str, Any]] = []
     text_lines: list[str] = []
 
@@ -1290,6 +1396,7 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
                 model_id = f"M{model_counter:03d}"
 
                 try:
+                    primary_rng = model_phase_rng(seed, model_counter, 0)
                     if dist in ("normal", "studentst"):
                         fit_func = make_arch_fit_func(
                             y=y,
@@ -1299,6 +1406,7 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
                             vol_spec=vol_spec,
                             dist=dist,
                             hold_back=COMMON_HOLD_BACK,
+                            maxiter=maxiter,
                         )
                         init_sv = None
                     else:
@@ -1309,6 +1417,7 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
                             lags=mean_spec.lags,
                             vol_spec=vol_spec,
                             hold_back=COMMON_HOLD_BACK,
+                            maxiter=maxiter,
                         )
 
                     result, attempts = (
@@ -1317,9 +1426,36 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
                             vol_spec=vol_spec,
                             dist=dist,
                             y=y,
-                            rng=rng,
+                            rng=primary_rng,
                             n_starts=n_starts,
                             initial_starting_values=init_sv,
+                            phase="primary",
+                        )
+                    )
+
+                    if result is None and retry_failed_starts > 0:
+                        retry_rng = model_phase_rng(seed, model_counter, 1)
+                        retry_result, retry_attempts = fit_with_restarts(
+                            fit_func=fit_func,
+                            vol_spec=vol_spec,
+                            dist=dist,
+                            y=y,
+                            rng=retry_rng,
+                            n_starts=retry_failed_starts,
+                            initial_starting_values=init_sv,
+                            phase="retry",
+                            attempt_offset=len(attempts),
+                        )
+                        attempts.extend(retry_attempts)
+                        result = retry_result
+
+                    attempt_rows.extend(
+                        attempt_detail_rows(
+                            model_id=model_id,
+                            distribution=dist,
+                            mean_spec=mean_spec,
+                            vol_spec=vol_spec,
+                            attempts=attempts,
                         )
                     )
 
@@ -1335,11 +1471,16 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
                                 "vol_spec": vol_spec.label,
                                 "vol_order": f"({vol_spec.p},{vol_spec.q})",
                                 "attempts": len(attempts),
-                                "best_attempt_loglikelihood": np.nanmax(
-                                    [a["loglikelihood"] for a in attempts]
-                                )
-                                if attempts
-                                else np.nan,
+                                "optimizer_success_attempts": attempt_count(
+                                    attempts, "optimizer_success"
+                                ),
+                                "stable_attempts": attempt_count(attempts, "stable_by_proxy"),
+                                "best_attempt_loglikelihood": best_attempt_loglikelihood(
+                                    attempts
+                                ),
+                                "best_optimizer_success_loglikelihood": best_attempt_loglikelihood(
+                                    attempts, optimizer_success_only=True
+                                ),
                                 "last_error_message": attempts[-1]["error_message"]
                                 if attempts
                                 else "no attempts",
@@ -1387,8 +1528,11 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
                             "vol_spec": vol_spec.label,
                             "vol_order": f"({vol_spec.p},{vol_spec.q})",
                             "attempts": 0,
+                            "optimizer_success_attempts": 0,
+                            "stable_attempts": 0,
                             "best_attempt_loglikelihood": np.nan,
-                            "error_message": str(exc),
+                            "best_optimizer_success_loglikelihood": np.nan,
+                            "last_error_message": str(exc),
                         }
                     )
                     text_lines.append(
@@ -1398,17 +1542,27 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     summary_df = pd.DataFrame(summary_rows)
-    summary_df = summary_df.sort_values(["distribution", "mean_spec", "vol_family", "p", "q"])
+    if summary_df.empty:
+        summary_df = pd.DataFrame(columns=MIN_SUMMARY_COLUMNS)
+    else:
+        summary_df = summary_df.sort_values(SUMMARY_SORT_COLUMNS)
     param_df = pd.DataFrame(param_rows).sort_values(["model_id", "parameter"]) if param_rows else pd.DataFrame()
+    attempt_df = (
+        pd.DataFrame(attempt_rows).sort_values(["model_id", "attempt"])
+        if attempt_rows
+        else pd.DataFrame()
+    )
 
     summary_csv = output_dir / "garch_family_estimation_summary.csv"
     params_csv = output_dir / "garch_family_estimation_parameters.csv"
+    attempts_csv = output_dir / "garch_family_restart_attempts.csv"
     failed_csv = output_dir / "garch_family_failed_models.csv"
     summary_txt = output_dir / "garch_family_estimation_summary.txt"
     report_md = output_dir / "garch_family_best_models.md"
 
     summary_df.to_csv(summary_csv, index=False)
     param_df.to_csv(params_csv, index=False)
+    attempt_df.to_csv(attempts_csv, index=False)
     pd.DataFrame(failed_rows).to_csv(failed_csv, index=False)
 
     txt_header = [
@@ -1420,12 +1574,19 @@ def run_estimation(data_path: Path, output_dir: Path, n_starts: int, seed: int) 
     summary_txt.write_text("\n".join(txt_header + text_lines) + "\n", encoding="utf-8")
 
     failed_df = pd.DataFrame(failed_rows)
-    report_text = build_markdown_report(summary_df, param_df, failed_df)
+    report_text = build_markdown_report(
+        summary_df,
+        param_df,
+        failed_df,
+        n_starts=n_starts,
+        retry_failed_starts=retry_failed_starts,
+    )
     report_md.write_text(report_text + "\n", encoding="utf-8")
 
     print("\nSaved:")
     print(f"  - {summary_csv}")
     print(f"  - {params_csv}")
+    print(f"  - {attempts_csv}")
     print(f"  - {failed_csv}")
     print(f"  - {summary_txt}")
     print(f"  - {report_md}")
@@ -1457,8 +1618,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--n-starts",
         type=int,
-        default=25,
-        help="Number of optimizer starts per model combination, including the default ARCH start.",
+        default=DEFAULT_N_STARTS,
+        help=(
+            "Primary optimizer starts per model combination, including the default ARCH start "
+            f"(default: {DEFAULT_N_STARTS})."
+        ),
+    )
+    parser.add_argument(
+        "--retry-failed-starts",
+        type=int,
+        default=DEFAULT_RETRY_FAILED_STARTS,
+        help=(
+            "Additional optimizer starts for combinations with no stable converged fit after "
+            f"the primary search (default: {DEFAULT_RETRY_FAILED_STARTS})."
+        ),
+    )
+    parser.add_argument(
+        "--maxiter",
+        type=int,
+        default=DEFAULT_MAXITER,
+        help=f"Maximum optimizer iterations per start (default: {DEFAULT_MAXITER}).",
     )
     parser.add_argument(
         "--seed",
@@ -1475,6 +1654,8 @@ def main() -> None:
         data_path=args.data_path,
         output_dir=args.output_dir,
         n_starts=args.n_starts,
+        retry_failed_starts=args.retry_failed_starts,
+        maxiter=args.maxiter,
         seed=args.seed,
     )
 

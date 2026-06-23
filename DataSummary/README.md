@@ -24,19 +24,17 @@ Notice that inflation was recorded from 1947 but profesional forecast started fr
 
 ## Effective Sample
 
-To make log-likelihood values comparable across specifications, I use an effective sample for all mean models and all volatility models.
+To make log-likelihood values comparable across specifications, I use the same effective sample size for all mean models and all volatility models.[^effective-sample-correction]
  
 In ARX models, lagged regressors (for example, $SPF_{t-1}$) are not observed at the very beginning of the raw sample. Therefore, I start the estimation sample at the first date where both current forecast inflation ($SPF_t$), and one-lag forecast inflation ($SPF_{t-1}$)  are available.
 For the quarterly data, forecast inflation ($SPF_t$) is available from **1969Q1** to **2022Q4** (216 observations), requiring one lag ($SPF_{t-1}$) shifts the usable start to **1969Q2**. So the trimmed estimation window is **1969Q2--2022Q4**, with **215 observations**.
 This same trimmed sample is then used for all mean specifications, so the residual series has the same length across models.
  
+[^effective-sample-correction]: Earlier versions of the estimation code contained a sample-trimming mistake and therefore used different numbers of observations across model settings. For example, some GARCH runs used 208 observations, while some BEGE runs used 210 observations. This coding error has now been corrected: all reported and regenerated estimates use the common **1969Q2--2022Q4** effective sample with **215 observations**. As a result, some current log-likelihood, AIC, and BIC values differ from earlier archived numbers.
+
 
 For GARCH-type recursion, the first few conditional variances are unobserved
-(for example, $\sigma_0^2$, $\sigma_{-1}^2$, $u_0^2$, $u_{-1}^2$).  In the
-GARCH-family estimates reported here, I use the default initialization
-implemented by the `arch` package rather than iterating the recursion start to
-the parameter-implied unconditional variance. The unconditional-variance
-formula remains useful for interpreting stationarity in a GARCH model:
+(for example, $\sigma_0^2$, $\sigma_{-1}^2$, $u_0^2$, $u_{-1}^2$).  I use unconditional variance as initialization, for example,  in a GARCH model:
 
 $$
 \bar{\sigma}^2 = \frac{\omega}{1-\sum_i \alpha_i - \sum_j \beta_j},

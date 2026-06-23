@@ -4,13 +4,15 @@
 
 # Model Selection Report
 
-**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**
+**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**[^garch-aic-sample-note]
 
 | Distribution | GARCH Mean | GARCH Vol | GARCH AIC | GJR Mean | GJR Vol | GJR AIC | EGARCH Mean | EGARCH Vol | EGARCH AIC |
 |---|---|---|---:|---|---|---:|---|---|---:|
 | Normal | ARX(2,1) | (2,1) | 387.2314 | ARX(1,1) | (2,1) | 372.5785 | ARX(2,1) | (1,2) | 368.6220 |
 | Student's $t$ | ARX(2,1) | (1,1) | 361.3528 | ARX(2,1) | (2,1) | 356.9953 | ARX(2,1) | (1,2) | <span style="color:red">353.1752</span> |
 | Gaussian mixture | ARX(1,1) | (2,1) | 367.1233 | ARX(2,1) | (2,1) | 358.4230 | ARX(1,1) | (1,2) | 353.2873 |
+
+[^garch-aic-sample-note]: These numbers differ from earlier GARCH tables because earlier code used inconsistent effective sample sizes across model settings due to a sample-trimming error. The correction is discussed in the [Data Summary effective-sample section](../../DataSummary/README.md#effective-sample). The current estimates use the common **1969Q2--2022Q4** sample with **215 observations**.
 
 **Table 3: Model selection by BIC: GARCH vs GJR vs EGARCH**
 
@@ -22,8 +24,7 @@
 
 ## Best Models by Criterion and Volatility Family
 
-For each criterion and each volatility family, the selected model is the best across mean-process choices, orders, and distributions using stable & successful fits.
-The main result tables contain 122 accepted model combinations.
+For each criterion and each volatility family, the selected model is the best across mean-process choices, orders, and distributions using stable & successful fits. 
 
 ### AIC
 
@@ -928,4 +929,3 @@ The combinations below did not produce an optimizer-converged fit satisfying the
 - Each model combination is estimated from the package default start plus randomized feasible starts, and only optimizer-converged fits that pass the stationarity proxy with a `1e-6` margin below one are collected in the main result tables.
 - Stability is monitored using a persistence proxy (`< 1 - 1e-6`):
   GARCH uses `sum(alpha)+sum(beta)`, GJR uses `sum(alpha)+0.5*sum(gamma)+sum(beta)`, EGARCH uses `sum(beta)`.
-

@@ -6,7 +6,7 @@
 
 This section presents three GARCH-type volatility models — GARCH, GJR-GARCH, and EGARCH — each combined with one of three conditional distributions for residuals: normal, Student's $t$, and a two-component Gaussian mixture.
 
-Let $\{u_t\}_{t=1}^{T}$ denote the residual process, and let $\mathcal{F}_{t-1}$ denote the information set available at time $t-1$. We assume
+Let $\{u_t\}_{t=1}^{T}$ denote the residual process, and let $\mathcal{F}_{t-1}$ denote the information set available at time $t-1$. I assume
 $$
 u_t = \sigma_t \, z_t, \qquad z_t | \mathcal{F}_{t-1} \stackrel{\text{i.i.d.}}{\sim} D(0,1),
 $$
@@ -36,14 +36,14 @@ $$
 
 **EGARCH$(p,q)$:**
 $$
-\ln\sigma_{t}^{2} \;=\; \omega \;+\; \sum_{i=1}^{p}\alpha_{i}\!\left(|z_{t-i}| - \sqrt{\tfrac{2}{\pi}}\right) \;+\; \sum_{j=1}^{p}\gamma_{j}\, z_{t-j} \;+\; \sum_{k=1}^{q}\beta_{k}\,\ln\sigma_{t-k}^{2},
+\ln\sigma_{t}^{2} \;=\; \omega \;+\; \sum_{i=1}^{p}\alpha_{i} \left(|z_{t-i}| - \sqrt{\tfrac{2}{\pi}}\right) \;+\; \sum_{j=1}^{p}\gamma_{j}\, z_{t-j} \;+\; \sum_{k=1}^{q}\beta_{k}\,\ln\sigma_{t-k}^{2},
 $$
 where $z_t = u_t / \sigma_t$ is the standardized residual. The term $\alpha_i$ captures the magnitude effect (response to the size of shocks) while $\gamma_j$ captures the sign / leverage effect. Modeling $\ln\sigma_t^2$ guarantees positivity of $\sigma_t^2$ without sign restrictions on $(\alpha_i, \gamma_j, \beta_k)$, and the recursion is covariance-stationary in $\ln\sigma_t^2$ whenever
 $$
 \sum_{k=1}^{q}\beta_{k} \;<\; 1.
 $$
 
-**Remark on the centering constant.** The constant $\sqrt{2/\pi}$ equals $\mathbb{E}|z_t|$ when $z_t \sim \mathcal{N}(0,1)$, so under a Gaussian innovation the term $|z_{t-i}| - \sqrt{2/\pi}$ has zero conditional mean and $\omega$ admits the clean interpretation
+<!-- **Remark on the centering constant.** The constant $\sqrt{2/\pi}$ equals $\mathbb{E}|z_t|$ when $z_t \sim \mathcal{N}(0,1)$, so under a Gaussian innovation the term $|z_{t-i}| - \sqrt{2/\pi}$ has zero conditional mean and $\omega$ admits the clean interpretation
 $$
 \mathbb{E}[\ln\sigma_t^2] \;=\; \frac{\omega}{1 - \sum_{k=1}^{q}\beta_k}.
 $$
@@ -51,22 +51,23 @@ Following the convention of the `arch` Python package, we retain $\sqrt{2/\pi}$ 
 $$
 \omega \;=\; \omega^{*} \;+\; \left(\sqrt{\tfrac{2}{\pi}} - c_D\right)\sum_{i=1}^{p}\alpha_{i}.
 $$
-The likelihood, the fitted $\sigma_t^2$ path, and all forecasts are identical under the two parameterizations.
+The likelihood, the fitted $\sigma_t^2$ path, and all forecasts are identical under the two parameterizations. -->
 
 ## Estimation Initialization And Collection
 
-The GARCH-family estimation script uses the default conditional-variance
-initialization implemented by the `arch` package. It does not override the
-recursion start with a parameter-implied unconditional variance and does not
-iterate the `backcast` value to match the estimated parameters.
-
+The GARCH-family estimation is executed by the `arch` package.
 For each distribution, mean process, volatility family, and order, the script
 tries the package default optimizer start and additional randomized feasible
-starts. The collected result for a model combination is the highest
-log-likelihood estimate among starts that both converged according to the
-optimizer and passed the relevant stationarity proxy with a small numerical
-margin below one (`1e-6`). Fits that fail these checks are excluded from the
-main result tables and written to a failed-model diagnostic file.
+starts. The current production default uses 100 primary starts per model
+combination. If no optimizer-converged and stationarity-admissible estimate is
+found, the script automatically runs 400 additional retry starts using an
+independent model-specific random seed. The collected result for a model
+combination is the highest log-likelihood estimate among starts that both
+converged according to the optimizer and passed the relevant stationarity proxy
+with a small numerical margin below one (`1e-6`). Fits that fail these checks
+after the retry search are excluded from the main result tables and written to a
+failed-model diagnostic file. Attempt-level restart diagnostics are also saved
+for audit.
 
 
 ## Log-Likelihood Specifications
@@ -116,7 +117,7 @@ $$
 
 ### Gaussian mixture distribution
 
-The standardized innovation follows a two-component Gaussian mixture. This is the same specification sometimes described as a mixture of two normals; I use the Gaussian-mixture notation here. The free parameters are $(p_1, \mu_1, \sigma_1^{2})$:
+The standardized innovation follows a two-component Gaussian mixture. The free parameters are $(p_1, \mu_1, \sigma_1^{2})$:
 $$
 f_{\mathrm{mix}}(z) \;=\; p_1\,\varphi(z;\,\mu_1,\sigma_1^{2}) \;+\; p_2\,\varphi(z;\,\mu_2,\sigma_2^{2}), \qquad \varphi(z;\mu,s^{2}) \;=\; \frac{1}{\sqrt{2\pi s^{2}}}\exp \left\{-\frac{(z-\mu)^{2}}{2 s^{2}}\right\}.
 $$
