@@ -225,7 +225,7 @@ def build_model_specs() -> tuple[list[ModelSpec], list[dict[str, Any]]]:
                     mean_process=mean,
                     error_distribution="Student t",
                     switch_spec=switch,
-                    switching_nu=False,
+                    switching_nu=switch.switching_distribution,
                 )
             )
 
@@ -672,8 +672,9 @@ def build_results_markdown(
     best_bic: pd.Series,
     skipped_df: pd.DataFrame,
 ) -> str:
-    # Keep only the compact estimated-model table for reporting.
-    view = results_df[
+    # Keep only estimates that passed all checks; fallbacks are excluded from display.
+    valid_df = results_df[results_df["checks_passed"] == True]
+    view = valid_df[
         [
             "mean_process",
             "error_distribution",
@@ -681,9 +682,6 @@ def build_results_markdown(
             "switching_ar",
             "switching_spf",
             "switching_distribution",
-            "switching_nu",
-            "checks_passed",
-            "selection_status",
             "llf",
             "aic",
             "bic",
@@ -699,7 +697,6 @@ def build_results_markdown(
     view["_sw_ar_order"] = view["switching_ar"].map(yn_order).fillna(999)
     view["_sw_spf_order"] = view["switching_spf"].map(yn_order).fillna(999)
     view["_sw_var_order"] = view["switching_distribution"].map(yn_order).fillna(999)
-    view["_sw_nu_order"] = view["switching_nu"].map(yn_order).fillna(999)
 
     view = view.sort_values(
         [
@@ -709,10 +706,9 @@ def build_results_markdown(
             "_sw_ar_order",
             "_sw_spf_order",
             "_sw_var_order",
-            "_sw_nu_order",
             "aic",
         ],
-        ascending=[True, True, True, True, True, True, True, True],
+        ascending=[True, True, True, True, True, True, True],
     ).reset_index(drop=True)
 
     view = view.rename(
@@ -722,10 +718,7 @@ def build_results_markdown(
             "k_regimes": "K",
             "switching_ar": "Sw.AR",
             "switching_spf": "Sw.SPF",
-            "switching_distribution": "Sw.Var",
-            "switching_nu": "Sw.nu",
-            "checks_passed": "Checks",
-            "selection_status": "Selection",
+            "switching_distribution": "Sw.Dist",
             "llf": "LogLik",
             "aic": "AIC",
             "bic": "BIC",
@@ -738,25 +731,19 @@ def build_results_markdown(
             "_sw_ar_order",
             "_sw_spf_order",
             "_sw_var_order",
-            "_sw_nu_order",
         ]
     )
 
     for c in ["LogLik", "AIC", "BIC"]:
         view[c] = view[c].map(lambda x: f"{x:.4f}")
-    view["Checks"] = view["Checks"].map(format_bool)
-    view["Selection"] = view["Selection"].map(
-        lambda x: "passed" if x == "passed_checks" else "fallback"
-    )
 
     intro = (
-        "Each model is selected from 50 starts. `Checks=Y` means the selected "
-        "estimate passed optimizer convergence, AR stationarity, parameter-bound, "
-        "distribution, and transition-probability checks. Student-t degrees of "
-        "freedom are held common across regimes by default; Student-t estimates "
-        "with `nu` in the Gaussian-limit region are not treated as clean "
-        "Student-t fits. If no start passed all checks, the reported row is the "
-        "highest-likelihood fallback and is marked `fallback`."
+        "Each model is selected from 50 starts; only estimates that passed all "
+        "checks (optimizer convergence, AR stationarity, parameter bounds, and "
+        "valid transition probabilities) are reported. Specifications where no "
+        "start passed all checks are excluded. Student-$t$ degrees of freedom "
+        "($\\nu$) are held common across regimes; `Sw.Dist` reflects whether "
+        "$\\sigma^2$ is regime-specific."
     )
     return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view)
 
@@ -893,9 +880,11 @@ def _switching_parts(best_row: pd.Series) -> tuple[str, str]:
         blocks.append(("AR block, including $c$", best_row["switching_ar"]))
     if any(is_spf_col(c) for c in str(best_row["exog_cols"]).split(",") if c):
         blocks.append(("SPF block", best_row["switching_spf"]))
-    blocks.append(("$\\sigma^2$", best_row["switching_distribution"]))
+    # σ² and ν treated as a joint shock-distribution block.
     if best_row["error_distribution"] == "Student t":
-        blocks.append(("$\\nu$", best_row["switching_nu"]))
+        blocks.append(("shock distribution ($\\sigma^2$, $\\nu$)", best_row["switching_distribution"]))
+    else:
+        blocks.append(("$\\sigma^2$", best_row["switching_distribution"]))
 
     switching = [label for label, flag in blocks if flag == "Y"]
     fixed = [label for label, flag in blocks if flag != "Y"]
@@ -908,9 +897,11 @@ def _switching_block_table(best_row: pd.Series) -> pd.DataFrame:
         rows.append({"Block": "AR block, including $c$", "Switching": best_row["switching_ar"]})
     if any(is_spf_col(c) for c in str(best_row["exog_cols"]).split(",") if c):
         rows.append({"Block": "SPF block", "Switching": best_row["switching_spf"]})
-    rows.append({"Block": "$\\sigma^2$", "Switching": best_row["switching_distribution"]})
+    # σ² and ν shown as a joint distribution block; ν is held common across regimes.
     if best_row["error_distribution"] == "Student t":
-        rows.append({"Block": "$\\nu$", "Switching": best_row["switching_nu"]})
+        rows.append({"Block": "Shock distribution ($\\sigma^2$, $\\nu$)", "Switching": best_row["switching_distribution"]})
+    else:
+        rows.append({"Block": "Shock distribution ($\\sigma^2$)", "Switching": best_row["switching_distribution"]})
     return pd.DataFrame(rows)
 
 

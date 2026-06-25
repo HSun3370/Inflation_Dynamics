@@ -9,15 +9,14 @@ Selected by AIC among estimates that passed optimizer convergence, stationarity,
 ## Model Summary
 | Mean process | Regime-switching parts | Non-switching parts | LogLik | AIC | BIC |
 | --- | --- | --- | --- | --- | --- |
-| ARX(2,1) | AR block, including $c$, $\sigma^2$ | SPF block, $\nu$ | -147.8112 | 335.6223 | 403.0351 |
+| ARX(2,1) | AR block, including $c$, shock distribution ($\sigma^2$, $\nu$) | SPF block | -147.8112 | 335.6223 | 403.0351 |
 
 ## Switching Blocks
 | Block | Switching |
 | --- | --- |
 | AR block, including $c$ | Y |
 | SPF block | N |
-| $\sigma^2$ | Y |
-| $\nu$ | N |
+| Shock distribution ($\sigma^2$, $\nu$) | Y |
 
 ## Mean Process
 $$
