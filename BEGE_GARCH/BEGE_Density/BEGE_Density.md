@@ -8,12 +8,12 @@ The BEGE (Bad Environment–Good Environment) shock is defined as the difference
 $$
 u_t = \sigma_p\bigl(\Gamma(p_t,1) - p_t\bigr) - \sigma_n\bigl(\Gamma(n_t,1) - n_t\bigr),
 $$
-where $p_t$ and $n_t$ are the time-varying shape parameters driven by the GARCH recursion and $\sigma_p$, $\sigma_n$ are fixed scale parameters. The density $f(u_t \mid p_t, n_t, \sigma_p, \sigma_n)$ enters the log-likelihood at every observation, so both accuracy and speed of evaluation matter for estimation.
+where $p_t$ and $n_t$ are the time-varying shape parameters driven by the GARCH recursion and $\sigma_p$, $\sigma_n$ are fixed scale parameters. The density $f(u_t | p_t, n_t, \sigma_p, \sigma_n)$ enters the log-likelihood at every observation, so both accuracy and speed of evaluation matter for estimation.
 
 This section compares three implementations of the BEGE log density:
 
-- the **closed-form** implementation, which evaluates the exact analytic expression involving the confluent hypergeometric function $U$;
-- the **stabilized** implementation (current), which guards the closed-form expression with a saddlepoint approximation in fragile large-shape regions;
+- **Justin's closed-form** implementation, which evaluates the exact analytic expression involving the confluent hypergeometric function $U$;
+- the **stabilized** implementation (current), which guards Justin's closed-form expression with a saddlepoint approximation in fragile large-shape regions;
 - **convolution-based numerical integration**, which is slow but serves as an independent benchmark.
 
 The main finding is that the closed-form formula is accurate for small and moderate shape values, but becomes numerically fragile when the recursive shapes enter a transitional range where the BEGE distribution is already close to Gaussian. In that range, large log terms in the hypergeometric expression nearly cancel, and finite-precision arithmetic can produce artificial pointwise log densities that are orders of magnitude too large, which can dominate the likelihood search.
@@ -27,9 +27,9 @@ The main finding is that the closed-form formula is accurate for small and moder
 
 ## Implementation Design
 
-The table below summarizes the design choices in the stabilized implementation relative to the closed-form implementation.
+The table below summarizes the design choices in the stabilized implementation relative to Justin's closed-form implementation.
 
-| Issue | Closed-form implementation | Stabilized implementation | Rationale |
+| Issue | Justin's closed-form | Stabilized implementation | Rationale |
 |---|---|---|---|
 | Hypergeometric evaluation | Direct `scipy.special.hyperu` with scalar `mpmath.hyperu` fallback. | Vectorized SciPy where numerically stable; selective high-precision `mpmath` fallback; log-domain asymptotic fallback when `hyperu` is nonfinite. | Avoids the per-observation cost of high-precision arithmetic while preserving stable exact values. |
 | Large-shape transition region | Closed-form branch until a hard maximum-shape cutoff. | Guards exact values once $p_t+n_t \geq 40$; smooth log-sum-exp blend between total shape 50 and 80; replaces exact values when exact and saddlepoint disagree by more than 2 log units. | Numerical failures are driven by cancellation in total shape and can occur before a single-shape cutoff is reached. |
@@ -63,9 +63,9 @@ The log-likelihood and timing comparison uses five representative parameter sets
 
 ## Log-Likelihood Comparison
 
-The stabilized and closed-form implementations are compared against convolution-based numerical integration at several grid sizes.
+The stabilized and Justin's closed-form implementations are compared against convolution-based numerical integration at several grid sizes.
 
-| Parameter set | Stabilized | Closed-form | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
+| Parameter set | Stabilized | Justin's closed-form | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | $p$ q05, $n$ median | -214.162839 | -214.162839 | -223.900355 | -213.330306 | -214.116656 | -214.148282 | -214.146613 | -214.160080 |
 | $p$ median, $n$ median | -188.957117 | -188.957117 | -196.801762 | -188.438308 | -189.359597 | -189.033173 | -188.947127 | -188.954400 |
@@ -80,7 +80,7 @@ The stabilized and closed-form implementations are compared against convolution-
 
 All times are in seconds per call on the 215-observation residual vector.
 
-| Parameter set | Stabilized | Closed-form | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
+| Parameter set | Stabilized | Justin's closed-form | Numerical 100 | Numerical 500 | Numerical 1000 | Numerical 5000 | Numerical 10000 | Numerical 50000 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | $p$ q05, $n$ median | 0.0003 | 0.0005 | 0.0086 | 0.0427 | 0.0883 | 0.4326 | 0.9102 | 4.5478 |
 | $p$ median, $n$ median | 0.0004 | 0.0006 | 0.0075 | 0.0358 | 0.0730 | 0.3674 | 0.7613 | 3.8117 |
@@ -90,9 +90,7 @@ All times are in seconds per call on the 215-observation residual vector.
 
 - The stabilized implementation is modestly faster than the closed-form implementation for moderate-shape inputs (median speedup approximately 1.5 times), reflecting the avoidance of scalar `mpmath` fallback calls.
 - Both analytic implementations are orders of magnitude faster than numerical integration. Relative to 5,000-grid integration, the median speedup of the stabilized implementation is approximately 957 times.
-
-![Numerical integration convergence](results/BEGE_Density_numerical_convergence.png)
-
+ 
 ## Large-Shape Robustness
 
 The closed-form BEGE density contains a confluent hypergeometric term that is accurate for small and moderate shape states but becomes numerically fragile as the recursive shapes grow, because large log terms in the expression nearly cancel. In that regime, limited-precision evaluation can produce artificial pointwise log densities that are orders of magnitude from their true values.
@@ -114,11 +112,6 @@ The approximation is exact for Gaussian and gamma distributions and is highly ac
 
 The saddlepoint approximation also respects the analytic normal limit of the BEGE distribution: as the gamma shapes grow while $\sigma_p^2 p_t + \sigma_n^2 n_t$ remains fixed, the standardized skewness and excess kurtosis shrink toward zero, and the saddlepoint density converges to the Gaussian density with the same conditional variance.
 
-### Shape Tail Consistency
-
-Holding the other parameters at the BadGood medians ($p = 2.8130$, $n = 0.3320$, $\sigma_p = 0.2355$, $\sigma_n = 0.5555$), the figure below varies either $p$ or $n$ up to 5000 and compares all three implementations. Numerical integration uses 5,000 grid points.
-
-![Shape consistency](results/BEGE_Density_shape_consistency.png)
 
 ### Saddlepoint Threshold Experiment
 
@@ -127,7 +120,7 @@ $$
 p_t(c) = c\,p_t, \quad n_t(c) = c\,n_t, \quad
 \sigma_p(c) = \sigma_p/\sqrt{c}, \quad \sigma_n(c) = \sigma_n/\sqrt{c},
 $$
-which holds the conditional variance path constant while scaling the gamma shapes. The BEGE distribution should converge monotonically to a Gaussian law as $c$ increases. The experiment uses the seed 45, draw 25, ARX(2,1) path and varies $c$ from 0.1 to 2.0. The five log-likelihood columns correspond to: (i) exact high-precision mpmath branches, (ii) the closed-form implementation with the original single-variable cutoff ($\max(p_t, n_t) \geq 180$), (iii) the current stabilized implementation, (iv) the saddlepoint approximation, and (v) the Gaussian density with the same conditional variance.
+which holds the conditional variance path constant while scaling the gamma shapes. The BEGE distribution should converge monotonically to a Gaussian law as $c$ increases. The experiment uses the seed 45, draw 25, ARX(2,1) path and varies $c$ from 0.1 to 2.0. The five log-likelihood columns correspond to: (i) exact high-precision mpmath branches, (ii) Justin's closed-form implementation with the original single-variable cutoff ($\max(p_t, n_t) \geq 180$), (iii) the current stabilized implementation, (iv) the saddlepoint approximation, and (v) the Gaussian density with the same conditional variance.
 
 | $c$ | Med. total shape | Max shape | Original cutoff obs. | Exact mpmath | Original cutoff | Stabilized | Saddlepoint | Gaussian |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -165,7 +158,7 @@ The table below examines BadGood results from earlier production runs. The store
 | ARX(1,1) | 13 | 32 | 846.3034 | -694.3325 | -694.2827 | -692.9410 | -791.0434 | 156.0623 | 190.5299 | 104.1080 |
 | Constant | 1 | 9 | 651.3535 | -561.1096 | -561.0324 | -561.6200 | -1101.1363 | 209.9112 | 191.0321 | 30.1035 |
 
-![Stored likelihood row diagnostics](results/BEGE_Density_gigantic_loglik_row_diagnostics.png)
+
 
 Across 8,000 BadGood rows in this diagnostic pass, the stored log-likelihoods contained 150 rows above −150, including 13 rows above zero. The stabilized recomputation produced zero rows above −150, with a maximum of −161.8929.
 
@@ -180,7 +173,6 @@ The table below reports the observations with the largest exact-versus-stabilize
 | Constant | 1 | 9 | 148 | 0.5209 | 180.3713 | 17.1093 | 30.2612 | 30.6176 | -2.6069 | -2.6069 | -2.6284 | -2.6090 |
 | Constant | 1 | 9 | 85 | 1.0855 | 174.4991 | 17.0414 | 30.1040 | 28.9611 | -2.5957 | -2.5957 | -2.6408 | -2.5979 |
 
-![Pointwise density diagnostics](results/BEGE_Density_gigantic_loglik_point_diagnostics.png)
 
 A conditional variance in the range 30–44 cannot support pointwise log densities between 29 and 90; such values are numerically impossible. The stabilized, saddlepoint, and Fourier-inversion evaluations all agree at approximately −2.80, confirming that the anomalies originate from a numerical failure of the hypergeometric evaluation rather than any feature of the BEGE dynamics.
 
