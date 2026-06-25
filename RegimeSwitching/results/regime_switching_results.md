@@ -2,39 +2,41 @@
 #set page(margin: auto)
 ```
 
-| Mean     | Dist      |   K | Sw.AR   | Sw.SPF   | Sw.Var   | Sw.nu   |   LogLik |     AIC |     BIC |
-|:---------|:----------|----:|:--------|:---------|:---------|:--------|---------:|--------:|--------:|
-| Constant | Normal    |   2 | N       | N        | Y        | N       | -186.63  | 381.26  | 394.743 |
-| Constant | Normal    |   3 | N       | N        | Y        | N       | -180.655 | 379.311 | 409.646 |
-| Constant | Student t |   2 | N       | N        | Y        | Y       | -185.7   | 383.4   | 403.624 |
-| Constant | Student t |   3 | N       | N        | Y        | Y       | -180.389 | 384.778 | 425.226 |
-| ARX(1,1) | Normal    |   2 | N       | N        | Y        | N       | -177.189 | 368.378 | 391.972 |
-| ARX(1,1) | Normal    |   2 | Y       | N        | Y        | N       | -175.118 | 368.235 | 398.571 |
-| ARX(1,1) | Normal    |   2 | Y       | Y        | Y        | N       | -175.092 | 370.185 | 403.891 |
-| ARX(1,1) | Normal    |   3 | N       | N        | Y        | N       | -173.724 | 371.448 | 411.896 |
-| ARX(1,1) | Normal    |   3 | Y       | N        | Y        | N       | -162.374 | 356.747 | 410.677 |
-| ARX(1,1) | Student t |   2 | N       | N        | Y        | Y       | -175.494 | 368.988 | 399.324 |
-| ARX(1,1) | Student t |   2 | Y       | N        | Y        | Y       | -162.972 | 347.945 | 385.022 |
-| ARX(1,1) | Student t |   2 | Y       | Y        | Y        | Y       | -162.961 | 349.921 | 390.369 |
-| ARX(1,1) | Student t |   3 | N       | N        | Y        | Y       | -173.091 | 376.182 | 426.742 |
-| ARX(1,1) | Student t |   3 | Y       | N        | Y        | Y       | -155.151 | 348.301 | 412.343 |
-| ARX(2,1) | Normal    |   2 | N       | N        | Y        | N       | -176.216 | 368.431 | 395.396 |
-| ARX(2,1) | Normal    |   2 | Y       | N        | Y        | N       | -174.942 | 371.884 | 408.961 |
-| ARX(2,1) | Normal    |   2 | Y       | Y        | Y        | N       | -174.377 | 372.754 | 413.201 |
-| ARX(2,1) | Normal    |   3 | N       | N        | Y        | N       | -171.151 | 368.301 | 412.119 |
-| ARX(2,1) | Normal    |   3 | Y       | N        | Y        | N       | -156.72  | 351.44  | 415.482 |
-| ARX(2,1) | Student t |   2 | N       | N        | Y        | Y       | -173.425 | 366.849 | 400.556 |
-| ARX(2,1) | Student t |   2 | Y       | N        | Y        | Y       | -160.571 | 347.142 | 390.96  |
-| ARX(2,1) | Student t |   2 | Y       | Y        | Y        | Y       | -159.534 | 347.068 | 394.257 |
-| ARX(2,1) | Student t |   3 | N       | N        | Y        | Y       | -171.069 | 374.139 | 428.069 |
-| ARX(2,1) | Student t |   3 | Y       | N        | Y        | Y       | -150.126 | 344.253 | 418.407 |
-| ARX(2,2) | Normal    |   2 | N       | N        | Y        | N       | -175.961 | 369.922 | 400.258 |
-| ARX(2,2) | Normal    |   2 | Y       | N        | Y        | N       | -174.534 | 373.067 | 413.515 |
-| ARX(2,2) | Normal    |   2 | Y       | Y        | Y        | N       | -174.155 | 376.31  | 423.499 |
-| ARX(2,2) | Normal    |   3 | N       | N        | Y        | N       | -171.029 | 370.057 | 417.246 |
-| ARX(2,2) | Normal    |   3 | Y       | N        | Y        | N       | -156.663 | 353.325 | 420.738 |
-| ARX(2,2) | Student t |   2 | N       | N        | Y        | Y       | -173.233 | 368.466 | 405.543 |
-| ARX(2,2) | Student t |   2 | Y       | N        | Y        | Y       | -160.567 | 349.135 | 396.324 |
-| ARX(2,2) | Student t |   2 | Y       | Y        | Y        | Y       | -157.588 | 347.176 | 401.107 |
-| ARX(2,2) | Student t |   3 | N       | N        | Y        | Y       | -170.754 | 375.507 | 432.808 |
-| ARX(2,2) | Student t |   3 | Y       | N        | Y        | Y       | -149.466 | 344.932 | 422.457 |
+Each model is selected from 50 starts. `Checks=Y` means the selected estimate passed optimizer convergence, AR stationarity, parameter-bound, distribution, and transition-probability checks. Student-t degrees of freedom are held common across regimes by default; Student-t estimates with `nu` in the Gaussian-limit region are not treated as clean Student-t fits. If no start passed all checks, the reported row is the highest-likelihood fallback and is marked `fallback`.
+
+| Mean | Dist | K | Sw.AR | Sw.SPF | Sw.Var | Sw.nu | Checks | Selection | LogLik | AIC | BIC |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Constant | Normal | 2 | N | N | Y | N | Y | passed | -186.6300 | 381.2600 | 394.7425 |
+| Constant | Normal | 3 | N | N | Y | N | Y | passed | -180.6569 | 379.3139 | 409.6496 |
+| Constant | Student t | 2 | N | N | Y | N | Y | passed | -185.7189 | 381.4378 | 398.2910 |
+| Constant | Student t | 3 | N | N | Y | N | Y | passed | -180.6407 | 381.2814 | 414.9877 |
+| ARX(1,1) | Normal | 2 | N | N | Y | N | Y | passed | -177.1889 | 368.3779 | 391.9723 |
+| ARX(1,1) | Normal | 2 | Y | N | Y | N | Y | passed | -175.1175 | 368.2350 | 398.5708 |
+| ARX(1,1) | Normal | 2 | Y | Y | Y | N | Y | passed | -175.0924 | 370.1848 | 403.8912 |
+| ARX(1,1) | Normal | 3 | N | N | Y | N | Y | passed | -174.3093 | 372.6186 | 413.0662 |
+| ARX(1,1) | Normal | 3 | Y | N | Y | N | Y | passed | -162.3751 | 356.7503 | 410.6805 |
+| ARX(1,1) | Student t | 2 | N | N | Y | N | Y | passed | -175.5345 | 367.0689 | 394.0340 |
+| ARX(1,1) | Student t | 2 | Y | N | Y | N | Y | passed | -166.6098 | 353.2196 | 386.9259 |
+| ARX(1,1) | Student t | 2 | Y | Y | Y | N | Y | passed | -166.4669 | 354.9338 | 392.0108 |
+| ARX(1,1) | Student t | 3 | N | N | Y | N | N | fallback | -173.4950 | 372.9901 | 416.8084 |
+| ARX(1,1) | Student t | 3 | Y | N | Y | N | Y | passed | -159.0882 | 352.1764 | 409.4772 |
+| ARX(2,1) | Normal | 2 | N | N | Y | N | Y | passed | -176.2156 | 368.4311 | 395.3962 |
+| ARX(2,1) | Normal | 2 | Y | N | Y | N | Y | passed | -174.9422 | 371.8845 | 408.9615 |
+| ARX(2,1) | Normal | 2 | Y | Y | Y | N | Y | passed | -174.3768 | 372.7535 | 413.2012 |
+| ARX(2,1) | Normal | 3 | N | N | Y | N | N | fallback | -171.1505 | 368.3011 | 412.1194 |
+| ARX(2,1) | Normal | 3 | Y | N | Y | N | Y | passed | -157.6865 | 353.3729 | 417.4150 |
+| ARX(2,1) | Student t | 2 | N | N | Y | N | Y | passed | -173.4411 | 364.8823 | 395.2180 |
+| ARX(2,1) | Student t | 2 | Y | N | Y | N | Y | passed | -162.6866 | 349.3733 | 389.8209 |
+| ARX(2,1) | Student t | 2 | Y | Y | Y | N | Y | passed | -161.4838 | 348.9676 | 392.7859 |
+| ARX(2,1) | Student t | 3 | N | N | Y | N | N | fallback | -155.3517 | 338.7035 | 385.8924 |
+| ARX(2,1) | Student t | 3 | Y | N | Y | N | Y | passed | -147.8112 | 335.6223 | 403.0351 |
+| ARX(2,2) | Normal | 2 | N | N | Y | N | Y | passed | -175.9610 | 369.9221 | 400.2578 |
+| ARX(2,2) | Normal | 2 | Y | N | Y | N | Y | passed | -174.5337 | 373.0674 | 413.5150 |
+| ARX(2,2) | Normal | 2 | Y | Y | Y | N | Y | passed | -174.1552 | 376.3105 | 423.4994 |
+| ARX(2,2) | Normal | 3 | N | N | Y | N | N | fallback | -171.0286 | 370.0573 | 417.2462 |
+| ARX(2,2) | Normal | 3 | Y | N | Y | N | N | fallback | -81.0183 | 202.0367 | 269.4494 |
+| ARX(2,2) | Student t | 2 | N | N | Y | N | Y | passed | -173.2563 | 366.5127 | 400.2190 |
+| ARX(2,2) | Student t | 2 | Y | N | Y | N | Y | passed | -162.6810 | 351.3619 | 395.1802 |
+| ARX(2,2) | Student t | 2 | Y | Y | Y | N | Y | passed | -159.4737 | 348.9474 | 399.5070 |
+| ARX(2,2) | Student t | 3 | N | N | Y | N | Y | passed | -173.2563 | 376.5126 | 427.0722 |
+| ARX(2,2) | Student t | 3 | Y | N | Y | N | N | fallback | -12.7866 | 67.5731 | 138.3565 |

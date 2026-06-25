@@ -1,148 +1,148 @@
-GARCH-family estimation summary (all models)
+GARCH-family estimation summary (reported models)
 
-Columns in line printout: model_id, distribution, mean, vol, LogLik, AIC, BIC
+Columns in line printout: model_id, distribution, mean, vol, LogLik, AIC, BIC, selection
 
-M001 dist=normal     mean=Constant_anchor  vol=GARCH(1,1)      LogLik=-198.201454 AIC=402.402908 BIC=412.514822 valid_starts=50/50
-M002 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(1,1)  LogLik=-189.892708 AIC=387.785416 BIC=401.267968 valid_starts=50/50
-M003 dist=normal     mean=Constant_anchor  vol=EGARCH(1,1)     LogLik=-188.969594 AIC=385.939187 BIC=399.421739 valid_starts=50/50
-M004 dist=normal     mean=Constant_anchor  vol=GARCH(1,2)      LogLik=-198.201454 AIC=404.402908 BIC=417.885460 valid_starts=50/50
-M005 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(1,2)  LogLik=-189.892708 AIC=389.785416 BIC=406.638606 valid_starts=50/50
-M006 dist=normal     mean=Constant_anchor  vol=EGARCH(1,2)     LogLik=-188.969594 AIC=387.939187 BIC=404.792377 valid_starts=49/50
-M007 dist=normal     mean=Constant_anchor  vol=GARCH(2,1)      LogLik=-189.900010 AIC=387.800019 BIC=401.282571 valid_starts=50/50
-M008 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(2,1)  LogLik=-182.251959 AIC=376.503918 BIC=396.727746 valid_starts=50/50
-M009 dist=normal     mean=Constant_anchor  vol=EGARCH(2,1)     LogLik=-182.951613 AIC=377.903226 BIC=398.127054 valid_starts=50/50
-M010 dist=normal     mean=Constant_anchor  vol=GARCH(2,2)      LogLik=-189.900010 AIC=389.800019 BIC=406.653209 valid_starts=50/50
-M011 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(2,2)  LogLik=-182.251959 AIC=378.503918 BIC=402.098384 valid_starts=50/50
-M012 dist=normal     mean=Constant_anchor  vol=EGARCH(2,2)     LogLik=-182.951613 AIC=379.903226 BIC=403.497692 valid_starts=50/50
-M013 dist=normal     mean=ARX_1_1          vol=GARCH(1,1)      LogLik=-191.032012 AIC=394.064023 BIC=414.287851 valid_starts=50/50
-M014 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(1,1)  LogLik=-183.822913 AIC=381.645825 BIC=405.240291 valid_starts=50/50
-M015 dist=normal     mean=ARX_1_1          vol=EGARCH(1,1)     LogLik=-183.759482 AIC=381.518964 BIC=405.113430 valid_starts=50/50
-M016 dist=normal     mean=ARX_1_1          vol=GARCH(1,2)      LogLik=-191.032012 AIC=396.064023 BIC=419.658489 valid_starts=50/50
-M017 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(1,2)  LogLik=-183.822913 AIC=383.645825 BIC=410.610930 valid_starts=50/50
-M018 dist=normal     mean=ARX_1_1          vol=EGARCH(1,2)     LogLik=-179.978207 AIC=375.956415 BIC=402.921519 valid_starts=49/50
-M019 dist=normal     mean=ARX_1_1          vol=GARCH(2,1)      LogLik=-186.638672 AIC=387.277343 BIC=410.871810 valid_starts=50/50
-M020 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(2,1)  LogLik=-177.289241 AIC=372.578482 BIC=402.914225 valid_starts=50/50
-M021 dist=normal     mean=ARX_1_1          vol=EGARCH(2,1)     LogLik=-178.137504 AIC=374.275007 BIC=404.610750 valid_starts=50/50
-M022 dist=normal     mean=ARX_1_1          vol=GARCH(2,2)      LogLik=-186.638672 AIC=389.277343 BIC=416.242448 valid_starts=50/50
-M023 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(2,2)  LogLik=-177.289241 AIC=374.578482 BIC=408.284863 valid_starts=50/50
-M024 dist=normal     mean=ARX_1_1          vol=EGARCH(2,2)     LogLik=-178.137502 AIC=376.275004 BIC=409.981384 valid_starts=50/50
-M025 dist=normal     mean=ARX_2_1          vol=GARCH(1,1)      FAILED_STABLE_CONVERGED attempts=50
-M026 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(1,1)  LogLik=-183.789700 AIC=383.579399 BIC=410.544504 valid_starts=50/50
-M027 dist=normal     mean=ARX_2_1          vol=EGARCH(1,1)     LogLik=-183.440978 AIC=382.881955 BIC=409.847059 valid_starts=50/50
-M028 dist=normal     mean=ARX_2_1          vol=GARCH(1,2)      FAILED_STABLE_CONVERGED attempts=50
-M029 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(1,2)  LogLik=-183.789700 AIC=385.579399 BIC=415.915142 valid_starts=50/50
-M030 dist=normal     mean=ARX_2_1          vol=EGARCH(1,2)     LogLik=-175.311023 AIC=368.622046 BIC=398.957788 valid_starts=50/50
-M031 dist=normal     mean=ARX_2_1          vol=GARCH(2,1)      LogLik=-185.615720 AIC=387.231441 BIC=414.196545 valid_starts=50/50
-M032 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(2,1)  LogLik=-176.637756 AIC=373.275513 BIC=406.981893 valid_starts=50/50
-M033 dist=normal     mean=ARX_2_1          vol=EGARCH(2,1)     LogLik=-177.952289 AIC=375.904577 BIC=409.610957 valid_starts=50/50
-M034 dist=normal     mean=ARX_2_1          vol=GARCH(2,2)      LogLik=-185.615720 AIC=389.231441 BIC=419.567183 valid_starts=50/50
-M035 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(2,2)  LogLik=-176.637756 AIC=375.275513 BIC=412.352531 valid_starts=50/50
-M036 dist=normal     mean=ARX_2_1          vol=EGARCH(2,2)     LogLik=-177.952289 AIC=377.904577 BIC=414.981595 valid_starts=50/50
-M037 dist=normal     mean=ARX_2_2          vol=GARCH(1,1)      FAILED_STABLE_CONVERGED attempts=50
-M038 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(1,1)  LogLik=-183.782110 AIC=385.564219 BIC=415.899962 valid_starts=50/50
-M039 dist=normal     mean=ARX_2_2          vol=EGARCH(1,1)     LogLik=-182.868142 AIC=383.736284 BIC=414.072026 valid_starts=50/50
-M040 dist=normal     mean=ARX_2_2          vol=GARCH(1,2)      FAILED_STABLE_CONVERGED attempts=50
-M041 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(1,2)  LogLik=-183.782110 AIC=387.564219 BIC=421.270600 valid_starts=50/50
-M042 dist=normal     mean=ARX_2_2          vol=EGARCH(1,2)     LogLik=-182.868142 AIC=385.736284 BIC=419.442664 valid_starts=48/50
-M043 dist=normal     mean=ARX_2_2          vol=GARCH(2,1)      LogLik=-185.607372 AIC=389.214743 BIC=419.550486 valid_starts=50/50
-M044 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(2,1)  LogLik=-176.566026 AIC=375.132052 BIC=412.209071 valid_starts=50/50
-M045 dist=normal     mean=ARX_2_2          vol=EGARCH(2,1)     LogLik=-177.529755 AIC=377.059510 BIC=414.136528 valid_starts=50/50
-M046 dist=normal     mean=ARX_2_2          vol=GARCH(2,2)      LogLik=-185.607372 AIC=391.214743 BIC=424.921124 valid_starts=50/50
-M047 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(2,2)  LogLik=-176.566026 AIC=377.132052 BIC=417.579709 valid_starts=50/50
-M048 dist=normal     mean=ARX_2_2          vol=EGARCH(2,2)     LogLik=-177.529755 AIC=379.059510 BIC=419.507166 valid_starts=50/50
-M049 dist=studentst  mean=Constant_anchor  vol=GARCH(1,1)      FAILED_STABLE_CONVERGED attempts=50
-M050 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(1,1)  LogLik=-178.691587 AIC=367.383173 BIC=384.236363 valid_starts=50/50
-M051 dist=studentst  mean=Constant_anchor  vol=EGARCH(1,1)     LogLik=-178.364069 AIC=366.728138 BIC=383.581329 valid_starts=50/50
-M052 dist=studentst  mean=Constant_anchor  vol=GARCH(1,2)      FAILED_STABLE_CONVERGED attempts=50
-M053 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(1,2)  LogLik=-178.691587 AIC=369.383173 BIC=389.607001 valid_starts=50/50
-M054 dist=studentst  mean=Constant_anchor  vol=EGARCH(1,2)     LogLik=-178.364069 AIC=368.728138 BIC=388.951967 valid_starts=50/50
-M055 dist=studentst  mean=Constant_anchor  vol=GARCH(2,1)      LogLik=-179.884968 AIC=369.769936 BIC=386.623126 valid_starts=50/50
-M056 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(2,1)  LogLik=-174.816024 AIC=363.632047 BIC=387.226514 valid_starts=50/50
-M057 dist=studentst  mean=Constant_anchor  vol=EGARCH(2,1)     LogLik=-175.543509 AIC=365.087019 BIC=388.681485 valid_starts=50/50
-M058 dist=studentst  mean=Constant_anchor  vol=GARCH(2,2)      LogLik=-179.884968 AIC=371.769936 BIC=391.993764 valid_starts=50/50
-M059 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(2,2)  LogLik=-174.816024 AIC=365.632047 BIC=392.597152 valid_starts=50/50
-M060 dist=studentst  mean=Constant_anchor  vol=EGARCH(2,2)     LogLik=-175.543509 AIC=367.087019 BIC=394.052123 valid_starts=50/50
-M061 dist=studentst  mean=ARX_1_1          vol=GARCH(1,1)      LogLik=-174.917408 AIC=363.834817 BIC=387.429283 valid_starts=50/50
-M062 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(1,1)  LogLik=-171.253982 AIC=358.507965 BIC=385.473069 valid_starts=50/50
-M063 dist=studentst  mean=ARX_1_1          vol=EGARCH(1,1)     LogLik=-171.075310 AIC=358.150621 BIC=385.115725 valid_starts=50/50
-M064 dist=studentst  mean=ARX_1_1          vol=GARCH(1,2)      LogLik=-174.917408 AIC=365.834817 BIC=392.799921 valid_starts=50/50
-M065 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(1,2)  LogLik=-171.253982 AIC=360.507965 BIC=390.843707 valid_starts=50/50
-M066 dist=studentst  mean=ARX_1_1          vol=EGARCH(1,2)     LogLik=-171.075311 AIC=360.150621 BIC=390.486363 valid_starts=50/50
-M067 dist=studentst  mean=ARX_1_1          vol=GARCH(2,1)      LogLik=-173.789011 AIC=363.578022 BIC=390.543126 valid_starts=50/50
-M068 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(2,1)  LogLik=-168.540769 AIC=357.081538 BIC=390.787918 valid_starts=50/50
-M069 dist=studentst  mean=ARX_1_1          vol=EGARCH(2,1)     LogLik=-168.369252 AIC=356.738503 BIC=390.444883 valid_starts=50/50
-M070 dist=studentst  mean=ARX_1_1          vol=GARCH(2,2)      LogLik=-173.789011 AIC=365.578022 BIC=395.913764 valid_starts=50/50
-M071 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(2,2)  LogLik=-168.540769 AIC=359.081538 BIC=396.158556 valid_starts=50/50
-M072 dist=studentst  mean=ARX_1_1          vol=EGARCH(2,2)     LogLik=-168.369252 AIC=358.738503 BIC=395.815522 valid_starts=50/50
-M073 dist=studentst  mean=ARX_2_1          vol=GARCH(1,1)      LogLik=-172.676380 AIC=361.352760 BIC=388.317864 valid_starts=50/50
-M074 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(1,1)  LogLik=-170.071813 AIC=358.143626 BIC=388.479369 valid_starts=50/50
-M075 dist=studentst  mean=ARX_2_1          vol=EGARCH(1,1)     LogLik=-169.710634 AIC=357.421267 BIC=387.757010 valid_starts=50/50
-M076 dist=studentst  mean=ARX_2_1          vol=GARCH(1,2)      LogLik=-172.676380 AIC=363.352760 BIC=393.688502 valid_starts=50/50
-M077 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(1,2)  LogLik=-170.071813 AIC=360.143626 BIC=393.850007 valid_starts=50/50
-M078 dist=studentst  mean=ARX_2_1          vol=EGARCH(1,2)     LogLik=-166.587618 AIC=353.175237 BIC=386.881617 valid_starts=50/50
-M079 dist=studentst  mean=ARX_2_1          vol=GARCH(2,1)      LogLik=-171.973720 AIC=361.947440 BIC=392.283182 valid_starts=50/50
-M080 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(2,1)  LogLik=-167.497638 AIC=356.995277 BIC=394.072295 valid_starts=50/50
-M081 dist=studentst  mean=ARX_2_1          vol=EGARCH(2,1)     LogLik=-167.581048 AIC=357.162096 BIC=394.239114 valid_starts=50/50
-M082 dist=studentst  mean=ARX_2_1          vol=GARCH(2,2)      LogLik=-171.697664 AIC=363.395328 BIC=397.101708 valid_starts=50/50
-M083 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(2,2)  LogLik=-167.497638 AIC=358.995277 BIC=399.442933 valid_starts=50/50
-M084 dist=studentst  mean=ARX_2_1          vol=EGARCH(2,2)     LogLik=-167.581048 AIC=359.162096 BIC=399.609752 valid_starts=49/50
-M085 dist=studentst  mean=ARX_2_2          vol=GARCH(1,1)      LogLik=-172.500957 AIC=363.001915 BIC=393.337657 valid_starts=50/50
-M086 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(1,1)  LogLik=-169.990018 AIC=359.980036 BIC=393.686416 valid_starts=50/50
-M087 dist=studentst  mean=ARX_2_2          vol=EGARCH(1,1)     LogLik=-169.444226 AIC=358.888452 BIC=392.594833 valid_starts=50/50
-M088 dist=studentst  mean=ARX_2_2          vol=GARCH(1,2)      LogLik=-172.500957 AIC=365.001915 BIC=398.708295 valid_starts=50/50
-M089 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(1,2)  LogLik=-169.990018 AIC=361.980036 BIC=399.057054 valid_starts=50/50
-M090 dist=studentst  mean=ARX_2_2          vol=EGARCH(1,2)     LogLik=-167.704201 AIC=357.408401 BIC=394.485419 valid_starts=50/50
-M091 dist=studentst  mean=ARX_2_2          vol=GARCH(2,1)      LogLik=-171.878634 AIC=363.757269 BIC=397.463649 valid_starts=50/50
-M092 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(2,1)  LogLik=-167.394369 AIC=358.788737 BIC=399.236394 valid_starts=50/50
-M093 dist=studentst  mean=ARX_2_2          vol=EGARCH(2,1)     LogLik=-167.295567 AIC=358.591133 BIC=399.038790 valid_starts=50/50
-M094 dist=studentst  mean=ARX_2_2          vol=GARCH(2,2)      LogLik=-171.651761 AIC=365.303522 BIC=402.380540 valid_starts=50/50
-M095 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(2,2)  LogLik=-167.394369 AIC=360.788737 BIC=404.607032 valid_starts=50/50
-M096 dist=studentst  mean=ARX_2_2          vol=EGARCH(2,2)     LogLik=-167.295567 AIC=360.591133 BIC=404.409428 valid_starts=49/50
-M097 dist=mix_normal mean=Constant_anchor  vol=GARCH(1,1)      FAILED_STABLE_CONVERGED attempts=50
-M098 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(1,1)  FAILED_STABLE_CONVERGED attempts=50
-M099 dist=mix_normal mean=Constant_anchor  vol=EGARCH(1,1)     LogLik=-173.833368 AIC=361.666737 BIC=385.261203 valid_starts=50/50
-M100 dist=mix_normal mean=Constant_anchor  vol=GARCH(1,2)      FAILED_STABLE_CONVERGED attempts=50
-M101 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(1,2)  FAILED_STABLE_CONVERGED attempts=50
-M102 dist=mix_normal mean=Constant_anchor  vol=EGARCH(1,2)     LogLik=-173.833368 AIC=363.666737 BIC=390.631841 valid_starts=49/50
-M103 dist=mix_normal mean=Constant_anchor  vol=GARCH(2,1)      FAILED_STABLE_CONVERGED attempts=50
-M104 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(2,1)  FAILED_STABLE_CONVERGED attempts=50
-M105 dist=mix_normal mean=Constant_anchor  vol=EGARCH(2,1)     LogLik=-170.778835 AIC=359.557671 BIC=389.893413 valid_starts=50/50
-M106 dist=mix_normal mean=Constant_anchor  vol=GARCH(2,2)      FAILED_STABLE_CONVERGED attempts=50
-M107 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(2,2)  FAILED_STABLE_CONVERGED attempts=50
-M108 dist=mix_normal mean=Constant_anchor  vol=EGARCH(2,2)     LogLik=-170.778835 AIC=361.557671 BIC=395.264051 valid_starts=50/50
-M109 dist=mix_normal mean=ARX_1_1          vol=GARCH(1,1)      FAILED_STABLE_CONVERGED attempts=50
-M110 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(1,1)  LogLik=-170.222583 AIC=360.445166 BIC=394.151546 valid_starts=50/50
-M111 dist=mix_normal mean=ARX_1_1          vol=EGARCH(1,1)     LogLik=-169.442211 AIC=358.884422 BIC=392.590802 valid_starts=50/50
-M112 dist=mix_normal mean=ARX_1_1          vol=GARCH(1,2)      FAILED_STABLE_CONVERGED attempts=50
-M113 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(1,2)  LogLik=-170.222583 AIC=362.445166 BIC=399.522184 valid_starts=50/50
-M114 dist=mix_normal mean=ARX_1_1          vol=EGARCH(1,2)     LogLik=-165.643648 AIC=353.287297 BIC=390.364315 valid_starts=50/50
-M115 dist=mix_normal mean=ARX_1_1          vol=GARCH(2,1)      LogLik=-173.561670 AIC=367.123341 BIC=400.829721 valid_starts=50/50
-M116 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(2,1)  LogLik=-167.446939 AIC=358.893879 BIC=399.341535 valid_starts=50/50
-M117 dist=mix_normal mean=ARX_1_1          vol=EGARCH(2,1)     LogLik=-166.219712 AIC=356.439424 BIC=396.887080 valid_starts=50/50
-M118 dist=mix_normal mean=ARX_1_1          vol=GARCH(2,2)      LogLik=-173.561670 AIC=369.123341 BIC=406.200359 valid_starts=50/50
-M119 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(2,2)  LogLik=-167.446939 AIC=360.893879 BIC=404.712173 valid_starts=50/50
-M120 dist=mix_normal mean=ARX_1_1          vol=EGARCH(2,2)     LogLik=-164.847540 AIC=355.695080 BIC=399.513374 valid_starts=50/50
-M121 dist=mix_normal mean=ARX_2_1          vol=GARCH(1,1)      FAILED_STABLE_CONVERGED attempts=50
-M122 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(1,1)  LogLik=-168.613065 AIC=359.226129 BIC=396.303148 valid_starts=50/50
-M123 dist=mix_normal mean=ARX_2_1          vol=EGARCH(1,1)     LogLik=-167.715154 AIC=357.430309 BIC=394.507327 valid_starts=50/50
-M124 dist=mix_normal mean=ARX_2_1          vol=GARCH(1,2)      FAILED_STABLE_CONVERGED attempts=50
-M125 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(1,2)  LogLik=-168.613065 AIC=361.226129 BIC=401.673786 valid_starts=50/50
-M126 dist=mix_normal mean=ARX_2_1          vol=EGARCH(1,2)     LogLik=-167.715154 AIC=359.430309 BIC=399.877965 valid_starts=50/50
-M127 dist=mix_normal mean=ARX_2_1          vol=GARCH(2,1)      FAILED_STABLE_CONVERGED attempts=50
-M128 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(2,1)  LogLik=-166.211509 AIC=358.423018 BIC=402.241312 valid_starts=50/50
-M129 dist=mix_normal mean=ARX_2_1          vol=EGARCH(2,1)     LogLik=-165.268873 AIC=356.537745 BIC=400.356040 valid_starts=50/50
-M130 dist=mix_normal mean=ARX_2_1          vol=GARCH(2,2)      FAILED_STABLE_CONVERGED attempts=50
-M131 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(2,2)  LogLik=-166.211509 AIC=360.423018 BIC=407.611950 valid_starts=50/50
-M132 dist=mix_normal mean=ARX_2_1          vol=EGARCH(2,2)     LogLik=-165.268873 AIC=358.537745 BIC=405.726678 valid_starts=50/50
-M133 dist=mix_normal mean=ARX_2_2          vol=GARCH(1,1)      FAILED_STABLE_CONVERGED attempts=50
-M134 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(1,1)  LogLik=-168.480114 AIC=360.960228 BIC=401.407885 valid_starts=50/50
-M135 dist=mix_normal mean=ARX_2_2          vol=EGARCH(1,1)     LogLik=-167.362827 AIC=358.725654 BIC=399.173310 valid_starts=50/50
-M136 dist=mix_normal mean=ARX_2_2          vol=GARCH(1,2)      LogLik=-189.636321 AIC=403.272641 BIC=443.720298 valid_starts=1/50
-M137 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(1,2)  LogLik=-168.480114 AIC=362.960228 BIC=406.778523 valid_starts=50/50
-M138 dist=mix_normal mean=ARX_2_2          vol=EGARCH(1,2)     LogLik=-167.362827 AIC=360.725654 BIC=404.543948 valid_starts=50/50
-M139 dist=mix_normal mean=ARX_2_2          vol=GARCH(2,1)      FAILED_STABLE_CONVERGED attempts=50
-M140 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(2,1)  LogLik=-166.058466 AIC=360.116931 BIC=407.305863 valid_starts=50/50
-M141 dist=mix_normal mean=ARX_2_2          vol=EGARCH(2,1)     LogLik=-164.939149 AIC=357.878299 BIC=405.067231 valid_starts=50/50
-M142 dist=mix_normal mean=ARX_2_2          vol=GARCH(2,2)      LogLik=-178.475651 AIC=382.951302 BIC=426.769597 valid_starts=1/50
-M143 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(2,2)  LogLik=-166.058466 AIC=362.116931 BIC=412.676501 valid_starts=50/50
-M144 dist=mix_normal mean=ARX_2_2          vol=EGARCH(2,2)     LogLik=-164.939149 AIC=359.878299 BIC=410.437869 valid_starts=50/50
+M001 dist=normal     mean=Constant_anchor  vol=GARCH(1,1)      LogLik=-198.201454 AIC=402.402908 BIC=412.514822 valid_starts=50/50 selection=passed_checks
+M002 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(1,1)  LogLik=-189.892708 AIC=387.785416 BIC=401.267968 valid_starts=50/50 selection=passed_checks
+M003 dist=normal     mean=Constant_anchor  vol=EGARCH(1,1)     LogLik=-188.969594 AIC=385.939187 BIC=399.421739 valid_starts=50/50 selection=passed_checks
+M004 dist=normal     mean=Constant_anchor  vol=GARCH(1,2)      LogLik=-198.201454 AIC=404.402908 BIC=417.885460 valid_starts=50/50 selection=passed_checks
+M005 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(1,2)  LogLik=-189.892708 AIC=389.785416 BIC=406.638606 valid_starts=50/50 selection=passed_checks
+M006 dist=normal     mean=Constant_anchor  vol=EGARCH(1,2)     LogLik=-188.969594 AIC=387.939187 BIC=404.792377 valid_starts=50/50 selection=passed_checks
+M007 dist=normal     mean=Constant_anchor  vol=GARCH(2,1)      LogLik=-189.900010 AIC=387.800019 BIC=401.282571 valid_starts=50/50 selection=passed_checks
+M008 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(2,1)  LogLik=-182.251959 AIC=376.503918 BIC=396.727746 valid_starts=50/50 selection=passed_checks
+M009 dist=normal     mean=Constant_anchor  vol=EGARCH(2,1)     LogLik=-182.951613 AIC=377.903226 BIC=398.127054 valid_starts=50/50 selection=passed_checks
+M010 dist=normal     mean=Constant_anchor  vol=GARCH(2,2)      LogLik=-189.900010 AIC=389.800019 BIC=406.653209 valid_starts=50/50 selection=passed_checks
+M011 dist=normal     mean=Constant_anchor  vol=GJR-GARCH(2,2)  LogLik=-182.251959 AIC=378.503918 BIC=402.098384 valid_starts=50/50 selection=passed_checks
+M012 dist=normal     mean=Constant_anchor  vol=EGARCH(2,2)     LogLik=-182.951613 AIC=379.903226 BIC=403.497692 valid_starts=50/50 selection=passed_checks
+M013 dist=normal     mean=ARX_1_1          vol=GARCH(1,1)      LogLik=-191.032012 AIC=394.064023 BIC=414.287851 valid_starts=50/50 selection=passed_checks
+M014 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(1,1)  LogLik=-183.822913 AIC=381.645825 BIC=405.240291 valid_starts=50/50 selection=passed_checks
+M015 dist=normal     mean=ARX_1_1          vol=EGARCH(1,1)     LogLik=-183.759482 AIC=381.518964 BIC=405.113430 valid_starts=50/50 selection=passed_checks
+M016 dist=normal     mean=ARX_1_1          vol=GARCH(1,2)      LogLik=-191.032012 AIC=396.064023 BIC=419.658489 valid_starts=50/50 selection=passed_checks
+M017 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(1,2)  LogLik=-183.822913 AIC=383.645825 BIC=410.610930 valid_starts=50/50 selection=passed_checks
+M018 dist=normal     mean=ARX_1_1          vol=EGARCH(1,2)     LogLik=-171.342129 AIC=358.684258 BIC=385.649362 valid_starts=50/50 selection=passed_checks
+M019 dist=normal     mean=ARX_1_1          vol=GARCH(2,1)      LogLik=-186.638672 AIC=387.277343 BIC=410.871810 valid_starts=50/50 selection=passed_checks
+M020 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(2,1)  LogLik=-177.289241 AIC=372.578482 BIC=402.914225 valid_starts=50/50 selection=passed_checks
+M021 dist=normal     mean=ARX_1_1          vol=EGARCH(2,1)     LogLik=-178.137501 AIC=374.275002 BIC=404.610745 valid_starts=50/50 selection=passed_checks
+M022 dist=normal     mean=ARX_1_1          vol=GARCH(2,2)      LogLik=-186.638672 AIC=389.277343 BIC=416.242448 valid_starts=50/50 selection=passed_checks
+M023 dist=normal     mean=ARX_1_1          vol=GJR-GARCH(2,2)  LogLik=-177.289241 AIC=374.578482 BIC=408.284863 valid_starts=50/50 selection=passed_checks
+M024 dist=normal     mean=ARX_1_1          vol=EGARCH(2,2)     LogLik=-171.254029 AIC=362.508057 BIC=396.214438 valid_starts=50/50 selection=passed_checks
+M025 dist=normal     mean=ARX_2_1          vol=GARCH(1,1)      LogLik=-188.852731 AIC=391.705463 BIC=415.299929 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M026 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(1,1)  LogLik=-183.789700 AIC=383.579399 BIC=410.544504 valid_starts=50/50 selection=passed_checks
+M027 dist=normal     mean=ARX_2_1          vol=EGARCH(1,1)     LogLik=-183.440978 AIC=382.881955 BIC=409.847060 valid_starts=50/50 selection=passed_checks
+M028 dist=normal     mean=ARX_2_1          vol=GARCH(1,2)      LogLik=-188.852731 AIC=393.705462 BIC=420.670567 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M029 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(1,2)  LogLik=-183.789700 AIC=385.579399 BIC=415.915142 valid_starts=50/50 selection=passed_checks
+M030 dist=normal     mean=ARX_2_1          vol=EGARCH(1,2)     LogLik=-171.142997 AIC=360.285994 BIC=390.621736 valid_starts=50/50 selection=passed_checks
+M031 dist=normal     mean=ARX_2_1          vol=GARCH(2,1)      LogLik=-185.615720 AIC=387.231441 BIC=414.196545 valid_starts=50/50 selection=passed_checks
+M032 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(2,1)  LogLik=-176.637756 AIC=373.275513 BIC=406.981893 valid_starts=50/50 selection=passed_checks
+M033 dist=normal     mean=ARX_2_1          vol=EGARCH(2,1)     LogLik=-177.952289 AIC=375.904577 BIC=409.610957 valid_starts=50/50 selection=passed_checks
+M034 dist=normal     mean=ARX_2_1          vol=GARCH(2,2)      LogLik=-185.615720 AIC=389.231441 BIC=419.567183 valid_starts=50/50 selection=passed_checks
+M035 dist=normal     mean=ARX_2_1          vol=GJR-GARCH(2,2)  LogLik=-176.637756 AIC=375.275513 BIC=412.352531 valid_starts=50/50 selection=passed_checks
+M036 dist=normal     mean=ARX_2_1          vol=EGARCH(2,2)     LogLik=-177.952289 AIC=377.904577 BIC=414.981595 valid_starts=50/50 selection=passed_checks
+M037 dist=normal     mean=ARX_2_2          vol=GARCH(1,1)      LogLik=-188.835545 AIC=393.671091 BIC=420.636195 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M038 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(1,1)  LogLik=-183.782110 AIC=385.564219 BIC=415.899962 valid_starts=50/50 selection=passed_checks
+M039 dist=normal     mean=ARX_2_2          vol=EGARCH(1,1)     LogLik=-182.868142 AIC=383.736284 BIC=414.072027 valid_starts=48/50 selection=passed_checks
+M040 dist=normal     mean=ARX_2_2          vol=GARCH(1,2)      LogLik=-188.835545 AIC=395.671091 BIC=426.006833 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M041 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(1,2)  LogLik=-183.782110 AIC=387.564219 BIC=421.270600 valid_starts=50/50 selection=passed_checks
+M042 dist=normal     mean=ARX_2_2          vol=EGARCH(1,2)     LogLik=-182.868142 AIC=385.736284 BIC=419.442665 valid_starts=49/50 selection=passed_checks
+M043 dist=normal     mean=ARX_2_2          vol=GARCH(2,1)      LogLik=-185.607372 AIC=389.214743 BIC=419.550486 valid_starts=50/50 selection=passed_checks
+M044 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(2,1)  LogLik=-176.566026 AIC=375.132052 BIC=412.209071 valid_starts=50/50 selection=passed_checks
+M045 dist=normal     mean=ARX_2_2          vol=EGARCH(2,1)     LogLik=-177.529755 AIC=377.059510 BIC=414.136528 valid_starts=50/50 selection=passed_checks
+M046 dist=normal     mean=ARX_2_2          vol=GARCH(2,2)      LogLik=-185.607372 AIC=391.214743 BIC=424.921124 valid_starts=50/50 selection=passed_checks
+M047 dist=normal     mean=ARX_2_2          vol=GJR-GARCH(2,2)  LogLik=-176.566026 AIC=377.132052 BIC=417.579709 valid_starts=50/50 selection=passed_checks
+M048 dist=normal     mean=ARX_2_2          vol=EGARCH(2,2)     LogLik=-177.529755 AIC=379.059510 BIC=419.507166 valid_starts=49/50 selection=passed_checks
+M049 dist=studentst  mean=Constant_anchor  vol=GARCH(1,1)      LogLik=-181.994175 AIC=371.988350 BIC=385.470902 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M050 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(1,1)  LogLik=-178.691587 AIC=367.383173 BIC=384.236363 valid_starts=50/50 selection=passed_checks
+M051 dist=studentst  mean=Constant_anchor  vol=EGARCH(1,1)     LogLik=-178.364069 AIC=366.728138 BIC=383.581329 valid_starts=50/50 selection=passed_checks
+M052 dist=studentst  mean=Constant_anchor  vol=GARCH(1,2)      LogLik=-181.994175 AIC=373.988350 BIC=390.841540 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M053 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(1,2)  LogLik=-178.691587 AIC=369.383173 BIC=389.607001 valid_starts=50/50 selection=passed_checks
+M054 dist=studentst  mean=Constant_anchor  vol=EGARCH(1,2)     LogLik=-178.364069 AIC=368.728138 BIC=388.951967 valid_starts=50/50 selection=passed_checks
+M055 dist=studentst  mean=Constant_anchor  vol=GARCH(2,1)      LogLik=-179.884968 AIC=369.769936 BIC=386.623126 valid_starts=50/50 selection=passed_checks
+M056 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(2,1)  LogLik=-174.816024 AIC=363.632047 BIC=387.226514 valid_starts=50/50 selection=passed_checks
+M057 dist=studentst  mean=Constant_anchor  vol=EGARCH(2,1)     LogLik=-175.543509 AIC=365.087019 BIC=388.681485 valid_starts=50/50 selection=passed_checks
+M058 dist=studentst  mean=Constant_anchor  vol=GARCH(2,2)      LogLik=-179.884968 AIC=371.769936 BIC=391.993764 valid_starts=50/50 selection=passed_checks
+M059 dist=studentst  mean=Constant_anchor  vol=GJR-GARCH(2,2)  LogLik=-174.816024 AIC=365.632047 BIC=392.597152 valid_starts=50/50 selection=passed_checks
+M060 dist=studentst  mean=Constant_anchor  vol=EGARCH(2,2)     LogLik=-175.543509 AIC=367.087019 BIC=394.052123 valid_starts=50/50 selection=passed_checks
+M061 dist=studentst  mean=ARX_1_1          vol=GARCH(1,1)      LogLik=-174.917408 AIC=363.834817 BIC=387.429283 valid_starts=50/50 selection=passed_checks
+M062 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(1,1)  LogLik=-171.253982 AIC=358.507965 BIC=385.473069 valid_starts=50/50 selection=passed_checks
+M063 dist=studentst  mean=ARX_1_1          vol=EGARCH(1,1)     LogLik=-171.075310 AIC=358.150621 BIC=385.115725 valid_starts=50/50 selection=passed_checks
+M064 dist=studentst  mean=ARX_1_1          vol=GARCH(1,2)      LogLik=-174.917409 AIC=365.834817 BIC=392.799921 valid_starts=50/50 selection=passed_checks
+M065 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(1,2)  LogLik=-171.253982 AIC=360.507965 BIC=390.843707 valid_starts=50/50 selection=passed_checks
+M066 dist=studentst  mean=ARX_1_1          vol=EGARCH(1,2)     LogLik=-171.075311 AIC=360.150621 BIC=390.486363 valid_starts=50/50 selection=passed_checks
+M067 dist=studentst  mean=ARX_1_1          vol=GARCH(2,1)      LogLik=-173.789011 AIC=363.578022 BIC=390.543126 valid_starts=50/50 selection=passed_checks
+M068 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(2,1)  LogLik=-168.540769 AIC=357.081538 BIC=390.787918 valid_starts=50/50 selection=passed_checks
+M069 dist=studentst  mean=ARX_1_1          vol=EGARCH(2,1)     LogLik=-168.369252 AIC=356.738503 BIC=390.444883 valid_starts=50/50 selection=passed_checks
+M070 dist=studentst  mean=ARX_1_1          vol=GARCH(2,2)      LogLik=-173.789011 AIC=365.578022 BIC=395.913764 valid_starts=50/50 selection=passed_checks
+M071 dist=studentst  mean=ARX_1_1          vol=GJR-GARCH(2,2)  LogLik=-168.540769 AIC=359.081538 BIC=396.158556 valid_starts=50/50 selection=passed_checks
+M072 dist=studentst  mean=ARX_1_1          vol=EGARCH(2,2)     LogLik=-168.369252 AIC=358.738503 BIC=395.815521 valid_starts=50/50 selection=passed_checks
+M073 dist=studentst  mean=ARX_2_1          vol=GARCH(1,1)      LogLik=-172.676380 AIC=361.352760 BIC=388.317864 valid_starts=50/50 selection=passed_checks
+M074 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(1,1)  LogLik=-170.071813 AIC=358.143626 BIC=388.479369 valid_starts=50/50 selection=passed_checks
+M075 dist=studentst  mean=ARX_2_1          vol=EGARCH(1,1)     LogLik=-169.710634 AIC=357.421267 BIC=387.757010 valid_starts=49/50 selection=passed_checks
+M076 dist=studentst  mean=ARX_2_1          vol=GARCH(1,2)      LogLik=-172.676380 AIC=363.352760 BIC=393.688502 valid_starts=50/50 selection=passed_checks
+M077 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(1,2)  LogLik=-170.071813 AIC=360.143626 BIC=393.850007 valid_starts=50/50 selection=passed_checks
+M078 dist=studentst  mean=ARX_2_1          vol=EGARCH(1,2)     LogLik=-165.946531 AIC=351.893062 BIC=385.599442 valid_starts=50/50 selection=passed_checks
+M079 dist=studentst  mean=ARX_2_1          vol=GARCH(2,1)      LogLik=-171.973720 AIC=361.947440 BIC=392.283182 valid_starts=50/50 selection=passed_checks
+M080 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(2,1)  LogLik=-167.497638 AIC=356.995277 BIC=394.072295 valid_starts=50/50 selection=passed_checks
+M081 dist=studentst  mean=ARX_2_1          vol=EGARCH(2,1)     LogLik=-167.581048 AIC=357.162096 BIC=394.239114 valid_starts=50/50 selection=passed_checks
+M082 dist=studentst  mean=ARX_2_1          vol=GARCH(2,2)      LogLik=-171.697664 AIC=363.395328 BIC=397.101708 valid_starts=50/50 selection=passed_checks
+M083 dist=studentst  mean=ARX_2_1          vol=GJR-GARCH(2,2)  LogLik=-167.497638 AIC=358.995277 BIC=399.442933 valid_starts=50/50 selection=passed_checks
+M084 dist=studentst  mean=ARX_2_1          vol=EGARCH(2,2)     LogLik=-167.581048 AIC=359.162096 BIC=399.609752 valid_starts=49/50 selection=passed_checks
+M085 dist=studentst  mean=ARX_2_2          vol=GARCH(1,1)      LogLik=-172.500957 AIC=363.001915 BIC=393.337657 valid_starts=50/50 selection=passed_checks
+M086 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(1,1)  LogLik=-169.990018 AIC=359.980036 BIC=393.686416 valid_starts=50/50 selection=passed_checks
+M087 dist=studentst  mean=ARX_2_2          vol=EGARCH(1,1)     LogLik=-169.444226 AIC=358.888452 BIC=392.594833 valid_starts=50/50 selection=passed_checks
+M088 dist=studentst  mean=ARX_2_2          vol=GARCH(1,2)      LogLik=-172.500957 AIC=365.001915 BIC=398.708295 valid_starts=50/50 selection=passed_checks
+M089 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(1,2)  LogLik=-169.990018 AIC=361.980036 BIC=399.057054 valid_starts=50/50 selection=passed_checks
+M090 dist=studentst  mean=ARX_2_2          vol=EGARCH(1,2)     LogLik=-169.444226 AIC=360.888452 BIC=397.965470 valid_starts=48/50 selection=passed_checks
+M091 dist=studentst  mean=ARX_2_2          vol=GARCH(2,1)      LogLik=-171.878634 AIC=363.757269 BIC=397.463649 valid_starts=50/50 selection=passed_checks
+M092 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(2,1)  LogLik=-167.394369 AIC=358.788737 BIC=399.236394 valid_starts=50/50 selection=passed_checks
+M093 dist=studentst  mean=ARX_2_2          vol=EGARCH(2,1)     LogLik=-167.295567 AIC=358.591133 BIC=399.038790 valid_starts=50/50 selection=passed_checks
+M094 dist=studentst  mean=ARX_2_2          vol=GARCH(2,2)      LogLik=-171.651761 AIC=365.303522 BIC=402.380540 valid_starts=50/50 selection=passed_checks
+M095 dist=studentst  mean=ARX_2_2          vol=GJR-GARCH(2,2)  LogLik=-167.394369 AIC=360.788737 BIC=404.607032 valid_starts=50/50 selection=passed_checks
+M096 dist=studentst  mean=ARX_2_2          vol=EGARCH(2,2)     LogLik=-167.295567 AIC=360.591133 BIC=404.409428 valid_starts=50/50 selection=passed_checks
+M097 dist=mix_normal mean=Constant_anchor  vol=GARCH(1,1)      LogLik=-179.487275 AIC=370.974551 BIC=391.198379 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M098 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(1,1)  LogLik=-175.212285 AIC=364.424570 BIC=388.019037 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M099 dist=mix_normal mean=Constant_anchor  vol=EGARCH(1,1)     LogLik=-173.833368 AIC=361.666737 BIC=385.261203 valid_starts=50/50 selection=passed_checks
+M100 dist=mix_normal mean=Constant_anchor  vol=GARCH(1,2)      LogLik=-179.487275 AIC=372.974551 BIC=396.569017 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M101 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(1,2)  LogLik=-175.212285 AIC=366.424570 BIC=393.389675 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M102 dist=mix_normal mean=Constant_anchor  vol=EGARCH(1,2)     LogLik=-173.833368 AIC=363.666737 BIC=390.631841 valid_starts=50/50 selection=passed_checks
+M103 dist=mix_normal mean=Constant_anchor  vol=GARCH(2,1)      LogLik=-177.716147 AIC=369.432294 BIC=393.026760 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M104 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(2,1)  LogLik=-171.821002 AIC=361.642004 BIC=391.977746 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M105 dist=mix_normal mean=Constant_anchor  vol=EGARCH(2,1)     LogLik=-170.778835 AIC=359.557671 BIC=389.893413 valid_starts=50/50 selection=passed_checks
+M106 dist=mix_normal mean=Constant_anchor  vol=GARCH(2,2)      LogLik=-177.716147 AIC=371.432294 BIC=398.397398 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M107 dist=mix_normal mean=Constant_anchor  vol=GJR-GARCH(2,2)  LogLik=-171.821002 AIC=363.642004 BIC=397.348384 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M108 dist=mix_normal mean=Constant_anchor  vol=EGARCH(2,2)     LogLik=-170.778835 AIC=361.557671 BIC=395.264051 valid_starts=50/50 selection=passed_checks
+M109 dist=mix_normal mean=ARX_1_1          vol=GARCH(1,1)      LogLik=-174.585186 AIC=367.170372 BIC=397.506114 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M110 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(1,1)  LogLik=-170.222583 AIC=360.445166 BIC=394.151546 valid_starts=49/50 selection=passed_checks
+M111 dist=mix_normal mean=ARX_1_1          vol=EGARCH(1,1)     LogLik=-169.442211 AIC=358.884422 BIC=392.590802 valid_starts=50/50 selection=passed_checks
+M112 dist=mix_normal mean=ARX_1_1          vol=GARCH(1,2)      LogLik=-174.585186 AIC=369.170372 BIC=402.876753 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M113 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(1,2)  LogLik=-170.222583 AIC=362.445166 BIC=399.522185 valid_starts=50/50 selection=passed_checks
+M114 dist=mix_normal mean=ARX_1_1          vol=EGARCH(1,2)     LogLik=-169.442211 AIC=360.884422 BIC=397.961440 valid_starts=49/50 selection=passed_checks
+M115 dist=mix_normal mean=ARX_1_1          vol=GARCH(2,1)      LogLik=-173.561670 AIC=367.123341 BIC=400.829721 valid_starts=50/50 selection=passed_checks
+M116 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(2,1)  LogLik=-167.446927 AIC=358.893853 BIC=399.341509 valid_starts=50/50 selection=passed_checks
+M117 dist=mix_normal mean=ARX_1_1          vol=EGARCH(2,1)     LogLik=-166.219712 AIC=356.439424 BIC=396.887080 valid_starts=50/50 selection=passed_checks
+M118 dist=mix_normal mean=ARX_1_1          vol=GARCH(2,2)      LogLik=-173.561670 AIC=369.123341 BIC=406.200359 valid_starts=50/50 selection=passed_checks
+M119 dist=mix_normal mean=ARX_1_1          vol=GJR-GARCH(2,2)  LogLik=-167.446939 AIC=360.893879 BIC=404.712173 valid_starts=50/50 selection=passed_checks
+M120 dist=mix_normal mean=ARX_1_1          vol=EGARCH(2,2)     LogLik=-166.219712 AIC=358.439424 BIC=402.257718 valid_starts=50/50 selection=passed_checks
+M121 dist=mix_normal mean=ARX_2_1          vol=GARCH(1,1)      LogLik=-171.383916 AIC=362.767832 BIC=396.474212 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M122 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(1,1)  LogLik=-168.613065 AIC=359.226129 BIC=396.303148 valid_starts=50/50 selection=passed_checks
+M123 dist=mix_normal mean=ARX_2_1          vol=EGARCH(1,1)     LogLik=-165.366903 AIC=352.733806 BIC=389.810824 valid_starts=50/50 selection=passed_checks
+M124 dist=mix_normal mean=ARX_2_1          vol=GARCH(1,2)      LogLik=-171.383916 AIC=364.767832 BIC=401.844850 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M125 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(1,2)  LogLik=-168.613065 AIC=361.226129 BIC=401.673786 valid_starts=50/50 selection=passed_checks
+M126 dist=mix_normal mean=ARX_2_1          vol=EGARCH(1,2)     LogLik=-164.603114 AIC=353.206227 BIC=393.653884 valid_starts=49/50 selection=passed_checks
+M127 dist=mix_normal mean=ARX_2_1          vol=GARCH(2,1)      LogLik=-170.780916 AIC=363.561833 BIC=400.638851 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M128 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(2,1)  LogLik=-166.211509 AIC=358.423018 BIC=402.241312 valid_starts=50/50 selection=passed_checks
+M129 dist=mix_normal mean=ARX_2_1          vol=EGARCH(2,1)     LogLik=-165.268873 AIC=356.537745 BIC=400.356040 valid_starts=50/50 selection=passed_checks
+M130 dist=mix_normal mean=ARX_2_1          vol=GARCH(2,2)      LogLik=-170.618571 AIC=365.237142 BIC=405.684798 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M131 dist=mix_normal mean=ARX_2_1          vol=GJR-GARCH(2,2)  LogLik=-166.211509 AIC=360.423018 BIC=407.611950 valid_starts=50/50 selection=passed_checks
+M132 dist=mix_normal mean=ARX_2_1          vol=EGARCH(2,2)     LogLik=-163.688233 AIC=355.376466 BIC=402.565398 valid_starts=50/50 selection=passed_checks
+M133 dist=mix_normal mean=ARX_2_2          vol=GARCH(1,1)      LogLik=-171.199432 AIC=364.398865 BIC=401.475883 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M134 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(1,1)  LogLik=-168.480114 AIC=360.960228 BIC=401.407885 valid_starts=50/50 selection=passed_checks
+M135 dist=mix_normal mean=ARX_2_2          vol=EGARCH(1,1)     LogLik=-167.362827 AIC=358.725654 BIC=399.173310 valid_starts=50/50 selection=passed_checks
+M136 dist=mix_normal mean=ARX_2_2          vol=GARCH(1,2)      LogLik=-171.199432 AIC=366.398865 BIC=406.846521 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M137 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(1,2)  LogLik=-168.480114 AIC=362.960228 BIC=406.778523 valid_starts=50/50 selection=passed_checks
+M138 dist=mix_normal mean=ARX_2_2          vol=EGARCH(1,2)     LogLik=-166.446845 AIC=358.893691 BIC=402.711985 valid_starts=48/50 selection=passed_checks
+M139 dist=mix_normal mean=ARX_2_2          vol=GARCH(2,1)      LogLik=-170.701124 AIC=365.402247 BIC=405.849904 valid_starts=0/50 selection=fallback_best_converged_no_checks_passed
+M140 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(2,1)  LogLik=-166.058466 AIC=360.116931 BIC=407.305863 valid_starts=50/50 selection=passed_checks
+M141 dist=mix_normal mean=ARX_2_2          vol=EGARCH(2,1)     LogLik=-162.582305 AIC=353.164611 BIC=400.353543 valid_starts=50/50 selection=passed_checks
+M142 dist=mix_normal mean=ARX_2_2          vol=GARCH(2,2)      LogLik=-174.881401 AIC=375.762803 BIC=419.581097 valid_starts=2/50 selection=passed_checks
+M143 dist=mix_normal mean=ARX_2_2          vol=GJR-GARCH(2,2)  LogLik=-166.058466 AIC=362.116931 BIC=412.676501 valid_starts=50/50 selection=passed_checks
+M144 dist=mix_normal mean=ARX_2_2          vol=EGARCH(2,2)     LogLik=-164.505395 AIC=359.010789 BIC=409.570360 valid_starts=50/50 selection=passed_checks

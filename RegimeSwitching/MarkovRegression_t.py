@@ -10,6 +10,7 @@ from statsmodels.tsa.regime_switching import markov_regression
 
 NU_LOWER = 2.05
 NU_UPPER = 200.0
+NU_GAUSSIAN_CUTOFF = 80.0
 
 
 class MarkovRegression_t(markov_regression.MarkovRegression):

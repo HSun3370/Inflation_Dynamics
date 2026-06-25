@@ -10,24 +10,50 @@ Outputs:
 from __future__ import annotations
 
 import json
+import os
+import sys
+import tempfile
 import traceback
+import warnings
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 from typing import Any
 
+_MPLCONFIGDIR = Path(tempfile.gettempdir()) / "inflation_dynamics_mplconfig"
+_MPLCONFIGDIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(_MPLCONFIGDIR))
+os.environ.setdefault("MPLBACKEND", "Agg")
+
+import matplotlib
+
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from statsmodels.tools.sm_exceptions import ConvergenceWarning, EstimationWarning
 
 import MarkovRegression_t
+
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
+warnings.filterwarnings("ignore", category=EstimationWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning, module=r"statsmodels\..*")
+warnings.filterwarnings("ignore", category=RuntimeWarning, module=r"MarkovRegression_t")
 
 
 ROOT = Path(__file__).resolve().parents[1]
 RS_DIR = Path(__file__).resolve().parent
 OUT_DIR = RS_DIR / "results"
 TYPST_PREAMBLE = "```{raw:typst}\n#set page(margin: auto)\n```"
+N_STARTS = 50
+EM_ITER = 50
+MLE_MAXITER = 1500
+STATIONARITY_MARGIN = 1e-6
+SIGMA2_BOUNDARY_TOL = 1e-6
+SIGMA2_RELATIVE_FLOOR = 1e-3
+TRANSITION_BOUNDARY_TOL = 1e-4
+REGIME_COLORS = ["#d62728", "#2ca02c", "#1f77b4"]
 
 
 @dataclass(frozen=True)
@@ -55,6 +81,31 @@ class ModelSpec:
 
 def format_bool(v: bool) -> str:
     return "Y" if v else "N"
+
+
+def _yn_to_bool(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    return str(v).strip().upper() in {"Y", "TRUE", "1"}
+
+
+def _markdown_table(df: pd.DataFrame) -> str:
+    if df.empty:
+        return "_No rows._"
+    cols = [str(c) for c in df.columns]
+
+    def clean(value: Any) -> str:
+        if pd.isna(value):
+            return ""
+        return str(value).replace("\n", "<br>").replace("|", r"\|")
+
+    header = "| " + " | ".join(cols) + " |"
+    separator = "| " + " | ".join(["---"] * len(cols)) + " |"
+    body = [
+        "| " + " | ".join(clean(row[col]) for col in df.columns) + " |"
+        for _, row in df.iterrows()
+    ]
+    return "\n".join([header, separator, *body])
 
 
 def load_effective_sample() -> pd.DataFrame:
@@ -174,179 +225,14 @@ def build_model_specs() -> tuple[list[ModelSpec], list[dict[str, Any]]]:
                     mean_process=mean,
                     error_distribution="Student t",
                     switch_spec=switch,
-                    switching_nu=True,
+                    switching_nu=False,
                 )
             )
 
     return specs, skipped
 
 
-def _safe_get(d: dict[str, Any], key: str) -> Any:
-    return d.get(key) if isinstance(d, dict) else None
-
-
-def _is_converged(result: Any) -> bool:
-    retvals = getattr(result, "mle_retvals", {})
-    conv = _safe_get(retvals, "converged")
-    if conv is not None:
-        return bool(conv)
-    warnflag = _safe_get(retvals, "warnflag")
-    if warnflag is not None:
-        try:
-            return int(warnflag) == 0
-        except Exception:
-            return bool(not warnflag)
-    return True
-
-
-def _stable_seed(text: str) -> int:
-    digest = hashlib.md5(text.encode("utf-8")).hexdigest()
-    return int(digest[:8], 16)
-
-
-def _fit_with_retries(model: Any, seed_base: int) -> tuple[Any, str, int, int]:
-    # Deterministic multi-start schedule. We keep every successful fit and
-    # pick the highest-llf converged candidate to reduce local-optimum noise.
-    attempts = [
-        (
-            "safe_bfgs",
-            {"method": "bfgs", "maxiter": 500, "em_iter": 20, "search_reps": 0, "search_iter": 5, "search_scale": 1.0},
-            1,
-            None,
-        ),
-        (
-            "safe_lbfgs",
-            {"method": "lbfgs", "maxiter": 700, "em_iter": 20, "search_reps": 0, "search_iter": 5, "search_scale": 1.0},
-            1,
-            None,
-        ),
-        (
-            "search_bfgs",
-            {"method": "bfgs", "maxiter": 1200, "em_iter": 35, "search_reps": 30, "search_iter": 20, "search_scale": 1.2},
-            2,
-            None,
-        ),
-        (
-            "search_lbfgs",
-            {"method": "lbfgs", "maxiter": 1800, "em_iter": 45, "search_reps": 60, "search_iter": 25, "search_scale": 1.35},
-            2,
-            None,
-        ),
-        (
-            "perturbed_lbfgs",
-            {"method": "lbfgs", "maxiter": 2200, "em_iter": 30, "search_reps": 20, "search_iter": 15, "search_scale": 1.0},
-            2,
-            0.20,
-        ),
-    ]
-
-    successful: list[tuple[float, bool, str, Any]] = []
-    n_attempts = 0
-
-    for attempt_name, fit_kwargs, reps, perturb_scale in attempts:
-        for rep in range(reps):
-            n_attempts += 1
-            attempt_seed = seed_base + 1009 * n_attempts + 37 * rep
-            np.random.seed(attempt_seed)
-
-            kwargs = dict(fit_kwargs)
-            if perturb_scale is not None:
-                base = np.asarray(model.start_params, dtype=float)
-                rng = np.random.default_rng(attempt_seed + 17)
-                noise = rng.normal(loc=0.0, scale=perturb_scale, size=base.shape)
-                kwargs["start_params"] = base + noise
-                kwargs["transformed"] = True
-
-            try:
-                res = model.fit(disp=False, **kwargs)
-            except Exception:
-                continue
-
-            llf = float(res.llf)
-            if not np.isfinite(llf):
-                continue
-            tag = f"{attempt_name}#{rep+1}"
-            successful.append((llf, _is_converged(res), tag, res))
-
-    if not successful:
-        raise RuntimeError("All optimization attempts failed.")
-
-    converged_candidates = [item for item in successful if item[1]]
-    n_converged = len(converged_candidates)
-    if converged_candidates:
-        # Select the highest log-likelihood among converged fits.
-        converged_candidates.sort(key=lambda x: x[0], reverse=True)
-        best_llf, _, best_tag, best_res = converged_candidates[0]
-
-        # Final polish from best converged point.
-        try:
-            np.random.seed(seed_base + 909091)
-            polished = model.fit(
-                start_params=np.asarray(best_res.params, dtype=float),
-                transformed=True,
-                method="lbfgs",
-                maxiter=3000,
-                em_iter=0,
-                search_reps=0,
-                disp=False,
-            )
-            p_llf = float(polished.llf)
-            if np.isfinite(p_llf) and _is_converged(polished) and p_llf >= best_llf - 1e-8:
-                return polished, f"{best_tag}|polish_lbfgs", n_attempts + 1, n_converged
-        except Exception:
-            pass
-        return best_res, best_tag, n_attempts, n_converged
-
-    # If nothing converged, do conservative retries before giving up.
-    for j in range(4):
-        n_attempts += 1
-        seed = seed_base + 50000 + 97 * j
-        np.random.seed(seed)
-        try:
-            rescue = model.fit(
-                method="bfgs",
-                maxiter=800,
-                em_iter=25,
-                search_reps=0,
-                search_iter=5,
-                disp=False,
-            )
-            if _is_converged(rescue) and np.isfinite(float(rescue.llf)):
-                return rescue, f"rescue_bfgs#{j+1}", n_attempts, 1
-        except Exception:
-            continue
-
-    # Final fallback: return best available even if non-converged.
-    successful.sort(key=lambda x: x[0], reverse=True)
-    best_llf, _, best_tag, best_res = successful[0]
-    return best_res, f"{best_tag}|nonconv_fallback", n_attempts, n_converged
-
-
-def _display_param_name(
-    raw_name: str, exog_cols: tuple[str, ...], switching_cols: list[bool]
-) -> str:
-    # With trend='c', statsmodels often labels exog as x1, x2, ...; remap
-    # to the canonical project regressor names for clearer reporting.
-    name = raw_name
-    if "[" in raw_name and raw_name.endswith("]"):
-        base = raw_name.split("[", 1)[0]
-        suffix = "[" + raw_name.split("[", 1)[1]
-    else:
-        base = raw_name
-        suffix = ""
-
-    if len(base) >= 2 and base[0] == "x" and base[1:].isdigit():
-        idx = int(base[1:]) - 1
-        if 0 <= idx < len(exog_cols):
-            col_name = exog_cols[idx]
-            is_switching = switching_cols[idx] if idx < len(switching_cols) else True
-            return f"{col_name}{suffix}" if is_switching else col_name
-    return raw_name
-
-
-def fit_one(
-    df: pd.DataFrame, spec: ModelSpec
-) -> tuple[dict[str, Any], list[dict[str, Any]], Any]:
+def build_model(df: pd.DataFrame, spec: ModelSpec) -> tuple[Any, list[bool], bool]:
     mean = spec.mean_process
     switch = spec.switch_spec
 
@@ -380,17 +266,341 @@ def fit_one(
             switching_nu=spec.switching_nu,
         )
 
+    return model, mask, has_arx_intercept
+
+
+def _safe_get(d: dict[str, Any], key: str) -> Any:
+    return d.get(key) if isinstance(d, dict) else None
+
+
+def _is_converged(result: Any) -> bool:
+    retvals = getattr(result, "mle_retvals", {})
+    conv = _safe_get(retvals, "converged")
+    if conv is not None:
+        return bool(conv)
+    warnflag = _safe_get(retvals, "warnflag")
+    if warnflag is not None:
+        try:
+            return int(warnflag) == 0
+        except Exception:
+            return bool(not warnflag)
+    return True
+
+
+def _stable_seed(text: str) -> int:
+    digest = hashlib.md5(text.encode("utf-8")).hexdigest()
+    return int(digest[:8], 16)
+
+
+def _format_check(v: bool) -> str:
+    return "Y" if bool(v) else "N"
+
+
+def _display_param_name(
+    raw_name: str, exog_cols: tuple[str, ...], switching_cols: list[bool]
+) -> str:
+    # With trend='c', statsmodels often labels exog as x1, x2, ...; remap
+    # to the canonical project regressor names for clearer reporting.
+    name = raw_name
+    if "[" in raw_name and raw_name.endswith("]"):
+        base = raw_name.split("[", 1)[0]
+        suffix = "[" + raw_name.split("[", 1)[1]
+    else:
+        base = raw_name
+        suffix = ""
+
+    if len(base) >= 2 and base[0] == "x" and base[1:].isdigit():
+        idx = int(base[1:]) - 1
+        if 0 <= idx < len(exog_cols):
+            col_name = exog_cols[idx]
+            is_switching = switching_cols[idx] if idx < len(switching_cols) else True
+            return f"{col_name}{suffix}" if is_switching else col_name
+    return raw_name
+
+
+def _estimate_dict(result: Any, mean: MeanProcessSpec, mask: list[bool]) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for raw_name, value in zip(result.model.param_names, result.params):
+        display_name = _display_param_name(raw_name, mean.exog_cols, mask)
+        out[display_name] = float(np.real(value))
+    return out
+
+
+def _value_by_regime(estimates: dict[str, float], base_name: str, regime: int) -> float:
+    regime_key = f"{base_name}[{regime}]"
+    if regime_key in estimates:
+        return float(estimates[regime_key])
+    if base_name in estimates:
+        return float(estimates[base_name])
+    return np.nan
+
+
+def _ar_stationarity_check(
+    result: Any, spec: ModelSpec, mask: list[bool]
+) -> tuple[bool, str]:
+    mean = spec.mean_process
+    ar_cols = [c for c in mean.exog_cols if is_ar_col(c)]
+    if not ar_cols:
+        return True, "no_ar_terms"
+
+    estimates = _estimate_dict(result, mean, mask)
+    k_regimes = spec.switch_spec.k_regimes
+    bad: list[str] = []
+
+    for regime in range(k_regimes):
+        rho1 = _value_by_regime(estimates, "Inflation_lag_1", regime)
+        if not np.isfinite(rho1):
+            bad.append(f"regime_{regime}_missing_rho1")
+            continue
+
+        if len(ar_cols) == 1:
+            if abs(rho1) >= 1.0 - STATIONARITY_MARGIN:
+                bad.append(f"regime_{regime}_ar1_nonstationary")
+            continue
+
+        rho2 = _value_by_regime(estimates, "Inflation_lag_2", regime)
+        if not np.isfinite(rho2):
+            bad.append(f"regime_{regime}_missing_rho2")
+            continue
+
+        stationary = (
+            rho1 + rho2 < 1.0 - STATIONARITY_MARGIN
+            and rho2 - rho1 < 1.0 - STATIONARITY_MARGIN
+            and rho2 > -1.0 + STATIONARITY_MARGIN
+        )
+        if not stationary:
+            bad.append(f"regime_{regime}_ar2_nonstationary")
+
+    if bad:
+        return False, ";".join(bad)
+    return True, "stationary"
+
+
+def _distribution_check(result: Any) -> tuple[bool, str]:
+    reasons: list[str] = []
+    endog_var = float(np.nanvar(np.asarray(result.model.endog, dtype=float)))
+    sigma2_floor = max(SIGMA2_BOUNDARY_TOL, SIGMA2_RELATIVE_FLOOR * endog_var)
+    for raw_name, value in zip(result.model.param_names, result.params):
+        val = float(np.real(value))
+        if raw_name.startswith("sigma2"):
+            if not np.isfinite(val) or val <= 0:
+                reasons.append(f"{raw_name}_nonpositive")
+            elif val <= sigma2_floor:
+                reasons.append(f"{raw_name}_boundary")
+        if raw_name.startswith("nu"):
+            lower = getattr(MarkovRegression_t, "NU_LOWER", 2.05)
+            upper = getattr(MarkovRegression_t, "NU_UPPER", 200.0)
+            gaussian_cutoff = getattr(MarkovRegression_t, "NU_GAUSSIAN_CUTOFF", 80.0)
+            if not np.isfinite(val) or val <= lower + 1e-6 or val >= upper - 1e-6:
+                reasons.append(f"{raw_name}_boundary")
+            elif val >= gaussian_cutoff:
+                reasons.append(f"{raw_name}_gaussian_limit")
+    if reasons:
+        return False, ";".join(reasons)
+    return True, "ok"
+
+
+def _transition_check(result: Any) -> tuple[bool, str]:
+    try:
+        mat = np.asarray(result.regime_transition[:, :, 0], dtype=float).T
+    except Exception as exc:
+        return False, f"transition_unavailable:{exc}"
+    if not np.all(np.isfinite(mat)):
+        return False, "transition_nonfinite"
+    if np.nanmin(mat) < -1e-8 or np.nanmax(mat) > 1.0 + 1e-8:
+        return False, "transition_out_of_bounds"
+    if (
+        np.nanmin(mat) <= TRANSITION_BOUNDARY_TOL
+        or np.nanmax(mat) >= 1.0 - TRANSITION_BOUNDARY_TOL
+    ):
+        return False, "transition_boundary"
+    if not np.allclose(mat.sum(axis=1), 1.0, atol=1e-6):
+        return False, "transition_rows_not_stochastic"
+    return True, "ok"
+
+
+def _result_checks(result: Any, spec: ModelSpec, mask: list[bool]) -> dict[str, Any]:
+    llf = float(getattr(result, "llf", np.nan))
+    converged = _is_converged(result)
+    stationary, stationarity_reason = _ar_stationarity_check(result, spec, mask)
+    dist_ok, distribution_reason = _distribution_check(result)
+    trans_ok, transition_reason = _transition_check(result)
+    finite_llf = bool(np.isfinite(llf))
+    checks_passed = bool(converged and finite_llf and stationary and dist_ok and trans_ok)
+    return {
+        "llf": llf,
+        "converged": converged,
+        "finite_llf": finite_llf,
+        "stationary": stationary,
+        "stationarity_reason": stationarity_reason,
+        "distribution_valid": dist_ok,
+        "distribution_reason": distribution_reason,
+        "transition_valid": trans_ok,
+        "transition_reason": transition_reason,
+        "checks_passed": checks_passed,
+    }
+
+
+def _randomized_start_params(model: Any, rng: np.random.Generator) -> np.ndarray:
+    params = np.asarray(model.start_params, dtype=float).copy()
+    names = list(model.param_names)
+
+    for i, name in enumerate(names):
+        value = float(params[i])
+        if name.startswith("p["):
+            # Keep transition starts valid; EM/MLE can still move them.
+            continue
+        if name.startswith("sigma2"):
+            params[i] = max(1e-6, value * float(np.exp(rng.normal(0.0, 0.45))))
+        elif name.startswith("nu"):
+            lower = getattr(MarkovRegression_t, "NU_LOWER", 2.05)
+            upper = getattr(MarkovRegression_t, "NU_UPPER", 200.0)
+            params[i] = float(np.clip(value + rng.normal(0.0, 3.0), lower + 0.1, min(upper - 0.1, 60.0)))
+        else:
+            params[i] = value + float(rng.normal(0.0, 0.25 * max(1.0, abs(value))))
+
+    return params
+
+
+def _fit_with_restarts(
+    model: Any,
+    spec: ModelSpec,
+    mask: list[bool],
+    seed_base: int,
+    model_label: str,
+) -> tuple[Any, str, int, int, int, str, list[dict[str, Any]]]:
+    successful: list[tuple[float, bool, str, Any, dict[str, Any]]] = []
+    attempt_rows: list[dict[str, Any]] = []
+
+    for attempt in range(1, N_STARTS + 1):
+        seed = seed_base + 1009 * attempt
+        np.random.seed(seed)
+        rng = np.random.default_rng(seed + 17)
+        method = "lbfgs" if attempt % 2 else "bfgs"
+        start_params = None if attempt == 1 else _randomized_start_params(model, rng)
+
+        try:
+            result = model.fit(
+                start_params=start_params,
+                transformed=True,
+                method=method,
+                maxiter=MLE_MAXITER,
+                em_iter=EM_ITER,
+                search_reps=0,
+                search_iter=10,
+                search_scale=1.0,
+                cov_type="none",
+                disp=False,
+            )
+            checks = _result_checks(result, spec, mask)
+            retvals = getattr(result, "mle_retvals", {})
+            tag = f"{method}#{attempt}"
+            attempt_rows.append(
+                {
+                    "model_label": model_label,
+                    "attempt": attempt,
+                    "method": method,
+                    "llf": checks["llf"],
+                    "converged": _format_check(checks["converged"]),
+                    "stationary": _format_check(checks["stationary"]),
+                    "distribution_valid": _format_check(checks["distribution_valid"]),
+                    "transition_valid": _format_check(checks["transition_valid"]),
+                    "checks_passed": _format_check(checks["checks_passed"]),
+                    "iterations": _safe_get(retvals, "iterations"),
+                    "warnflag": _safe_get(retvals, "warnflag"),
+                    "stationarity_reason": checks["stationarity_reason"],
+                    "distribution_reason": checks["distribution_reason"],
+                    "transition_reason": checks["transition_reason"],
+                    "error": "",
+                }
+            )
+            if checks["finite_llf"]:
+                successful.append((checks["llf"], checks["checks_passed"], tag, result, checks))
+        except Exception as exc:
+            attempt_rows.append(
+                {
+                    "model_label": model_label,
+                    "attempt": attempt,
+                    "method": method,
+                    "llf": np.nan,
+                    "converged": "N",
+                    "stationary": "N",
+                    "distribution_valid": "N",
+                    "transition_valid": "N",
+                    "checks_passed": "N",
+                    "iterations": np.nan,
+                    "warnflag": np.nan,
+                    "stationarity_reason": "fit_failed",
+                    "distribution_reason": "fit_failed",
+                    "transition_reason": "fit_failed",
+                    "error": str(exc),
+                }
+            )
+
+    if not successful:
+        raise RuntimeError("All optimization attempts failed.")
+
+    valid = [item for item in successful if item[1]]
+    n_converged = sum(1 for _, _, _, _, checks in successful if checks["converged"])
+    n_valid = len(valid)
+
+    if valid:
+        valid.sort(key=lambda x: x[0], reverse=True)
+        best_llf, _, best_tag, best_result, _ = valid[0]
+        return (
+            best_result,
+            best_tag,
+            N_STARTS,
+            n_converged,
+            n_valid,
+            "passed_checks",
+            attempt_rows,
+        )
+
+    successful.sort(key=lambda x: x[0], reverse=True)
+    best_llf, _, best_tag, best_result, _ = successful[0]
+    return (
+        best_result,
+        f"{best_tag}|fallback_highest_llf_no_valid_attempt",
+        N_STARTS,
+        n_converged,
+        n_valid,
+        "fallback_highest_llf_no_valid_attempt",
+        attempt_rows,
+    )
+
+def fit_one(
+    df: pd.DataFrame, spec: ModelSpec
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], Any]:
+    mean = spec.mean_process
+    switch = spec.switch_spec
+    model, mask, has_arx_intercept = build_model(df, spec)
+
     model_label = (
         f"{mean.name}_"
         f"{spec.error_distribution.replace(' ', '_').lower()}_"
         f"r{switch.k_regimes}_"
         f"ar{format_bool(switch.switching_ar)}_"
-        f"spf{format_bool(switch.switching_spf)}"
+        f"spf{format_bool(switch.switching_spf)}_"
+        f"nu{format_bool(spec.switching_nu)}"
     )
-    result, fit_strategy, fit_attempts, fit_converged_candidates = _fit_with_retries(
-        model, seed_base=_stable_seed(model_label)
+    (
+        result,
+        fit_strategy,
+        fit_attempts,
+        fit_converged_candidates,
+        fit_valid_candidates,
+        selection_status,
+        attempt_rows,
+    ) = _fit_with_restarts(
+        model,
+        spec=spec,
+        mask=mask,
+        seed_base=_stable_seed(model_label),
+        model_label=model_label,
     )
     retvals = getattr(result, "mle_retvals", {})
+    selected_checks = _result_checks(result, spec, mask)
 
     summary_row: dict[str, Any] = {
         "model_label": model_label,
@@ -413,11 +623,20 @@ def fit_one(
         "bic": float(result.bic),
         "hqic": float(result.hqic),
         "converged": _is_converged(result),
+        "stationary": selected_checks["stationary"],
+        "stationarity_reason": selected_checks["stationarity_reason"],
+        "distribution_valid": selected_checks["distribution_valid"],
+        "distribution_reason": selected_checks["distribution_reason"],
+        "transition_valid": selected_checks["transition_valid"],
+        "transition_reason": selected_checks["transition_reason"],
+        "checks_passed": selected_checks["checks_passed"],
+        "selection_status": selection_status,
         "iterations": _safe_get(retvals, "iterations"),
         "warnflag": _safe_get(retvals, "warnflag"),
         "fit_strategy": fit_strategy,
         "fit_attempts": fit_attempts,
         "fit_converged_candidates": fit_converged_candidates,
+        "fit_valid_candidates": fit_valid_candidates,
     }
 
     parameter_rows: list[dict[str, Any]] = []
@@ -444,7 +663,7 @@ def fit_one(
             }
         )
 
-    return summary_row, parameter_rows, result
+    return summary_row, parameter_rows, attempt_rows, result
 
 
 def build_results_markdown(
@@ -463,6 +682,8 @@ def build_results_markdown(
             "switching_spf",
             "switching_distribution",
             "switching_nu",
+            "checks_passed",
+            "selection_status",
             "llf",
             "aic",
             "bic",
@@ -503,6 +724,8 @@ def build_results_markdown(
             "switching_spf": "Sw.SPF",
             "switching_distribution": "Sw.Var",
             "switching_nu": "Sw.nu",
+            "checks_passed": "Checks",
+            "selection_status": "Selection",
             "llf": "LogLik",
             "aic": "AIC",
             "bic": "BIC",
@@ -520,45 +743,131 @@ def build_results_markdown(
     )
 
     for c in ["LogLik", "AIC", "BIC"]:
-        view[c] = view[c].map(lambda x: f"{x:.3f}")
+        view[c] = view[c].map(lambda x: f"{x:.4f}")
+    view["Checks"] = view["Checks"].map(format_bool)
+    view["Selection"] = view["Selection"].map(
+        lambda x: "passed" if x == "passed_checks" else "fallback"
+    )
 
-    return TYPST_PREAMBLE + "\n\n" + view.to_markdown(index=False)
+    intro = (
+        "Each model is selected from 50 starts. `Checks=Y` means the selected "
+        "estimate passed optimizer convergence, AR stationarity, parameter-bound, "
+        "distribution, and transition-probability checks. Student-t degrees of "
+        "freedom are held common across regimes by default; Student-t estimates "
+        "with `nu` in the Gaussian-limit region are not treated as clean "
+        "Student-t fits. If no start passed all checks, the reported row is the "
+        "highest-likelihood fallback and is marked `fallback`."
+    )
+    return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view)
 
 
-def _mean_equation_regime_table(best_row: pd.Series, best_params: pd.DataFrame) -> pd.DataFrame:
+def _fmt4(x: Any) -> str:
+    try:
+        val = float(x)
+    except Exception:
+        return "NA"
+    if not np.isfinite(val):
+        return "NA"
+    return f"{val:.4f}"
+
+
+def _parameter_label(base_name: str) -> str:
+    labels = {
+        "const": "$c$",
+        "Inflation_lag_1": "$\\rho_1$",
+        "Inflation_lag_2": "$\\rho_2$",
+        "SPF": "$\\phi_1$",
+        "SPF_lag_1": "$\\phi_2$",
+        "sigma2": "$\\sigma^2$",
+        "nu": "$\\nu$",
+    }
+    return labels.get(base_name, f"`{base_name}`")
+
+
+def _inflation_term(col: str) -> str:
+    terms = {
+        "Inflation_lag_1": "\\pi_t",
+        "Inflation_lag_2": "\\pi_{t-1}",
+        "SPF": "SPF_t",
+        "SPF_lag_1": "SPF_{t-1}",
+    }
+    return terms.get(col, col)
+
+
+def _coefficient_symbol(col: str, switches: bool) -> str:
+    base = {
+        "Inflation_lag_1": "\\rho_1",
+        "Inflation_lag_2": "\\rho_2",
+        "SPF": "\\phi_1",
+        "SPF_lag_1": "\\phi_2",
+    }.get(col, col)
+    if not switches:
+        return base
+    if "_" in base:
+        root, sub = base.split("_", 1)
+        return f"{root}_{{{sub},s_t}}"
+    return f"{base}_{{s_t}}"
+
+
+def _mean_equation_markdown(best_row: pd.Series) -> str:
+    if best_row["mean_process"] == "Constant":
+        return "$$\n\\pi_{t+1} = SPF_t + u_{t+1}\n$$"
+
+    exog_cols = [c for c in str(best_row["exog_cols"]).split(",") if c]
+    terms: list[str] = []
+    intercept = "c_{s_t}" if best_row["intercept_switches_by_regime"] == "Y" else "c"
+    terms.append(intercept)
+    for col in exog_cols:
+        switches = (best_row["switching_ar"] == "Y" and is_ar_col(col)) or (
+            best_row["switching_spf"] == "Y" and is_spf_col(col)
+        )
+        terms.append(f"{_coefficient_symbol(col, switches)}\\,{_inflation_term(col)}")
+
+    rhs = " + ".join(terms)
+    return "$$\n\\pi_{t+1} = " + rhs + " + u_{t+1}\n$$"
+
+
+def _parallel_mean_parameter_table(best_row: pd.Series, best_params: pd.DataFrame) -> pd.DataFrame:
     k_regimes = int(best_row["k_regimes"])
     exog_cols = [c for c in str(best_row["exog_cols"]).split(",") if c]
     has_intercept = best_row["has_intercept"] == "Y"
 
     estimates = dict(zip(best_params["parameter"], best_params["estimate"]))
-    intercept_keys = [k for k in estimates if k.startswith("const[")]
-    shared_intercept = estimates[intercept_keys[0]] if len(intercept_keys) == 1 else None
-
     rows: list[dict[str, Any]] = []
-    for r in range(k_regimes):
-        row: dict[str, Any] = {"regime": r}
-        if has_intercept:
-            key = f"const[{r}]"
-            if key in estimates:
-                row["Intercept"] = estimates[key]
-            elif "const" in estimates:
-                row["Intercept"] = estimates["const"]
-            elif shared_intercept is not None:
-                row["Intercept"] = shared_intercept
 
-        for col in exog_cols:
-            sw_key = f"{col}[{r}]"
-            non_sw_key = col
-            if sw_key in estimates:
-                row[col] = estimates[sw_key]
-            elif non_sw_key in estimates:
-                row[col] = estimates[non_sw_key]
-            else:
-                shared = [k for k in estimates if k.startswith(f"{col}[")]
-                if len(shared) == 1:
-                    row[col] = estimates[shared[0]]
-                else:
-                    row[col] = np.nan
+    entries: list[tuple[str, str, bool]] = []
+    if has_intercept:
+        entries.append(("const", "$c$", best_row["intercept_switches_by_regime"] == "Y"))
+    for col in exog_cols:
+        switches = (best_row["switching_ar"] == "Y" and is_ar_col(col)) or (
+            best_row["switching_spf"] == "Y" and is_spf_col(col)
+        )
+        entries.append((col, _parameter_label(col), switches))
+
+    for base_name, label, switches in entries:
+        row: dict[str, Any] = {"Parameter": label, "Switching": format_bool(switches)}
+        for r in range(k_regimes):
+            row[f"Regime {r}"] = _fmt4(_value_by_regime(estimates, base_name, r))
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def _parallel_distribution_parameter_table(
+    best_row: pd.Series, best_params: pd.DataFrame
+) -> pd.DataFrame:
+    k_regimes = int(best_row["k_regimes"])
+    estimates = dict(zip(best_params["parameter"], best_params["estimate"]))
+    rows: list[dict[str, Any]] = []
+
+    entries = [("sigma2", "$\\sigma^2$", best_row["switching_distribution"] == "Y")]
+    if any(str(p).startswith("nu") for p in best_params["parameter"]):
+        entries.append(("nu", "$\\nu$", best_row["switching_nu"] == "Y"))
+
+    for base_name, label, switches in entries:
+        row: dict[str, Any] = {"Parameter": label, "Switching": format_bool(switches)}
+        for r in range(k_regimes):
+            row[f"Regime {r}"] = _fmt4(_value_by_regime(estimates, base_name, r))
         rows.append(row)
 
     return pd.DataFrame(rows)
@@ -574,8 +883,35 @@ def _transition_matrix_table(result: Any) -> pd.DataFrame:
     rows: list[list[Any]] = []
     for i in range(k):
         probs = from_to[i].tolist()
-        rows.append([f"Regime {i}", *probs, float(np.sum(from_to[i]))])
+        rows.append([f"Regime {i}", *[_fmt4(v) for v in probs], _fmt4(np.sum(from_to[i]))])
     return pd.DataFrame(rows, columns=cols)
+
+
+def _switching_parts(best_row: pd.Series) -> tuple[str, str]:
+    blocks: list[tuple[str, str]] = []
+    if best_row["has_intercept"] == "Y" or "Inflation_lag" in str(best_row["exog_cols"]):
+        blocks.append(("AR block, including $c$", best_row["switching_ar"]))
+    if any(is_spf_col(c) for c in str(best_row["exog_cols"]).split(",") if c):
+        blocks.append(("SPF block", best_row["switching_spf"]))
+    blocks.append(("$\\sigma^2$", best_row["switching_distribution"]))
+    if best_row["error_distribution"] == "Student t":
+        blocks.append(("$\\nu$", best_row["switching_nu"]))
+
+    switching = [label for label, flag in blocks if flag == "Y"]
+    fixed = [label for label, flag in blocks if flag != "Y"]
+    return ", ".join(switching) if switching else "None", ", ".join(fixed) if fixed else "None"
+
+
+def _switching_block_table(best_row: pd.Series) -> pd.DataFrame:
+    rows: list[dict[str, str]] = []
+    if best_row["has_intercept"] == "Y" or "Inflation_lag" in str(best_row["exog_cols"]):
+        rows.append({"Block": "AR block, including $c$", "Switching": best_row["switching_ar"]})
+    if any(is_spf_col(c) for c in str(best_row["exog_cols"]).split(",") if c):
+        rows.append({"Block": "SPF block", "Switching": best_row["switching_spf"]})
+    rows.append({"Block": "$\\sigma^2$", "Switching": best_row["switching_distribution"]})
+    if best_row["error_distribution"] == "Student t":
+        rows.append({"Block": "$\\nu$", "Switching": best_row["switching_nu"]})
+    return pd.DataFrame(rows)
 
 
 def _save_regime_plot(df: pd.DataFrame, best_row: pd.Series, best_result: Any, out_dir: Path) -> str:
@@ -591,7 +927,6 @@ def _save_regime_plot(df: pd.DataFrame, best_row: pd.Series, best_result: Any, o
     ax.plot(x_index, inflation.values, color="black", linewidth=1.6, label="Inflation", zorder=3)
 
     k = int(best_row["k_regimes"])
-    cmap = plt.get_cmap("tab10", k)
     unique_regimes = sorted(int(v) for v in pd.unique(regime_path.values))
     for regime in unique_regimes:
         mask = (regime_path.values == regime).astype(int)
@@ -614,8 +949,8 @@ def _save_regime_plot(df: pd.DataFrame, best_row: pd.Series, best_result: Any, o
             ax.axvspan(
                 left,
                 right,
-                color=cmap(regime),
-                alpha=0.20,
+                color=REGIME_COLORS[regime % len(REGIME_COLORS)],
+                alpha=0.22,
                 linewidth=0,
                 label=(f"Regime {regime}" if j == 0 else None),
                 zorder=1,
@@ -647,66 +982,48 @@ def build_best_model_markdown(
 ) -> str:
     mean_params = best_params[best_params["parameter_type"] == "mean_process"]
     dist_params = best_params[best_params["parameter_type"] == "distribution"]
-    trans_params = best_params[best_params["parameter_type"] == "transition_probability"]
-    mean_regime_table = _mean_equation_regime_table(best_row, mean_params)
+    mean_regime_table = _parallel_mean_parameter_table(best_row, mean_params)
+    dist_regime_table = _parallel_distribution_parameter_table(best_row, dist_params)
     transition_matrix = _transition_matrix_table(best_result)
     plot_name = _save_regime_plot(df, best_row, best_result, out_dir)
+    switching_parts, fixed_parts = _switching_parts(best_row)
 
-    exog_cols = [c for c in str(best_row["exog_cols"]).split(",") if c]
-    rhs_terms = []
-    if best_row["has_intercept"] == "Y":
-        rhs_terms.append("c_(s_t)")
-    for col in exog_cols:
-        if best_row["switching_ar"] == "Y" and is_ar_col(col):
-            rhs_terms.append(f"beta_{{{col}}}(s_t) * {col}")
-        elif best_row["switching_spf"] == "Y" and is_spf_col(col):
-            rhs_terms.append(f"beta_{{{col}}}(s_t) * {col}")
-        else:
-            rhs_terms.append(f"beta_{{{col}}} * {col}")
-
-    rhs = " + ".join(rhs_terms) if rhs_terms else "0"
-    eqn = f"{best_row['endog']} = {rhs} + u_t"
+    summary_table = pd.DataFrame(
+        [
+            {
+                "Mean process": best_row["mean_process"],
+                "Regime-switching parts": switching_parts,
+                "Non-switching parts": fixed_parts,
+                "LogLik": _fmt4(best_row["llf"]),
+                "AIC": _fmt4(best_row["aic"]),
+                "BIC": _fmt4(best_row["bic"]),
+            }
+        ]
+    )
+    switching_table = _switching_block_table(best_row)
 
     lines = [
         "# Best Regime-Switching Model",
         "",
-        "Selected by AIC among converged models.",
+        "Selected by AIC among estimates that passed optimizer convergence, stationarity, parameter-bound, distribution, and transition checks.",
         "",
         "## Model Summary",
-        f"- Model label: `{best_row['model_label']}`",
-        f"- Mean process: `{best_row['mean_process']}`",
-        f"- Mean equation target: `{best_row['endog']}`",
-        f"- Intercept included: `{best_row['has_intercept']}`",
-        f"- Intercept switches by regime: `{best_row['intercept_switches_by_regime']}`",
-        f"- Error distribution: `{best_row['error_distribution']}`",
-        f"- #Regime: `{int(best_row['k_regimes'])}`",
-        f"- Switching AR: `{best_row['switching_ar']}`",
-        f"- Switching SPF: `{best_row['switching_spf']}`",
-        f"- Switching distribution variance: `{best_row['switching_distribution']}`",
-        f"- Switching nu: `{best_row['switching_nu']}`",
-        f"- Sample: `{best_row['sample_start']} to {best_row['sample_end']}`",
-        f"- Nobs: `{int(best_row['nobs'])}`",
-        f"- LogLik: `{best_row['llf']:.3f}`",
-        f"- AIC: `{best_row['aic']:.3f}`",
-        f"- BIC: `{best_row['bic']:.3f}`",
+        _markdown_table(summary_table),
         "",
-        "## Mean Model Specification",
-        f"`{eqn}`",
+        "## Switching Blocks",
+        _markdown_table(switching_table),
         "",
-        "Regime-specific mean coefficients:",
-        mean_regime_table.to_markdown(index=False),
+        "## Mean Process",
+        _mean_equation_markdown(best_row),
         "",
-        "## Mean Process Parameters",
-        mean_params[["parameter", "estimate"]].to_markdown(index=False),
+        "## Mean Parameter Values",
+        _markdown_table(mean_regime_table),
         "",
         "## Distribution Parameters",
-        dist_params[["parameter", "estimate"]].to_markdown(index=False),
-        "",
-        "## Transition Probabilities (Vector Form)",
-        trans_params[["parameter", "estimate"]].to_markdown(index=False),
+        _markdown_table(dist_regime_table),
         "",
         "## Transition Probability Matrix",
-        transition_matrix.to_markdown(index=False),
+        _markdown_table(transition_matrix),
         "",
         "## Regime Classification Plot",
         f"![Inflation with Smoothed Predicted Regimes]({plot_name})",
@@ -714,7 +1031,86 @@ def build_best_model_markdown(
     return TYPST_PREAMBLE + "\n\n" + "\n".join(lines)
 
 
-def main() -> None:
+def _spec_from_row(row: pd.Series) -> ModelSpec:
+    mean_lookup = {m.name: m for m in mean_processes()}
+    mean_name = str(row["mean_process"])
+    if mean_name not in mean_lookup:
+        raise ValueError(f"Unknown mean process in saved results: {mean_name}")
+
+    switch = SwitchingSpec(
+        k_regimes=int(row["k_regimes"]),
+        switching_ar=_yn_to_bool(row["switching_ar"]),
+        switching_spf=_yn_to_bool(row["switching_spf"]),
+        switching_distribution=_yn_to_bool(row["switching_distribution"]),
+    )
+    return ModelSpec(
+        mean_process=mean_lookup[mean_name],
+        error_distribution=str(row["error_distribution"]),
+        switch_spec=switch,
+        switching_nu=_yn_to_bool(row["switching_nu"]),
+    )
+
+
+def _reconstruct_result_from_saved_params(
+    df: pd.DataFrame,
+    best_row: pd.Series,
+    best_params: pd.DataFrame,
+) -> Any:
+    spec = _spec_from_row(best_row)
+    model, _, _ = build_model(df, spec)
+    estimates = dict(zip(best_params["parameter_raw"], best_params["estimate"].astype(float)))
+    missing = [name for name in model.param_names if name not in estimates]
+    if missing:
+        raise ValueError(
+            "Saved parameter table does not contain all model parameters: "
+            + ", ".join(missing)
+        )
+    params = np.asarray([estimates[name] for name in model.param_names], dtype=float)
+    return model.smooth(params, transformed=True, cov_type="none")
+
+
+def rebuild_reports_from_csv() -> None:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    df = load_effective_sample()
+
+    results_csv = OUT_DIR / "regime_switching_results.csv"
+    params_csv = OUT_DIR / "regime_switching_parameters.csv"
+    skipped_csv = OUT_DIR / "regime_switching_skipped_models.csv"
+    md_path = OUT_DIR / "regime_switching_results.md"
+    best_md_path = OUT_DIR / "regime_switching_best_model.md"
+
+    results_df = pd.read_csv(results_csv)
+    params_df = pd.read_csv(params_csv)
+    skipped_df = pd.read_csv(skipped_csv) if skipped_csv.exists() else pd.DataFrame()
+
+    eligible_df = results_df[results_df["checks_passed"]].copy()
+    if eligible_df.empty:
+        eligible_df = results_df.copy()
+    best_aic = eligible_df.sort_values("aic", ascending=True).iloc[0]
+    best_bic = eligible_df.sort_values("bic", ascending=True).iloc[0]
+    best_params = params_df[params_df["model_label"] == best_aic["model_label"]].copy()
+    best_result = _reconstruct_result_from_saved_params(df, best_aic, best_params)
+
+    md_path.write_text(
+        build_results_markdown(results_df, best_aic, best_bic, skipped_df),
+        encoding="utf-8",
+    )
+    best_md_path.write_text(
+        build_best_model_markdown(best_aic, best_params, best_result, df, OUT_DIR),
+        encoding="utf-8",
+    )
+
+    print("Rebuilt markdown reports from saved CSVs:")
+    print(f"- {md_path}")
+    print(f"- {best_md_path}")
+
+
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
+    if "--report-only" in argv:
+        rebuild_reports_from_csv()
+        return
+
     np.random.seed(20260521)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -723,6 +1119,7 @@ def main() -> None:
 
     results_rows: list[dict[str, Any]] = []
     parameter_rows: list[dict[str, Any]] = []
+    attempt_rows: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     results_obj_by_label: dict[str, Any] = {}
 
@@ -734,13 +1131,15 @@ def main() -> None:
             f"SPF={format_bool(switch.switching_spf)}"
         )
         try:
-            row, params, result_obj = fit_one(df, spec)
+            row, params, attempts, result_obj = fit_one(df, spec)
             results_rows.append(row)
             parameter_rows.extend(params)
+            attempt_rows.extend(attempts)
             results_obj_by_label[row["model_label"]] = result_obj
             print(
                 f"[OK] {tag}: llf={row['llf']:.3f}, aic={row['aic']:.3f}, "
-                f"bic={row['bic']:.3f}, converged={row['converged']}, nobs={row['nobs']}"
+                f"bic={row['bic']:.3f}, checks={format_bool(row['checks_passed'])}, "
+                f"selection={row['selection_status']}, nobs={row['nobs']}"
             )
         except Exception as exc:  # pragma: no cover
             tb = traceback.format_exc()
@@ -762,40 +1161,45 @@ def main() -> None:
 
     results_df = pd.DataFrame(results_rows)
     params_df = pd.DataFrame(parameter_rows)
+    attempts_df = pd.DataFrame(attempt_rows)
     skipped_df = pd.DataFrame(skipped)
 
-    # Reported model comparisons should include converged fits only.
-    converged_df = results_df[results_df["converged"]].copy()
-    nonconverged_df = results_df[~results_df["converged"]].copy()
-    if converged_df.empty:
-        raise RuntimeError("No converged model after retry strategy.")
+    eligible_df = results_df[results_df["checks_passed"]].copy()
+    failed_checks_df = results_df[~results_df["checks_passed"]].copy()
+    if eligible_df.empty:
+        eligible_df = results_df.copy()
 
-    converged_df["aic_rank"] = converged_df["aic"].rank(method="dense")
-    converged_df["bic_rank"] = converged_df["bic"].rank(method="dense")
+    eligible_df["aic_rank"] = eligible_df["aic"].rank(method="dense")
+    eligible_df["bic_rank"] = eligible_df["bic"].rank(method="dense")
 
-    best_aic = converged_df.sort_values("aic", ascending=True).iloc[0]
-    best_bic = converged_df.sort_values("bic", ascending=True).iloc[0]
+    best_aic = eligible_df.sort_values("aic", ascending=True).iloc[0]
+    best_bic = eligible_df.sort_values("bic", ascending=True).iloc[0]
     best_result = results_obj_by_label[best_aic["model_label"]]
 
     best_params = params_df[params_df["model_label"] == best_aic["model_label"]].copy()
 
-    results_df = converged_df.sort_values(
+    results_df = results_df.sort_values(
         ["mean_process", "error_distribution", "k_regimes", "aic"]
     ).reset_index(drop=True)
     params_df = params_df.sort_values(["model_label", "parameter_type", "parameter"]).reset_index(drop=True)
+    attempts_df = attempts_df.sort_values(["model_label", "attempt"]).reset_index(drop=True)
 
     results_csv = OUT_DIR / "regime_switching_results.csv"
     params_csv = OUT_DIR / "regime_switching_parameters.csv"
+    attempts_csv = OUT_DIR / "regime_switching_attempts.csv"
     md_path = OUT_DIR / "regime_switching_results.md"
     best_md_path = OUT_DIR / "regime_switching_best_model.md"
     skipped_csv = OUT_DIR / "regime_switching_skipped_models.csv"
     nonconv_csv = OUT_DIR / "regime_switching_nonconverged.csv"
+    failed_checks_csv = OUT_DIR / "regime_switching_failed_checks.csv"
     err_json = OUT_DIR / "regime_switching_errors.json"
 
     results_df.to_csv(results_csv, index=False)
     params_df.to_csv(params_csv, index=False)
+    attempts_df.to_csv(attempts_csv, index=False)
     skipped_df.to_csv(skipped_csv, index=False)
-    nonconverged_df.to_csv(nonconv_csv, index=False)
+    results_df[~results_df["converged"]].to_csv(nonconv_csv, index=False)
+    failed_checks_df.to_csv(failed_checks_csv, index=False)
 
     md_path.write_text(
         build_results_markdown(results_df, best_aic, best_bic, skipped_df),
@@ -814,10 +1218,12 @@ def main() -> None:
     print("\nWrote files:")
     print(f"- {results_csv}")
     print(f"- {params_csv}")
+    print(f"- {attempts_csv}")
     print(f"- {md_path}")
     print(f"- {best_md_path}")
     print(f"- {skipped_csv}")
     print(f"- {nonconv_csv}")
+    print(f"- {failed_checks_csv}")
     if errors:
         print(f"- {err_json} (contains failed-spec traces)")
 

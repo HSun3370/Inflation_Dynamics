@@ -33,12 +33,10 @@ This same trimmed sample is then used for all mean specifications, so the residu
 [^effective-sample-correction]: Earlier versions of the estimation code contained a sample-trimming mistake and therefore used different numbers of observations across model settings. For example, some GARCH runs used 208 observations, while some BEGE runs used 210 observations. This coding error has now been corrected: all reported and regenerated estimates use the common **1969Q2--2022Q4** effective sample with **215 observations**. As a result, some current log-likelihood, AIC, and BIC values differ from earlier archived numbers.
 
 
-For GARCH-type recursion, the first few conditional variances are unobserved
-(for example, $\sigma_0^2$, $\sigma_{-1}^2$, $u_0^2$, $u_{-1}^2$).  I use unconditional variance as initialization, for example,  in a GARCH model:
-
-$$
-\bar{\sigma}^2 = \frac{\omega}{1-\sum_i \alpha_i - \sum_j \beta_j},
-$$
+For the reported GARCH-family estimates, conditional-variance recursion starts
+use the default initialization implemented by the `arch` package. The estimator
+therefore no longer iterates the pre-sample recursion to force the initial
+variance to equal a parameter-implied unconditional variance.
 
 
 ## Effective Sample Summary Statistics

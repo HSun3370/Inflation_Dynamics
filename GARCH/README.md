@@ -58,16 +58,18 @@ The likelihood, the fitted $\sigma_t^2$ path, and all forecasts are identical un
 The GARCH-family estimation is executed by the `arch` package.
 For each distribution, mean process, volatility family, and order, the script
 tries the package default optimizer start and additional randomized feasible
-starts. The current production default uses 100 primary starts per model
-combination. If no optimizer-converged and stationarity-admissible estimate is
-found, the script automatically runs 400 additional retry starts using an
-independent model-specific random seed. The collected result for a model
-combination is the highest log-likelihood estimate among starts that both
-converged according to the optimizer and passed the relevant stationarity proxy
-with a small numerical margin below one (`1e-6`). Fits that fail these checks
-after the retry search are excluded from the main result tables and written to a
-failed-model diagnostic file. Attempt-level restart diagnostics are also saved
-for audit.
+starts. For ARX mean specifications, the mean-parameter block in randomized
+starts is drawn from OLS-centered intervals, $\hat\theta_j \pm 2\,SE(\hat\theta_j)$,
+while volatility and distribution parameters are randomized over feasible
+regions. The current reporting run uses 50 starts per model combination. The
+preferred reported estimate is the highest log-likelihood estimate among starts
+that both converged according to the optimizer and passed the relevant
+stationarity proxy with a small numerical margin below one (`1e-6`). If none of
+the 50 starts passes all checks, the script reports the best optimizer-converged
+attempted log likelihood for that model combination and flags the row in the
+CSV `selection_status` column. Attempt-level restart diagnostics are also saved
+for audit. Conditional-variance recursion starts use the default initialization
+implemented by the `arch` package.
 
 
 ## Log-Likelihood Specifications
