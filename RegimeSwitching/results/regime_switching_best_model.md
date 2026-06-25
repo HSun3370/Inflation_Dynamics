@@ -9,14 +9,8 @@ Selected by AIC among estimates that passed optimizer convergence, stationarity,
 ## Model Summary
 | Mean process | Regime-switching parts | Non-switching parts | LogLik | AIC | BIC |
 | --- | --- | --- | --- | --- | --- |
-| ARX(2,1) | AR block, including $c$, shock distribution ($\sigma^2$, $\nu$) | SPF block | -147.8112 | 335.6223 | 403.0351 |
+| ARX(2,1) | AR block, including $c$, $\sigma^2$ | SPF block | -157.6865 | 353.3729 | 417.4150 |
 
-## Switching Blocks
-| Block | Switching |
-| --- | --- |
-| AR block, including $c$ | Y |
-| SPF block | N |
-| Shock distribution ($\sigma^2$, $\nu$) | Y |
 
 ## Mean Process
 $$
@@ -26,23 +20,22 @@ $$
 ## Mean Parameter Values
 | Parameter | Switching | Regime 0 | Regime 1 | Regime 2 |
 | --- | --- | --- | --- | --- |
-| $c$ | Y | 0.4924 | -0.0159 | -0.3075 |
-| $\rho_1$ | Y | -0.4103 | 0.1240 | 0.8039 |
-| $\rho_2$ | Y | -0.1518 | 0.3155 | -0.5983 |
-| $\phi_1$ | N | 0.8977 | 0.8977 | 0.8977 |
+| $c$ | Y | 0.2893 | -0.1234 | 0.1561 |
+| $\rho_1$ | Y | 0.0142 | 0.1989 | 0.2226 |
+| $\rho_2$ | Y | -0.1378 | 0.4114 | -0.0895 |
+| $\phi_1$ | N | 0.7487 | 0.7487 | 0.7487 |
 
 ## Distribution Parameters
 | Parameter | Switching | Regime 0 | Regime 1 | Regime 2 |
 | --- | --- | --- | --- | --- |
-| $\sigma^2$ | Y | 0.0282 | 0.3598 | 0.0174 |
-| $\nu$ | N | 4.2263 | 4.2263 | 4.2263 |
+| $\sigma^2$ | Y | 0.0517 | 0.1973 | 1.4556 |
 
 ## Transition Probability Matrix
 | From \ To | Regime 0 | Regime 1 | Regime 2 | Row Sum |
 | --- | --- | --- | --- | --- |
-| Regime 0 | 0.7435 | 0.0003 | 0.2562 | 1.0000 |
-| Regime 1 | 0.0648 | 0.8529 | 0.0823 | 1.0000 |
-| Regime 2 | 0.1517 | 0.6759 | 0.1724 | 1.0000 |
+| Regime 0 | 0.7705 | 0.2291 | 0.0004 | 1.0000 |
+| Regime 1 | 0.1010 | 0.8367 | 0.0623 | 1.0000 |
+| Regime 2 | 0.2227 | 0.0005 | 0.7768 | 1.0000 |
 
 ## Regime Classification Plot
 ![Inflation with Smoothed Predicted Regimes](best_model_regime_classification.png)

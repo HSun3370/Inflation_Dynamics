@@ -34,9 +34,9 @@ project:
         - file: BEGE_GARCH/Constant_BEGE/README.md
         - file: BEGE_GARCH/Symmetric_BEGE/README.md
         - file: BEGE_GARCH/BadGood_BEGE/README.md
-        - file: BEGE_GARCH/InflationDeflation_BEGE/README.md
-        - file: BEGE_GARCH/Full_BEGE/README.md
+        - file: BEGE_GARCH/InflationDeflation_BEGE/README.md 
         - file: BEGE_GARCH/ConstantP_BEGE/README.md
         - file: BEGE_GARCH/ConstantN_BEGE/README.md
+        - file: BEGE_GARCH/Full_BEGE/README.md
 site:
   template: book-theme

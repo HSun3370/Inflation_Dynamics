@@ -672,12 +672,14 @@ def build_results_markdown(
     best_bic: pd.Series,
     skipped_df: pd.DataFrame,
 ) -> str:
-    # Keep only estimates that passed all checks; fallbacks are excluded from display.
-    valid_df = results_df[results_df["checks_passed"] == True]
+    # Keep only valid Normal estimates; fallbacks and Student-t excluded from display.
+    valid_df = results_df[
+        (results_df["checks_passed"] == True) &
+        (results_df["error_distribution"] == "Normal")
+    ]
     view = valid_df[
         [
             "mean_process",
-            "error_distribution",
             "k_regimes",
             "switching_ar",
             "switching_spf",
@@ -688,12 +690,10 @@ def build_results_markdown(
         ]
     ].copy()
 
-    # Ordered reporting: mean model -> distribution -> #regime -> switching flags.
+    # Ordered reporting: mean model -> #regime -> switching flags.
     mean_order = {"Constant": 0, "ARX(1,1)": 1, "ARX(2,1)": 2, "ARX(2,2)": 3}
-    dist_order = {"Normal": 0, "Student t": 1}
     yn_order = {"N": 0, "Y": 1}
     view["_mean_order"] = view["mean_process"].map(mean_order).fillna(999)
-    view["_dist_order"] = view["error_distribution"].map(dist_order).fillna(999)
     view["_sw_ar_order"] = view["switching_ar"].map(yn_order).fillna(999)
     view["_sw_spf_order"] = view["switching_spf"].map(yn_order).fillna(999)
     view["_sw_var_order"] = view["switching_distribution"].map(yn_order).fillna(999)
@@ -701,20 +701,18 @@ def build_results_markdown(
     view = view.sort_values(
         [
             "_mean_order",
-            "_dist_order",
             "k_regimes",
             "_sw_ar_order",
             "_sw_spf_order",
             "_sw_var_order",
             "aic",
         ],
-        ascending=[True, True, True, True, True, True, True],
+        ascending=[True, True, True, True, True, True],
     ).reset_index(drop=True)
 
     view = view.rename(
         columns={
             "mean_process": "Mean",
-            "error_distribution": "Dist",
             "k_regimes": "K",
             "switching_ar": "Sw.AR",
             "switching_spf": "Sw.SPF",
@@ -727,7 +725,6 @@ def build_results_markdown(
     view = view.drop(
         columns=[
             "_mean_order",
-            "_dist_order",
             "_sw_ar_order",
             "_sw_spf_order",
             "_sw_var_order",
@@ -741,8 +738,7 @@ def build_results_markdown(
         "Each model is selected from 50 starts; only estimates that passed all "
         "checks (optimizer convergence, AR stationarity, parameter bounds, and "
         "valid transition probabilities) are reported. Specifications where no "
-        "start passed all checks are excluded. Student-$t$ degrees of freedom "
-        "($\\nu$) are held common across regimes; `Sw.Dist` reflects whether "
+        "start passed all checks are excluded. `Sw.Dist` reflects whether "
         "$\\sigma^2$ is regime-specific."
     )
     return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view)
@@ -1074,7 +1070,10 @@ def rebuild_reports_from_csv() -> None:
     params_df = pd.read_csv(params_csv)
     skipped_df = pd.read_csv(skipped_csv) if skipped_csv.exists() else pd.DataFrame()
 
-    eligible_df = results_df[results_df["checks_passed"]].copy()
+    eligible_df = results_df[
+        results_df["checks_passed"] &
+        (results_df["error_distribution"] == "Normal")
+    ].copy()
     if eligible_df.empty:
         eligible_df = results_df.copy()
     best_aic = eligible_df.sort_values("aic", ascending=True).iloc[0]
@@ -1155,7 +1154,10 @@ def main(argv: list[str] | None = None) -> None:
     attempts_df = pd.DataFrame(attempt_rows)
     skipped_df = pd.DataFrame(skipped)
 
-    eligible_df = results_df[results_df["checks_passed"]].copy()
+    eligible_df = results_df[
+        results_df["checks_passed"] &
+        (results_df["error_distribution"] == "Normal")
+    ].copy()
     failed_checks_df = results_df[~results_df["checks_passed"]].copy()
     if eligible_df.empty:
         eligible_df = results_df.copy()
