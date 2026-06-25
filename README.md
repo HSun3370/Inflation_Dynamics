@@ -10,11 +10,11 @@ This notebook is organized around five pieces.
 
 3. **GARCH-family volatility models.** The GARCH section estimates GARCH, GJR-GARCH, and EGARCH specifications with normal, standardized Student's $t$, and  Gaussian-mixture residuals.
 
-4. **Regime-switching GARCH.** The regime-switching section studies state-dependent mean  dynamics with normal and standardized Student's $t$ residuals.
+4. **Regime-switching models.** The regime-switching section studies state-dependent mean dynamics with normal residuals.
 
 5. **BEGE-GARCH models.** The BEGE section estimates   Constant, Symmetric, InflationDeflation, BadGood, Constant-p Full BEGE, Constant-n Full BEGE, and Full BEGE models.
 
-Notations are defined:
+The following notation is used throughout:
 - $\pi_t$: realized inflation.
 - $\mathcal{F}_{t-1}$: information set available  at time $t-1$.
 - $SPF_{t-1}$: professional forecast of inflation $\pi_t$ based on $\mathcal{F}_{t-1}$.
@@ -23,4 +23,3 @@ Notations are defined:
 - $u_t^+$: positive residual component, $u_t^+ := u_t \cdot \mathbf{1}(u_t > 0)$.
 - $u_t^-$: negative residual component, $u_t^- := u_t \cdot \mathbf{1}(u_t \leq 0)$.
 
-The rest of the notebook uses this notation consistently across data summaries, likelihood definitions, estimation scripts, and reported best-model equations.

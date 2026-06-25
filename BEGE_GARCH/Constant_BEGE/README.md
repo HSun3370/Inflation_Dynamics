@@ -6,7 +6,7 @@
 
 Generated: `2026-06-18T10:10:04`
 Total estimations: `8000`
-Successful estimations: `8000`
+Converged estimations: `8000`
 Eligible estimations for best-model selection: `8000`
 
 This report shows only the single likelihood-best admissible estimate across mean processes. Standard errors are computed at the reporting stage and reported in the parameter table.

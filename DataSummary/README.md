@@ -5,14 +5,14 @@
 ```
 
 # Inflation Summary Statistics
-I start with simple statistical summary by plotting inflation and professional forecast over time. 
+This section provides a statistical summary of quarterly inflation and the professional forecast over time.
 
 ```{figure} cpi_inflation_quarterly.png
 :name: fig:cpi_inflation_quarterly
-Quarterly inflation $\pi_t$ and profesional forcast $SPF_{t-1}$. 
+Quarterly inflation $\pi_t$ and professional forecast $SPF_{t-1}$.
 ```
-Notice that inflation was recorded from 1947 but profesional forecast started from 1969.
-```{table} Quaterly Inflation Statistics
+Inflation data are available from 1947, but the professional forecast series begins in 1969.
+```{table} Quarterly Inflation Statistics
 :align: center
 
 |               |   Inflation |   Forecasted inflation | 
@@ -40,7 +40,7 @@ variance to equal a parameter-implied unconditional variance.
 
 
 ## Effective Sample Summary Statistics
-I report the summary statistics for trimmed effect sample. Skewness and Kurtosis are adjusted by sample size.
+Summary statistics for the trimmed effective sample are reported below. Skewness and kurtosis are bias-corrected for sample size.
 
 ```{table} Inflation statistics
 :align: center

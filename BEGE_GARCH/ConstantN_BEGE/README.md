@@ -22,7 +22,7 @@ CSV outputs:
 
 ## Selected Best Model
 
-Best admissible estimate ranked by corrected log likelihood.
+Best admissible estimate ranked by stabilized log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC |
 |---|---:|---:|---:|---:|---:|
@@ -41,7 +41,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\pi_{t+1} = 0.1460 + 0.1849\,\pi_t + 0.0812\,\pi_{t-1} + 0.9787\,SPF_t + -0.3699\,SPF_{t-1} + u_{t+1}
+\pi_{t+1} = 0.1460 + 0.1849\,\pi_t + 0.0812\,\pi_{t-1} + 0.9787\,SPF_t - 0.3699\,SPF_{t-1} + u_{t+1}
 $$
 
 BEGE volatility process:

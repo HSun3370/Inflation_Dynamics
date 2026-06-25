@@ -22,7 +22,7 @@ CSV outputs:
 
 ## Selected Best Model
 
-Best admissible estimate ranked by corrected log likelihood.
+Best admissible estimate ranked by stabilized log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC |
 |---|---:|---:|---:|---:|---:|

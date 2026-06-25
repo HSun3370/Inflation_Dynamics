@@ -253,7 +253,7 @@ Distribution parameters:
 
 ## All Model Results
 
-| Distribution | Mean Process | Volatility Process | Best Looglik | AIC | BIC |
+| Distribution | Mean Process | Volatility Process | LogLik | AIC | BIC |
 |---|---|---|---:|---:|---:|
 | Normal | Constant | GARCH(1,1) | -198.2015 | 402.4029 | 412.5148 |
 | Normal | Constant | GARCH(1,2) | -198.2015 | 404.4029 | 417.8855 |
