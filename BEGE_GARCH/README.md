@@ -340,3 +340,22 @@ $\hat g_t$ is the numerical score contribution for observation $t$. If the
 sandwich calculation is numerically unstable, the collector uses an
 observed-information or inverse-OPG fallback. Standard errors that cannot be
 reliably identified are reported as `NA`.
+
+### EGARCH BEGE (extension)
+
+Beyond the canonical five specifications above, the `EGARCH_BEGE/` folder
+contains an explicitly requested extension of Full BEGE in which the shape
+processes follow coupled EGARCH-type recursions on the log shapes,
+
+$$
+\ln p_t = \omega_p + \beta_p \ln p_{t-1}
+  + \alpha_p\left(|z_{t-1}| - \sqrt{2/\pi}\right) + \gamma_p z_{t-1},
+$$
+
+with $z_{t-1} = u_{t-1}/\sigma_{t-1}$ (and analogously for $\ln n_t$), and
+stability restrictions $\beta_p<1$, $\beta_n<1$. See
+`EGARCH_BEGE/SPECIFICATION.md` for the full specification, parameter bounds,
+and the mapping to the equivalent EGARCH recursion on the component
+volatilities $\sigma_p\sqrt{p_t}$ and $\sigma_n\sqrt{n_t}$. All shared BEGE
+settings (mean menu, density evaluator, EWMA variance bounds, random-search
+protocol, selection rules) are inherited unchanged.

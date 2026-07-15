@@ -3793,3 +3793,499 @@ def _ID_GARCH_legacy(
         'loglik': ll,
         'names': names_full
     }
+
+
+# ============================================================
+# EGARCH BEGE (extension of Full BEGE with EGARCH-type shape
+# recursions; see BEGE_GARCH/EGARCH_BEGE/README.md)
+# ============================================================
+EGARCH_BEGE_ABS_CENTER = np.sqrt(2.0 / np.pi)
+_EGARCH_BEGE_LOG_FLOOR = np.log(1e-4)   # same 1e-4 shape floor as gjr_recursion
+_EGARCH_BEGE_LOG_CAP = 50.0             # overflow guard; EWMA variance bounds
+                                        # reject such paths before the density
+
+
+@njit(cache=True, fastmath=True, nogil=True)
+def _egarch_bege_recursion_core(r, omega_p, beta_p, alpha_p, gamma_p,
+                                omega_n, beta_n, alpha_n, gamma_n,
+                                sigma_p, sigma_n):
+    """
+    Joint EGARCH-type recursion for the BEGE shape processes.
+
+    ln p_t = omega_p + beta_p ln p_{t-1} + alpha_p (|z_{t-1}| - sqrt(2/pi))
+             + gamma_p z_{t-1}
+    ln n_t analogous, with z_{t-1} = u_{t-1} / sigma_{t-1} and
+    sigma_{t-1}^2 = sigma_p^2 p_{t-1} + sigma_n^2 n_{t-1}.
+
+    Both series are computed jointly because z_{t-1} depends on both lagged
+    shape states. Pre-sample states are the parameter-implied unconditional
+    log-shape backcasts omega/(1-beta) under the sqrt(2/pi) centering
+    convention. Shape floor 1e-4 mirrors gjr_recursion.
+    """
+    n_obs = r.shape[0]
+    p = np.empty(n_obs, dtype=np.float64)
+    n = np.empty(n_obs, dtype=np.float64)
+    c_abs = np.sqrt(2.0 / np.pi)
+    log_floor = np.log(1e-4)
+    log_cap = 50.0
+
+    denom_p = 1.0 - beta_p
+    denom_n = 1.0 - beta_n
+    lnp = omega_p / denom_p if denom_p > 1e-12 else log_floor
+    lnn = omega_n / denom_n if denom_n > 1e-12 else log_floor
+    if lnp < log_floor:
+        lnp = log_floor
+    if lnp > log_cap:
+        lnp = log_cap
+    if lnn < log_floor:
+        lnn = log_floor
+    if lnn > log_cap:
+        lnn = log_cap
+    p[0] = np.exp(lnp)
+    n[0] = np.exp(lnn)
+
+    for t in range(1, n_obs):
+        var_prev = sigma_p * sigma_p * p[t - 1] + sigma_n * sigma_n * n[t - 1]
+        if var_prev <= 0.0 or not np.isfinite(var_prev):
+            for s in range(t, n_obs):
+                p[s] = np.nan
+                n[s] = np.nan
+            return p, n
+        z = r[t - 1] / np.sqrt(var_prev)
+        shock_abs = np.abs(z) - c_abs
+
+        lnp = omega_p + beta_p * lnp + alpha_p * shock_abs + gamma_p * z
+        lnn = omega_n + beta_n * lnn + alpha_n * shock_abs + gamma_n * z
+        if lnp < log_floor:
+            lnp = log_floor
+        if lnp > log_cap:
+            lnp = log_cap
+        if lnn < log_floor:
+            lnn = log_floor
+        if lnn > log_cap:
+            lnn = log_cap
+        p[t] = np.exp(lnp)
+        n[t] = np.exp(lnn)
+
+    return p, n
+
+
+def egarch_bege_recursion(resids, params_p, params_n, sigma_p, sigma_n):
+    """
+    Compute the joint EGARCH-BEGE shape paths (p_t, n_t).
+
+    params_p = (omega_p, beta_p, alpha_p, gamma_p)
+    params_n = (omega_n, beta_n, alpha_n, gamma_n)
+    """
+    omega_p, beta_p, alpha_p, gamma_p = params_p
+    omega_n, beta_n, alpha_n, gamma_n = params_n
+    r = np.ascontiguousarray(resids, dtype=np.float64)
+    return _egarch_bege_recursion_core(
+        r,
+        float(omega_p), float(beta_p), float(alpha_p), float(gamma_p),
+        float(omega_n), float(beta_n), float(alpha_n), float(gamma_n),
+        float(sigma_p), float(sigma_n),
+    )
+
+
+def BEGE_FullEGARCH_MLE(
+    Y, X=None, mean_type='ARX(1,1)',
+    n_starts=50, maxiter=800, tol=1e-8, random_state=None,
+    sigma_bounds=(1e-5, 2.0),
+    omega_bounds=(-5.0, 5.0),
+    beta_bounds=(0.0, 1.0),
+    alpha_bounds=(0.0, 2.0),
+    gamma_bounds=(-2.0, 2.0),
+    floor_eps=1e-6,
+    print_summary=True,
+    big_penalty=1e12,           # scalar objective penalty
+    big_vec_penalty=1e6,        # per-observation penalty (vector version)
+    compute_se=False,
+    density_hyperu_method='scipy_approx',
+    enforce_variance_bounds=True,
+    start_n_jobs=None,
+):
+    """
+    BEGE with EGARCH-type shape recursions (separate parameters for p_t and n_t).
+
+    With z_{t-1} = u_{t-1}/sigma_{t-1} and
+    sigma_t^2 = sigma_p^2 p_t + sigma_n^2 n_t:
+
+      ln p_t = omega_p + beta_p ln p_{t-1}
+               + alpha_p (|z_{t-1}| - sqrt(2/pi)) + gamma_p z_{t-1}
+      ln n_t = omega_n + beta_n ln n_{t-1}
+               + alpha_n (|z_{t-1}| - sqrt(2/pi)) + gamma_n z_{t-1}
+
+    Parameter order:
+      [mean params] +
+      [omega_p, omega_n, beta_p, beta_n, alpha_p, alpha_n, gamma_p, gamma_n,
+       sigma_p, sigma_n]
+
+    Stability is enforced for both log-shape processes: beta < 1.
+
+    Returns:
+      {'opt','params','se','AIC','BIC','loglik','names'}
+    """
+    import numpy as np
+    from scipy.optimize import minimize
+    from statsmodels.tools.numdiff import approx_hess
+
+    rng = np.random.default_rng(random_state)
+    Y, X = _align_mean_sample(Y, X)
+    N_obs = int(Y.shape[0])
+
+    # ---------- mean spec (identical to BEGE_FullGJR_MLE) ----------
+    def _get_mean_spec(Y, mean_type):
+        ymin, ymax = float(np.min(Y)), float(np.max(Y))
+        if mean_type == 'constant':
+            mean_model, num_m = mean_const, 0
+            bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,1)':
+            mean_model, num_m = mean_ARX11, 3
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
+            names_mean = ['const', 'Infl(1)', 'SPF']
+            ranges = [
+                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
+                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
+                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
+            ]
+        elif mean_type == 'ARX(2,1)':
+            mean_model, num_m = mean_ARX21, 4
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
+            ranges = [
+                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
+                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
+                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
+                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
+            ]
+        elif mean_type == 'ARX(2,2)':
+            mean_model, num_m = mean_ARX22, 5
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
+            ranges = [
+                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
+                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
+                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
+                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
+                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
+            ]
+        else:
+            raise ValueError("Invalid mean_type")
+        return mean_model, num_m, bounds_mean, names_mean, ranges
+
+    mean_model, num_m, bounds_mean, names_mean, mean_ranges = _get_mean_spec(Y, mean_type)
+    residual_function = _make_residual_function(Y, X, mean_type)
+
+    # ---------- bounds & names ----------
+    (sig_lo, sig_hi) = sigma_bounds
+    (om_lo, om_hi) = omega_bounds
+    (be_lo, be_hi) = beta_bounds
+    (al_lo, al_hi) = alpha_bounds
+    (ga_lo, ga_hi) = gamma_bounds
+
+    bounds_vol = [
+        (om_lo, om_hi),     # omega_p
+        (om_lo, om_hi),     # omega_n
+        (be_lo, be_hi),     # beta_p
+        (be_lo, be_hi),     # beta_n
+        (al_lo, al_hi),     # alpha_p
+        (al_lo, al_hi),     # alpha_n
+        (ga_lo, ga_hi),     # gamma_p
+        (ga_lo, ga_hi),     # gamma_n
+        (sig_lo, sig_hi),   # sigma_p
+        (sig_lo, sig_hi),   # sigma_n
+    ]
+    names_vol = ['omega_p', 'omega_n', 'beta_p', 'beta_n',
+                 'alpha_p', 'alpha_n', 'gamma_p', 'gamma_n',
+                 'sigma_p', 'sigma_n']
+
+    bounds_full = bounds_mean + bounds_vol
+    names_full = names_mean + names_vol
+
+    # ---------- nonlinear constraints for SLSQP ----------
+    def _unpack_vol(theta):
+        omega_p, omega_n, beta_p, beta_n, alpha_p, alpha_n, \
+            gamma_p, gamma_n, sigp, sign = theta[num_m:]
+        return (omega_p, omega_n, beta_p, beta_n, alpha_p, alpha_n,
+                gamma_p, gamma_n, sigp, sign)
+
+    def _constraints_ok(omega_p, omega_n, beta_p, beta_n, alpha_p, alpha_n,
+                        gamma_p, gamma_n, sigp, sign):
+        vals = np.asarray(
+            [omega_p, omega_n, beta_p, beta_n, alpha_p, alpha_n,
+             gamma_p, gamma_n, sigp, sign],
+            dtype=float,
+        )
+        if not np.all(np.isfinite(vals)):
+            return False
+        if beta_p >= 1.0 - floor_eps:
+            return False
+        if beta_n >= 1.0 - floor_eps:
+            return False
+        return True
+
+    # 1) beta_p < 1
+    def constr_beta_p(theta):
+        vol = _unpack_vol(theta)
+        return 1.0 - floor_eps - vol[2]
+
+    # 2) beta_n < 1
+    def constr_beta_n(theta):
+        vol = _unpack_vol(theta)
+        return 1.0 - floor_eps - vol[3]
+
+    constraints = [
+        {'type': 'ineq', 'fun': constr_beta_p},
+        {'type': 'ineq', 'fun': constr_beta_n},
+    ]
+
+    # ---------- objective (total NEG log-lik) ----------
+    def _shape_paths(theta):
+        pm = theta[:num_m]
+        (omega_p, omega_n, beta_p, beta_n, alpha_p, alpha_n,
+         gamma_p, gamma_n, sigp, sign) = theta[num_m:]
+        res = residual_function(pm)
+        pseries, nseries = egarch_bege_recursion(
+            res,
+            (float(omega_p), float(beta_p), float(alpha_p), float(gamma_p)),
+            (float(omega_n), float(beta_n), float(alpha_n), float(gamma_n)),
+            float(sigp), float(sign),
+        )
+        return res, pseries, nseries, float(sigp), float(sign)
+
+    def _negloglik(theta):
+        if not _constraints_ok(*_unpack_vol(theta)):
+            return float(big_penalty)
+
+        res, pseries, nseries, sigp, sign = _shape_paths(theta)
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
+            return float(big_penalty)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return float(big_penalty)
+
+        ll = BEGE_log_density(
+            res, pseries, nseries, sigp, sign,
+            hyperu_method=density_hyperu_method,
+        )
+        val = -float(np.sum(ll))
+        if not np.isfinite(val):
+            return float(big_penalty)
+        return val
+
+    # ---------- per-obs NEG loglik (vector) ----------
+    def _ind_negloglik_vec(theta):
+        if not _constraints_ok(*_unpack_vol(theta)):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+
+        res, pseries, nseries, sigp, sign = _shape_paths(theta)
+        if (not np.all(np.isfinite(pseries))) or (not np.all(np.isfinite(nseries))):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+        if enforce_variance_bounds and not bege_variance_bounds_ok(res, pseries, nseries, sigp, sign):
+            return np.full(N_obs, float(big_vec_penalty), dtype=float)
+
+        v = -BEGE_log_density(
+            res, pseries, nseries, sigp, sign,
+            hyperu_method=density_hyperu_method,
+        )
+        v = np.asarray(v, float).reshape(-1)
+        if v.shape[0] != N_obs:
+            v = np.full(N_obs, float(v.ravel()[0]))
+        if not np.all(np.isfinite(v)):
+            v = np.full(N_obs, float(big_vec_penalty))
+        return v
+
+    # ---------- helpers for SEs (same as BEGE_FullGJR_MLE) ----------
+    def _sym(A): return 0.5*(A + A.T)
+
+    def _safe_inv_with_ridge(A, ridge0=1e-8, max_tries=6):
+        A = _sym(A)
+        I = np.eye(A.shape[0])
+        ridge = float(ridge0)
+        for _ in range(max_tries):
+            try:
+                return np.linalg.inv(A + ridge*I), ridge, False
+            except np.linalg.LinAlgError:
+                ridge *= 10.0
+        return np.linalg.pinv(A), ridge, True
+
+    def _project_to_bounds(x, bounds):
+        out = np.array(x, float); tiny = 1e-10
+        for j, (lo, hi) in enumerate(bounds):
+            if lo is not None: out[j] = max(out[j], lo + tiny)
+            if hi is not None: out[j] = min(out[j], hi - tiny)
+        return out
+
+    def _central_diff_scores(theta, f_per_obs, bounds, rel=1e-4, absmin=1e-6):
+        theta = np.asarray(theta, float)
+        k = theta.size
+        f0 = f_per_obs(theta)
+        J = np.empty((N_obs, k), float)
+        h = np.maximum(absmin, rel * np.maximum(1.0, np.abs(theta)))
+
+        for j in range(k):
+            th_p = theta.copy(); th_p[j] += h[j]; th_p = _project_to_bounds(th_p, bounds)
+            th_m = theta.copy(); th_m[j] -= h[j]; th_m = _project_to_bounds(th_m, bounds)
+
+            fp = np.asarray(f_per_obs(th_p), float).reshape(-1)
+            fm = np.asarray(f_per_obs(th_m), float).reshape(-1)
+            if fp.shape[0] != N_obs: fp = np.full(N_obs, float(fp.ravel()[0]))
+            if fm.shape[0] != N_obs: fm = np.full(N_obs, float(fm.ravel()[0]))
+
+            denom = float(th_p[j] - th_m[j])
+            if denom == 0.0:
+                th_p = theta.copy(); th_p[j] += h[j]; th_p = _project_to_bounds(th_p, bounds)
+                fp = np.asarray(f_per_obs(th_p), float).reshape(-1)
+                if fp.shape[0] != N_obs: fp = np.full(N_obs, float(fp.ravel()[0]))
+                fm = f0
+                denom = float(th_p[j] - theta[j])
+
+            J[:, j] = (fp - fm) / denom
+
+        return J
+
+    # ---------- start sampling ----------
+    def _sample_mean():
+        if num_m == 0: return np.array([], float)
+        return np.array([rng.uniform(a, b) for (a, b) in mean_ranges], dtype=float)
+
+    def _sample_vol():
+        """
+        Stability-aware sampling for EGARCH BEGE.
+
+        For each shape process:
+          beta ~ U[max(be_lo, 0.2), min(be_hi, 0.98)]  (persistence)
+          target unconditional shape s_bar ~ exp(U[ln 0.05, ln 5])
+          omega = (1 - beta) * ln(s_bar), clipped to omega bounds
+          alpha ~ U[al_lo, min(al_hi, 0.8)]
+          gamma ~ U[max(ga_lo, -0.5), min(ga_hi, 0.5)]
+          sigma ~ U[sig_lo, sig_hi]
+        """
+        vals = np.empty(10, dtype=float)
+        for k, prefix in enumerate(("p", "n")):
+            beta = rng.uniform(max(be_lo, 0.2), min(be_hi, 0.98))
+            s_bar = float(np.exp(rng.uniform(np.log(0.05), np.log(5.0))))
+            omega = float(np.clip((1.0 - beta) * np.log(s_bar),
+                                  om_lo + 1e-8, om_hi - 1e-8))
+            alpha = rng.uniform(al_lo, min(al_hi, 0.8))
+            gamma = rng.uniform(max(ga_lo, -0.5), min(ga_hi, 0.5))
+            vals[0 + k] = omega
+            vals[2 + k] = beta
+            vals[4 + k] = alpha
+            vals[6 + k] = gamma
+        vals[8] = rng.uniform(sig_lo, sig_hi)
+        vals[9] = rng.uniform(sig_lo, sig_hi)
+        if not _constraints_ok(*vals):
+            vals[2] = min(vals[2], 1.0 - floor_eps - 1e-6)
+            vals[3] = min(vals[3], 1.0 - floor_eps - 1e-6)
+        return vals
+
+    # ---------- optimize (multi-start SLSQP) ----------
+    start_values = [
+        np.concatenate([_sample_mean(), _sample_vol()])
+        for _ in range(int(n_starts))
+    ]
+    results = _run_multistart_minimize(
+        start_values,
+        _negloglik,
+        method='SLSQP',
+        bounds=bounds_full,
+        constraints=constraints,
+        options={'maxiter': int(maxiter), 'ftol': float(tol)},
+        start_n_jobs=start_n_jobs,
+    )
+
+    best, best_fun = None, np.inf
+    last_error = None
+    for opt, exc in results:
+        if exc is not None:
+            last_error = exc
+            continue
+        if (
+            _optimizer_result_eligible(opt)
+            and (
+                best is None
+                or opt.fun < best_fun
+            )
+        ):
+            best_fun = opt.fun
+            best = opt
+
+    if best is None or (not np.isfinite(best_fun)) or best_fun >= big_penalty:
+        detail = ""
+        if last_error is not None:
+            detail = f" Last error: {type(last_error).__name__}: {last_error}"
+        raise RuntimeError("All starts failed to converge to a finite eligible objective value. "
+                           f"Consider tightening bounds, increasing big_penalty, or scaling data.{detail}")
+
+    params = best.x
+    ll     = -best.fun
+    AIC    = 2*len(params) - 2*ll
+    BIC    = np.log(N_obs)*len(params) - 2*ll
+
+    se = np.full(len(params), np.nan, dtype=float)
+    used_ridge = 0.0
+    used_pseudo = False
+    used_opg_fallback = False
+
+    if compute_se:
+        H = approx_hess(params, _negloglik, epsilon=1e-5)
+        H = _sym(H)
+        H_inv, used_ridge, used_pseudo = _safe_inv_with_ridge(H)
+
+        scores = _central_diff_scores(params, _ind_negloglik_vec, bounds_full, rel=1e-4, absmin=1e-6)
+        OPG    = scores.T @ scores
+
+        opg_scale = np.linalg.norm(OPG) / max(1, OPG.size)
+        if (not np.isfinite(opg_scale)) or (opg_scale < 1e-8):
+            cov = H_inv.copy()
+            used_opg_fallback = True
+        else:
+            cov = H_inv @ _sym(OPG) @ H_inv
+            used_opg_fallback = False
+
+        cov = _sym(cov)
+        w, V = np.linalg.eigh(cov)
+        w = np.maximum(w, 0.0)
+        cov = (V * w) @ V.T
+        se  = np.sqrt(np.diag(cov))
+
+    if compute_se and used_pseudo:
+        print("[warn] Hessian singular; using pseudoinverse for covariance.")
+    elif compute_se and used_ridge > 1e-8:
+        print(f"[warn] Hessian near-singular; used ridge λ={used_ridge:.1e}.")
+    if compute_se and used_opg_fallback:
+        print("[warn] OPG nearly zero/ill-conditioned; using observed-information (H^{-1}) for covariance.")
+
+    if print_summary:
+        print("\n" + "-"*72)
+        print("BEGE (EGARCH shape recursions: separate p_t and n_t) — hard overflow penalty")
+        print("-"*72)
+        if compute_se:
+            print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
+        else:
+            print(f"{'Parameter':<18}{'Estimate':>14}")
+        print("-"*72)
+        if compute_se:
+            for nm, val, err in zip(names_full, params, se):
+                t = np.nan if err <= 0 else (val/err)
+                print(f"{nm:<18}{val:>14.6f}{err:>14.6f}{t:>14.3f}")
+        else:
+            for nm, val in zip(names_full, params):
+                print(f"{nm:<18}{val:>14.6f}")
+        print("-"*72)
+        print(f"{'LogLik':<18}{ll:>14.6f}")
+        print(f"{'AIC':<18}{AIC:>14.6f}")
+        print(f"{'BIC':<18}{BIC:>14.6f}")
+        print("-"*72)
+
+    return {
+        'opt': best,
+        'params': params,
+        'se': se,
+        'AIC': AIC,
+        'BIC': BIC,
+        'loglik': ll,
+        'names': names_full,
+        'compute_se': bool(compute_se),
+    }

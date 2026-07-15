@@ -66,6 +66,14 @@ PARAMETER_LABELS = {
     "phi_n_minus": r"$\phi_n^-$",
     "sigma_p": r"$\sigma_p$",
     "sigma_n": r"$\sigma_n$",
+    "omega_p": r"$\omega_p$",
+    "omega_n": r"$\omega_n$",
+    "beta_p": r"$\beta_p$",
+    "beta_n": r"$\beta_n$",
+    "alpha_p": r"$\alpha_p$",
+    "alpha_n": r"$\alpha_n$",
+    "gamma_p": r"$\gamma_p$",
+    "gamma_n": r"$\gamma_n$",
 }
 
 
@@ -93,6 +101,19 @@ def model_param_names_for_family(model_family: str) -> list[str]:
         return ["p0", "n0", "rho_p", "phi_p_plus", "phi_p_minus", "sigma_p", "sigma_n"]
     if model_family == "symmetric":
         return ["p0", "n0", "rho", "phi_plus", "phi_minus", "sigma_p", "sigma_n"]
+    if model_family == "full_egarch":
+        return [
+            "omega_p",
+            "omega_n",
+            "beta_p",
+            "beta_n",
+            "alpha_p",
+            "alpha_n",
+            "gamma_p",
+            "gamma_n",
+            "sigma_p",
+            "sigma_n",
+        ]
     raise ValueError(f"Unknown model_family {model_family!r}.")
 
 
@@ -611,6 +632,29 @@ def _selection_metrics_for_row(
         persistence_p = rho + 0.5 * (phi_plus + phi_minus)
         persistence_n = persistence_p
 
+    elif model_family == "full_egarch":
+        from BEGE_GARCH.BEGE_GARCH import egarch_bege_recursion
+
+        omega_p = _row_float(row, "param_omega_p")
+        omega_n = _row_float(row, "param_omega_n")
+        beta_p = _row_float(row, "param_beta_p")
+        beta_n = _row_float(row, "param_beta_n")
+        alpha_p = _row_float(row, "param_alpha_p")
+        alpha_n = _row_float(row, "param_alpha_n")
+        gamma_p = _row_float(row, "param_gamma_p")
+        gamma_n = _row_float(row, "param_gamma_n")
+        sigma_p = _row_float(row, "param_sigma_p")
+        sigma_n = _row_float(row, "param_sigma_n")
+        pseries, nseries = egarch_bege_recursion(
+            residuals,
+            (omega_p, beta_p, alpha_p, gamma_p),
+            (omega_n, beta_n, alpha_n, gamma_n),
+            sigma_p,
+            sigma_n,
+        )
+        persistence_p = beta_p
+        persistence_n = beta_n
+
     else:
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
@@ -747,6 +791,23 @@ def _bounds_for_row(spec: dict, mean_type: str, model_family: str) -> list[tuple
         ]
     elif model_family == "symmetric":
         bounds_vol = [p0_bounds, p0_bounds, rho_bounds, phi_bounds, phi_bounds, sigma_bounds, sigma_bounds]
+    elif model_family == "full_egarch":
+        omega_bounds = (-5.0, 5.0)
+        beta_bounds = (0.0, 1.0)
+        alpha_bounds = (0.0, 2.0)
+        gamma_bounds = (-2.0, 2.0)
+        bounds_vol = [
+            omega_bounds,
+            omega_bounds,
+            beta_bounds,
+            beta_bounds,
+            alpha_bounds,
+            alpha_bounds,
+            gamma_bounds,
+            gamma_bounds,
+            sigma_bounds,
+            sigma_bounds,
+        ]
     else:
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
@@ -847,6 +908,35 @@ def _vol_paths_from_theta(
         persistence_p = rho + 0.5 * (phi_plus + phi_minus)
         persistence_n = persistence_p
 
+    elif model_family == "full_egarch":
+        from BEGE_GARCH.BEGE_GARCH import egarch_bege_recursion
+
+        (
+            omega_p,
+            omega_n,
+            beta_p,
+            beta_n,
+            alpha_p,
+            alpha_n,
+            gamma_p,
+            gamma_n,
+            sigma_p,
+            sigma_n,
+        ) = vol
+        pseries, nseries = egarch_bege_recursion(
+            residuals,
+            (omega_p, beta_p, alpha_p, gamma_p),
+            (omega_n, beta_n, alpha_n, gamma_n),
+            sigma_p,
+            sigma_n,
+        )
+        persistence_p = beta_p
+        persistence_n = beta_n
+        # No shape intercepts in the EGARCH parameterization; report the
+        # unconditional log-shape backcasts in the p0/n0 diagnostic slots.
+        p0 = float(np.exp(omega_p / (1.0 - beta_p))) if beta_p < 1.0 else np.nan
+        n0 = float(np.exp(omega_n / (1.0 - beta_n))) if beta_n < 1.0 else np.nan
+
     else:
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
@@ -902,6 +992,20 @@ def _constraints_ok_for_theta(theta: np.ndarray, *, mean_type: str, model_family
     elif model_family == "symmetric":
         p0, n0, rho, phi_plus, phi_minus, sigma_p, sigma_n = vol
         stable = rho + 0.5 * (phi_plus + phi_minus) < 1.0 - 1e-6
+    elif model_family == "full_egarch":
+        (
+            omega_p,
+            omega_n,
+            beta_p,
+            beta_n,
+            alpha_p,
+            alpha_n,
+            gamma_p,
+            gamma_n,
+            sigma_p,
+            sigma_n,
+        ) = vol
+        stable = (beta_p < 1.0 - 1e-6) and (beta_n < 1.0 - 1e-6)
     else:
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
@@ -1491,6 +1595,14 @@ def _volatility_equation(row: dict, model_family: str) -> list[str]:
             [
                 rf"p_t &= {_math_param(row, 'p0')} + {_math_param(row, 'rho')}\,p_{{t-1}} + \frac{{{_math_param(row, 'phi_plus')}}}{{2({sp})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_minus')}}}{{2({sp})^2}}\,(u_{{t-1}}^-)^2,\\",
                 rf"n_t &= {_math_param(row, 'n0')} + {_math_param(row, 'rho')}\,n_{{t-1}} + \frac{{{_math_param(row, 'phi_plus')}}}{{2({sn})^2}}\,(u_{{t-1}}^+)^2 + \frac{{{_math_param(row, 'phi_minus')}}}{{2({sn})^2}}\,(u_{{t-1}}^-)^2",
+            ]
+        )
+    elif model_family == "full_egarch":
+        lines.extend(
+            [
+                rf"\ln p_t &= {_math_param(row, 'omega_p')} + {_math_param(row, 'beta_p')}\,\ln p_{{t-1}} + {_math_param(row, 'alpha_p')}\,\left(|z_{{t-1}}| - \sqrt{{2/\pi}}\right) + {_math_param(row, 'gamma_p')}\,z_{{t-1}},\\",
+                rf"\ln n_t &= {_math_param(row, 'omega_n')} + {_math_param(row, 'beta_n')}\,\ln n_{{t-1}} + {_math_param(row, 'alpha_n')}\,\left(|z_{{t-1}}| - \sqrt{{2/\pi}}\right) + {_math_param(row, 'gamma_n')}\,z_{{t-1}},\\",
+                rf"z_t &= u_t/\sigma_t,\qquad \sigma_t^2 = ({sp})^2\,p_t + ({sn})^2\,n_t",
             ]
         )
     else:

@@ -42,5 +42,6 @@ project:
         - file: BEGE_GARCH/ConstantP_BEGE/README.md
         - file: BEGE_GARCH/ConstantN_BEGE/README.md
         - file: BEGE_GARCH/Full_BEGE/README.md
+        - file: BEGE_GARCH/EGARCH_BEGE/SPECIFICATION.md
 site:
   template: book-theme
