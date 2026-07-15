@@ -147,3 +147,15 @@ and the sample log-likelihood is
 $$
 \ln L(\theta) \;=\; -\sum_{t=1}^{T}\ln\sigma_t \;+\; \sum_{t=1}^{T}\ln \left[\,p_1\,\varphi(z_t;\,\mu_1,\sigma_1^{2}) \;+\; p_2\,\varphi(z_t;\,\mu_2,\sigma_2^{2})\right].
 $$
+
+## Monthly Estimation
+
+The same estimation menu (three volatility families, four mean processes, three residual distributions, 50 starts per combination) can be run on the monthly effective sample (1969M2--2026M5, 688 observations):
+
+```
+python estimate_garch_results.py \
+    --data-path ../DataSummary/Aggregate_CPI_inflation_Monthly.pkl \
+    --output-dir results_garch_distributions_monthly
+```
+
+Monthly outputs are stored in `results_garch_distributions_monthly/`, parallel to the quarterly `results_garch_distributions/`. All model settings are identical across the two frequencies.

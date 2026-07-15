@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.integrate import quad
+from scipy.integrate import quad, trapezoid
 
 def characteristic_function_scalar(x, p, n, sigma_p, sigma_n, max_subinterval=500):
     stdx = np.sqrt(p * sigma_p**2 + n * sigma_n**2)
@@ -41,7 +41,7 @@ def numerical_approximation(x, p, n, sigma_p, sigma_n, n_points=1000):
     integrand = f_p[valid] * f_n[valid]
 
     # Trapezoidal integration
-    density = np.trapezoid(integrand, z_valid)
+    density = trapezoid(integrand, z_valid)
 
     # Log-likelihood
     log_likelihood = np.log(density)

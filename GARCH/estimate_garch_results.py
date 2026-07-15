@@ -32,6 +32,7 @@ from typing import Any, Callable, Sequence
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
+from scipy.integrate import trapezoid
 
 MPL_CACHE = Path(tempfile.gettempdir()) / "inflation_dynamics_mplconfig"
 MPL_CACHE.mkdir(parents=True, exist_ok=True)
@@ -283,7 +284,7 @@ class MixNormal(Distribution, metaclass=AbstractDocStringInheritor):
         pdf = p1 * stats.norm.pdf(x, loc=mu1, scale=np.sqrt(sigma1_sq)) + p2 * stats.norm.pdf(
             x, loc=mu2, scale=np.sqrt(sigma2_sq)
         )
-        return float(np.trapezoid((x**n) * pdf, x))
+        return float(trapezoid((x**n) * pdf, x))
 
 
 # ============================================================
@@ -481,7 +482,12 @@ def make_arch_fit_func(
             warnings.simplefilter("ignore", category=StartingValueWarning)
             return am.fit(**kwargs)
 
-    return _fit
+    param_template = (
+        am.parameter_names()
+        + am.volatility.parameter_names()
+        + am.distribution.parameter_names()
+    )
+    return _fit, param_template
 
 
 def make_sparch_fit_func(
@@ -547,7 +553,12 @@ def make_sparch_fit_func(
             warnings.simplefilter("ignore", category=StartingValueWarning)
             return mix_model.fit(**kwargs)
 
-    return _fit, initial
+    param_template = (
+        mix_model.parameter_names()
+        + mix_model.volatility.parameter_names()
+        + mix_model.distribution.parameter_names()
+    )
+    return _fit, initial, param_template
 
 
 # ============================================================
@@ -656,6 +667,7 @@ def fit_with_restarts(
     mean_start_info: dict[str, tuple[float, float]] | None = None,
     phase: str = "primary",
     attempt_offset: int = 0,
+    param_template: Sequence[str] | None = None,
 ) -> tuple[Any | None, list[dict[str, Any]], str]:
     attempts: list[dict[str, Any]] = []
     valid_results: list[Any] = []
@@ -663,6 +675,19 @@ def fit_with_restarts(
     base_params: pd.Series | None = None
 
     start_values: list[np.ndarray | None] = [initial_starting_values]
+
+    def _ensure_random_starts(template: pd.Series) -> None:
+        while len(start_values) < max(1, n_starts):
+            start_values.append(
+                randomized_starting_values(
+                    template,
+                    vol_spec,
+                    dist,
+                    y,
+                    rng,
+                    mean_start_info=mean_start_info,
+                )
+            )
 
     for attempt_idx in range(max(1, n_starts)):
         sv = start_values[attempt_idx] if attempt_idx < len(start_values) else None
@@ -678,6 +703,7 @@ def fit_with_restarts(
             usable, unc_var, persistence, unc_status = stable_converged(result, vol_spec)
             if base_params is None:
                 base_params = result.params.copy()
+                _ensure_random_starts(base_params)
             attempts.append(
                 {
                     "phase": phase,
@@ -699,18 +725,6 @@ def fit_with_restarts(
                 valid_results.append(result)
             elif optimizer_converged(result) and np.isfinite(float(result.loglikelihood)):
                 fallback_results.append(result)
-            if attempt_idx == 0 and base_params is not None:
-                for _ in range(max(0, n_starts - 1)):
-                    start_values.append(
-                        randomized_starting_values(
-                            base_params,
-                            vol_spec,
-                            dist,
-                            y,
-                            rng,
-                            mean_start_info=mean_start_info,
-                        )
-                    )
         except Exception as exc:
             attempts.append(
                 {
@@ -727,8 +741,15 @@ def fit_with_restarts(
                     "error_message": str(exc),
                 }
             )
-            if attempt_idx == 0 and base_params is None:
-                break
+            if base_params is None:
+                # The default start failed before a parameter template was
+                # observed. Fall back to the model-declared parameter names so
+                # the randomized restart search can still proceed.
+                if param_template is not None:
+                    base_params = pd.Series(0.0, index=list(param_template), dtype=float)
+                    _ensure_random_starts(base_params)
+                else:
+                    break
 
     if valid_results:
         best = max(valid_results, key=lambda res: float(res.loglikelihood))
@@ -978,13 +999,19 @@ def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
             + f"{ega_mean} | {ega_vol} | {crit_fmt(ega)} |"
         )
     if criterion == "aic":
+        nobs_values = pd.unique(summary_df["nobs"].dropna()) if "nobs" in summary_df else []
+        nobs_text = (
+            f"**{int(nobs_values[0])} observations**"
+            if len(nobs_values) == 1
+            else "a common number of observations"
+        )
         lines.append("")
         lines.append(
             "[^garch-aic-sample-note]: These numbers differ from earlier GARCH tables because "
             "earlier code used inconsistent effective sample sizes across model settings due "
             "to a sample-trimming error. The correction is discussed in the "
             "[Data Summary effective-sample section](../../DataSummary/README.md#effective-sample). "
-            "The current estimates use the common **1969Q2--2022Q4** sample with **215 observations**."
+            f"The current estimates use a common effective sample with {nobs_text}."
         )
     return "\n".join(lines)
 
@@ -1007,7 +1034,7 @@ def build_all_model_results_table(summary_df: pd.DataFrame) -> str:
     lines: list[str] = []
     lines.append("## All Model Results")
     lines.append("")
-    lines.append("| Distribution | Mean Process | Volatility Process | Best Looglik | AIC | BIC |")
+    lines.append("| Distribution | Mean Process | Volatility Process | Best LogLik | AIC | BIC |")
     lines.append("|---|---|---|---:|---:|---:|")
     for _, row in rows.iterrows():
         lines.append(
@@ -1394,7 +1421,7 @@ def run_estimation(
                 try:
                     primary_rng = model_phase_rng(seed, model_counter, 0)
                     if dist in ("normal", "studentst"):
-                        fit_func = make_arch_fit_func(
+                        fit_func, param_template = make_arch_fit_func(
                             y=y,
                             x=x,
                             mean=mean_spec.mean,
@@ -1406,7 +1433,7 @@ def run_estimation(
                         )
                         init_sv = None
                     else:
-                        fit_func, init_sv = make_sparch_fit_func(
+                        fit_func, init_sv, param_template = make_sparch_fit_func(
                             y=y,
                             x=x,
                             mean=mean_spec.mean,
@@ -1427,6 +1454,7 @@ def run_estimation(
                             initial_starting_values=init_sv,
                             mean_start_info=mean_start_info,
                             phase="primary",
+                            param_template=param_template,
                         )
                     )
 
@@ -1443,6 +1471,7 @@ def run_estimation(
                             mean_start_info=mean_start_info,
                             phase="retry",
                             attempt_offset=len(attempts),
+                            param_template=param_template,
                         )
                         attempts.extend(retry_attempts)
                         if retry_status == "passed_checks":

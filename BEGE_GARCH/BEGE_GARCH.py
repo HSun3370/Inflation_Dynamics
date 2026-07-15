@@ -270,39 +270,6 @@ def _make_residual_function(Y, X, mean_type):
     raise ValueError(f"{mean_type} has incompatible X inputs.")
 
 
-# def gjr_recursion(resids, params,sigma):
-#     '''
-#     input
-#     -----------
-#     resids: array of residuals u_t from mean model
-#     cont: p_o or n_o
-#     rho: AR parameters
-#     phi_p: positive MA paramters
-#     phi_n: Negative MA parameters
-    
-#     Return
-#     -------------------
-#     sprocess: shape process
-#     ''' 
-#     cont, rho, phi_p, phi_n = params
-#     t1 = 10e-5
-#     n = len(resids)
-#     sprocess = np.zeros(n)
-#     backcast = max(cont / (1 - rho - (phi_p + phi_n) / 2), t1) 
-#     sprocess[0] = max(backcast, t1)
-    
-#     for t in range(1, n):
-#         sprocess[t] = cont + rho * sprocess[t-1] + ((phi_p if resids[t-1] > 0 else phi_n) * resids[t-1] ** 2 / (2 * sigma ** 2))
-#         sprocess[t] = max(sprocess[t], t1)
-    
-#     return sprocess
-
-
-
-
-
-
-
 try:
     from numba import njit
 except Exception:
@@ -611,7 +578,6 @@ def _optimizer_result_eligible(opt):
     )
 
 
-
 def loglikedgam_constant(resids, p, n, sigma_p, sigma_n, hyperu_method='scipy_approx'):
     resids = np.asarray(resids)
     p = np.full_like(resids, p, dtype=np.double)
@@ -619,10 +585,7 @@ def loglikedgam_constant(resids, p, n, sigma_p, sigma_n, hyperu_method='scipy_ap
     return BEGE_log_density(resids, p, n, sigma_p, sigma_n, hyperu_method=hyperu_method)
 
 
-
  
-
-
 
 
 def BEGE_GARCH(
@@ -752,402 +715,6 @@ def BEGE_GARCH(
     return opt
 
 
-# def BEGE_Constant(Y, X=None, mean_type='constant'):
-#     '''
-#     grid search on gamma distribution parameters
-#     '''
-#     if mean_type == 'constant':
-#         mean_model = mean_const
-#         num_param_mean = 0
-#         sv_mean = [] 
-#         bounds_mean = []
-#         name_mean = []
-#     elif mean_type == 'ARX(1,1)':
-#         mean_model = mean_ARX11
-#         num_param_mean = 3
-#         sv_mean = [0.0752, 0.1650, 0.8198]
-#         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (None, None)]
-#         name_mean = ['constant\t', 'Inflation.Lag(1)', 'SPF\t\t']
-#     elif mean_type == 'ARX(2,1)':
-#         num_param_mean = 4
-#         mean_model = mean_ARX21
-#         sv_mean = [0.0753, 0.1743, 0.0574, 0.7483]
-#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None)]
-#         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t\t']
-#     elif mean_type == 'ARX(2,2)':
-#         mean_model = mean_ARX22
-#         num_param_mean = 5
-#         sv_mean = [0.08940, 0.2081, 0.0455, 0.5584, 0.1288]
-#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None), (None, None)]
-#         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t\t', 'SPF.lag(1)\t']
-
-#     # log likelihood function
-#     def loglikelihood_bege(params, individual=False):
-#         """
-#         Parameter order:
-#         -----------------
-#            Mean model                (num_param_mean)
-#         + Positive GJR shape   (1)
-#         + Negative GJR shape    (1)
-#         + standard deviation p&n      (2)
-#         """
-#         param_mean = params[:num_param_mean]
-#         param_p = params[num_param_mean]
-#         param_n = params[num_param_mean + 1]
-#         param_tp = params[num_param_mean + 2]
-#         param_tn = params[num_param_mean + 3]
-        
-#         resids = mean_model(Y, X, param_mean)
-#         if individual == False:
-#             return -np.sum(loglikedgam_constant(resids, param_p, param_n, param_tp, param_tn))
-#         return -loglikedgam_constant(resids, param_p, param_n, param_tp, param_tn)
-    
-#     # Grid search ranges
-#     grid_param_p = np.linspace(1, 6, 4)
-#     grid_param_n = np.linspace(1, 6, 4)
-#     grid_param_tp = np.linspace(0.1, 3, 4)
-#     grid_param_tn = np.linspace(0.1, 5, 4)
-    
-#     best_opt = None
-#     best_aic = np.inf
-    
-#     for param_p in grid_param_p:
-#         for param_n in grid_param_n:
-#             for param_tp in grid_param_tp:
-#                 for param_tn in grid_param_tn:
-#                     # Starting values
-#                     sv_mean_perturbed = [sv + np.random.normal() for sv in sv_mean]
-#                     starting_values = sv_mean_perturbed + [param_p, param_n, param_tp, param_tn]
-#                     bounds = bounds_mean + [(1e-5, None), (1e-5, None), (1e-5, 10 * np.std(Y)), (1e-5, 10 * np.std(Y))]
-                    
-#                     opt = minimize(
-#                         loglikelihood_bege,
-#                         starting_values,
-#                         method='SLSQP',
-#                         bounds=bounds,
-#                         options={'maxiter': 300}
-#                     )
-                    
-#                     if opt.success:
-#                         params = opt.x
-#                         loglikelihood = -1.0 * opt.fun
-#                         k = len(params)
-#                         n = Y.shape[0]
-#                         AIC = 2 * k - 2 * loglikelihood
-                        
-#                         if AIC < best_aic:
-#                             best_aic = AIC
-#                             best_opt = opt
-    
-#     opt = best_opt
-#     params = opt.x
-#     loglikelihood = -1.0 * opt.fun
-#     k = len(params)
-#     n = Y.shape[0]
-#     BIC = np.log(n) * k - 2 * loglikelihood
-
-#     print(opt.message)
-#     print("AIC:", best_aic)
-#     print("BIC:", BIC)
-    
-#     hess = approx_hess(params, loglikelihood_bege, np.sqrt(np.finfo(float).eps)) / n
-    
-#     # Calculate the covariance matrix (inverse of the Hessian)
-#     inv_hess = np.linalg.inv(hess)
-    
-#     kwargs = {'individual': True}
-#     scores = approx_fprime(params, loglikelihood_bege, np.sqrt(np.finfo(float).eps), kwargs=kwargs)
-#     if scores.shape[1] != len(params):
-#         scores = scores.T
-
-#     # Step 5: Calculate the outer product of the score vectors and sum them
-#     score_cov = np.zeros((len(params), len(params)))
-#     for i in range(n):
-#         score_vec = scores[i, :].reshape(-1, 1)  # column vector
-#         score_cov += score_vec.dot(score_vec.T)
-#     score = score_cov / n
-#     covariance_matrix = inv_hess.dot(score_cov).dot(inv_hess) 
-#     std_bege = np.sqrt(np.diag(covariance_matrix))
- 
-#     print('-------------------------------------------------------')
-#     name_bege  = name_mean + ['Good Envir P   ', 'Bad Envir N    ', 'Good Envir sigma', 'Bad Envir sigma ']
-#     print('Estimated Parameters:')
-#     print('-------------------------------------------------------')
-#     for i in range(k):
-#         print(f"{name_bege[i]}: {params[i]:.3f}, Std: {std_bege[i]:.3f}, t-value: {params[i] / std_bege[i]:.3f}")
-    
-#     return opt
-
-
-
-
-# def BEGE_Constant(Y, X=None, mean_type='constant', n_samples=20, n_jobs=4, random_state=123):
-#     '''
-#     Grid-search on gamma distribution parameters by:
-#       1. Sampling n_samples points from the full 4-D grid,
-#       2. Running each optimization in parallel,
-#       3. Picking the solution with the lowest AIC.
-#     '''
-#     #––– 1) set up your mean model and starting/bounds for its params
-#     if mean_type == 'constant':
-#         mean_model = mean_const
-#         num_param_mean = 0
-#         sv_mean = [] 
-#         bounds_mean = []
-#         name_mean = []
-#     elif mean_type == 'ARX(1,1)':
-#         mean_model = mean_ARX11
-#         num_param_mean = 3
-#         sv_mean = [0.0752, 0.1650, 0.8198]
-#         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (None, None)]
-#         name_mean = ['constant\t', 'Inflation.Lag(1)', 'SPF\t']
-#     elif mean_type == 'ARX(2,1)':
-#         num_param_mean = 4
-#         mean_model = mean_ARX21
-#         sv_mean = [0.0753, 0.1743, 0.0574, 0.7483]
-#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None)]
-#         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t']
-#     elif mean_type == 'ARX(2,2)':
-#         mean_model = mean_ARX22
-#         num_param_mean = 5
-#         sv_mean = [0.08940, 0.2081, 0.0455, 0.5584, 0.1288]
-#         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (None, None), (None, None)]
-#         name_mean = ['constant\t', 'Inflation.Lag(1)', 'Inflation.Lag(2)', 'SPF\t', 'SPF.lag(1)\t']
-
-
-
-
-#     #––– 2) define the log-likelihood wrapper
-#     def loglikelihood_bege(params, individual=False):
-#         pm = params[:num_param_mean]
-#         p, n, tp, tn = params[num_param_mean:]
-#         resids = mean_model(Y, X, pm)
-#         ll   = loglikedgam_constant(resids, p, n, tp, tn)
-#         return -np.sum(ll) if not individual else -ll
-
-#     #––– 3) sample 10 random grid points from the full 4-D grid
-#     grid_p  = np.linspace(1,   6, 4)
-#     grid_n  = np.linspace(1,   6, 4)
-#     grid_tp = np.linspace(0.1, 3, 4)
-#     grid_tn = np.linspace(0.1, 5, 4)
-#     all_pts = np.array(np.meshgrid(grid_p, grid_n, grid_tp, grid_tn)).T.reshape(-1,4)
-    
-#     rng = np.random.RandomState(random_state)
-#     idx = rng.choice(len(all_pts), size=n_samples, replace=False)
-#     samples = all_pts[idx]
-
-#     #––– 4) optimizer for one sample
-#     def _optimize_one(pt):
-#         p0_perturbed = [sv + rng.normal() for sv in sv_mean]
-#         start_vals   = p0_perturbed + list(pt)
-#         bounds = bounds_mean + [
-#             (1e-5, None), (1e-5, None),
-#             (1e-5, 10*np.std(Y)), (1e-5, 10*np.std(Y))
-#         ]
-#         out = minimize(
-#             loglikelihood_bege,
-#             start_vals,
-#             method='SLSQP',
-#             bounds=bounds,
-#             options={'maxiter': 300}
-#         )
-#         if not out.success:
-#             return None
-#         k   = len(out.x)
-#         ll  = -out.fun
-#         AIC = 2*k - 2*ll
-#         return (AIC, out)
-
-#     #––– 5) parallel execution
-#     results = Parallel(n_jobs=n_jobs)(
-#         delayed(_optimize_one)(pt) for pt in samples
-#     )
-#     # filter out failures
-#     results = [r for r in results if r is not None]
-#     if not results:
-#         raise RuntimeError("All optimizations failed.")
-
-#     #––– 6) pick best
-#     best_aic, best_opt = min(results, key=lambda x: x[0])
-#     opt = best_opt
-#     params = opt.x
-#     loglik = -opt.fun
-#     k, n   = len(params), Y.shape[0]
-#     BIC    = np.log(n)*k - 2*loglik
-
-#     #––– 7) report
-#     print(opt.message)
-#     print(f"AIC: {best_aic:.3f}")
-#     print(f"BIC: {BIC:.3f}")
-
-#     #––– 8) compute standard errors and t-stats
-#     hess = approx_hess(params, loglikelihood_bege, np.sqrt(np.finfo(float).eps)) / n
-#     inv_h = np.linalg.inv(hess)
-#     scores = approx_fprime(
-#         params, loglikelihood_bege, np.sqrt(np.finfo(float).eps),
-#         kwargs={'individual': True}
-#     )
-#     if scores.shape[1] != k:
-#         scores = scores.T
-#     score_cov = sum(
-#         scores[i].reshape(-1,1) @ scores[i].reshape(1,-1)
-#         for i in range(n)
-#     ) / n
-#     cov_mat = inv_h @ score_cov @ inv_h
-#     std_err = np.sqrt(np.diag(cov_mat))
-
-#     # names for display
-#     name_bege = name_mean + [
-#         'Good Envir P', 'Bad Envir N', 'Good Envir σ', 'Bad Envir σ'
-#     ]
-#     print('-'*55)
-#     print("Estimated Parameters:")
-#     print('-'*55)
-#     for i in range(k):
-#         tstat = params[i] / std_err[i]
-#         print(f"{name_bege[i]:<20}: {params[i]:.4f}  (SE: {std_err[i]:.4f}, t={tstat:.2f})")
-
-#     return opt
-
-
-
-
-
-# import numpy as np
-# from scipy.optimize import differential_evolution, minimize
-# from joblib import Parallel, delayed
-
-# def BEGE_Constant(Y, X=None, mean_type='constant',
-#                   de_niter=60, de_popsize=15,
-#                   refine_maxiter=300):
-#     """
-#     1) Global search on (p, n, t_p, t_n) via Differential Evolution
-#     2) Local refine on all params (mean + p,n,t_p,t_n) via SLSQP
-#     3) Print AIC, BIC, SE's and t‐stats
-#     """
-#     # ——— 1) pick your mean model
-#     if mean_type == 'constant':
-#         mean_model, num_m = mean_const, 0
-#         sv_mean, bounds_mean, names_mean = [], [], []
-#     elif mean_type == 'ARX(1,1)':
-#         mean_model, num_m = mean_ARX11, 3
-#         sv_mean = [0.0752, 0.1650, 0.8198]
-#         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (None, None)]
-#         names_mean = ['const', 'Infl(1)', 'SPF']
-#     elif mean_type == 'ARX(2,1)':
-#         mean_model, num_m = mean_ARX21, 4
-#         sv_mean = [0.0753, 0.1743, 0.0574, 0.7483]
-#         bounds_mean = [
-#             (min(Y), max(Y)),
-#             (-2.0, 2.0),
-#             (-1.0, 1.0),
-#             (None, None)
-#         ]
-#         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-#     else:  # ARX(2,2)
-#         mean_model, num_m = mean_ARX22, 5
-#         sv_mean = [0.0894, 0.2081, 0.0455, 0.5584, 0.1288]
-#         bounds_mean = [
-#             (min(Y), max(Y)),
-#             (-2.0, 2.0),
-#             (-1.0, 1.0),
-#             (None, None),
-#             (None, None)
-#         ]
-#         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-
-#     # ——— 2) define the 4-dim DE objective (only GJR params; fix mean at sv_mean)
-#     def _de_obj(theta):
-#         p, n, tp, tn = theta
-#         res = mean_model(Y, X, sv_mean)
-#         return -np.sum(loglikedgam_constant(res, p, n, tp, tn))
-
-#     # ——— 3) run Differential Evolution
-#     de_bounds = [(1,   6),    # p
-#                  (1,   6),    # n
-#                  (0.1, 3),    # t_p
-#                  (0.1, 5)]    # t_n
-
-#     de = differential_evolution(
-#         _de_obj,
-#         bounds=de_bounds,
-#         maxiter=de_niter,
-#         popsize=de_popsize,
-#         tol=1e-6,
-#         disp=True
-#     )
-#     print("DE:", de.message)
-#     best_de = de.x
-
-#     # ——— 4) build full starting vector for SLSQP
-#     #    lightly perturb your mean params
-#     rng = np.random.RandomState(0)
-#     sv0 = [sv + rng.normal(scale=0.01) for sv in sv_mean]
-#     x0  = sv0 + list(best_de)
-
-#     # full bounds (mean + gjr)
-#     full_bounds = (
-#         bounds_mean
-#         + [(1e-5, None), (1e-5, None),
-#            (1e-5, 10*np.std(Y)), (1e-5, 10*np.std(Y))]
-#     )
-
-#     # ——— 5) define full‐dim loglik for refine
-#     def _full_obj(params):
-#         pm = params[:num_m]
-#         p, n, tp, tn = params[num_m:]
-#         resid = mean_model(Y, X, pm)
-#         return -np.sum(loglikedgam_constant(resid, p, n, tp, tn))
-
-#     opt = minimize(
-#         _full_obj,
-#         x0,
-#         method='SLSQP',
-#         bounds=full_bounds,
-#         options={'maxiter': refine_maxiter}
-#     )
-#     print("Refine:", opt.message)
-
-#     # ——— 6) AIC, BIC
-#     params = opt.x
-#     ll     = -opt.fun
-#     k, N   = len(params), len(Y)
-#     AIC    = 2*k - 2*ll
-#     BIC    = np.log(N)*k - 2*ll
-#     print(f"AIC: {AIC:.3f}, BIC: {BIC:.3f}")
-
-#     # ——— 7) SE’s via Hessian/outer‐product of scores
-#     hess = approx_hess(params, _full_obj, np.sqrt(np.finfo(float).eps)) / N
-#     invh = np.linalg.inv(hess)
-
-#     scores = approx_fprime(
-#         params, _full_obj, np.sqrt(np.finfo(float).eps),args=(),   
-#         kwargs={'individual': True}
-#     )
-#     if scores.shape[1] != k:
-#         scores = scores.T
-
-#     S = sum(
-#         scores[i].reshape(-1,1) @ scores[i].reshape(1,-1)
-#         for i in range(N)
-#     ) / N
-#     cov = invh @ S @ invh
-#     se  = np.sqrt(np.diag(cov))
-
-#     # ——— 8) print estimates
-#     names = names_mean + ['GJR p', 'GJR n', 'σ₊', 'σ₋']
-#     print("-"*50)
-#     print("Parameter Estimates")
-#     print("-"*50)
-#     for i, nm in enumerate(names):
-#         tstat = params[i] / se[i]
-#         print(f"{nm:15s}: {params[i]:.4f} (SE {se[i]:.4f}, t={tstat:.2f})")
-
-#     return opt
-
- 
-from scipy.optimize import differential_evolution, minimize
-
 def BEGE_Constant_DE(Y, X=None, mean_type='constant',
                   de_niter=60, de_popsize=15, refine_maxiter=300,
                   compute_se=False, density_hyperu_method='scipy_approx'):
@@ -1250,13 +817,13 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
 
     if compute_se:
         # ——— 8) Hessian and SEs
-        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
+        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps))
         invh = np.linalg.pinv(hess)
 
         scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
         if scores.shape[0] != N and scores.shape[1] == N:
             scores = scores.T
-        S = scores.T @ scores / N
+        S = scores.T @ scores
         cov = invh @ S @ invh
         se  = np.sqrt(np.clip(np.diag(cov), a_min=0.0, a_max=None))
     else:
@@ -1423,7 +990,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
 
     if compute_se:
         # Hessian & robust SE
-        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
+        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps))
         try:
             invh = np.linalg.inv(hess)
         except np.linalg.LinAlgError:
@@ -1434,7 +1001,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
             scores = scores.T
         if scores.shape[0] != N:
             raise RuntimeError(f"Unexpected score shape {scores.shape}; expected first dimension {N}.")
-        S = scores.T @ scores / N
+        S = scores.T @ scores
         cov = invh @ S @ invh
         se = np.sqrt(np.clip(np.diag(cov), a_min=0.0, a_max=None))
     else:
@@ -1458,7 +1025,6 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         'loglik': ll,
         'compute_se': bool(compute_se),
     }
-
 
 
 def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
@@ -1493,30 +1059,30 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'SPF']
         mean_param_ranges = [
-            (0.0792 - 2*0.087, 0.0792 + 2*0.087),
-            (0.2793 - 2*0.073, 0.2793 + 2*0.073),
-            (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+            (0.0824 - 2*0.086, 0.0824 + 2*0.086),
+            (0.3005 - 2*0.112, 0.3005 + 2*0.112),
+            (0.7337 - 2*0.167, 0.7337 + 2*0.167),
         ]
     elif mean_type == 'ARX(2,1)':
         mean_model, num_m = mean_ARX21, 4
         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
         mean_param_ranges = [
-            (0.0792 - 2*0.087, 0.0792 + 2*0.087),
-            (0.2793 - 2*0.073, 0.2793 + 2*0.073),
-            (0.0728 - 2*0.080, 0.0728 + 2*0.080),
-            (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+            (0.0897 - 2*0.086, 0.0897 + 2*0.086),
+            (0.2892 - 2*0.098, 0.2892 + 2*0.098),
+            (0.0834 - 2*0.126, 0.0834 + 2*0.126),
+            (0.6385 - 2*0.251, 0.6385 + 2*0.251),
         ]
     elif mean_type == 'ARX(2,2)':
         mean_model, num_m = mean_ARX22, 5
         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
         mean_param_ranges = [
-            (0.0761 - 2*0.087, 0.0761 + 2*0.087),
-            (0.2880 - 2*0.076, 0.2880 + 2*0.076),
-            (0.0799 - 2*0.082, 0.0799 + 2*0.082),
-            (0.4720 - 2*0.459, 0.4720 + 2*0.459),
-            (0.1793 - 2*0.399, 0.1793 + 2*0.399),
+            (0.0856 - 2*0.086, 0.0856 + 2*0.086),
+            (0.2992 - 2*0.106, 0.2992 + 2*0.106),
+            (0.0914 - 2*0.125, 0.0914 + 2*0.125),
+            (0.4084 - 2*0.433, 0.4084 + 2*0.433),
+            (0.2136 - 2*0.297, 0.2136 + 2*0.297),
         ]
     else:
         raise ValueError("Invalid mean_type")
@@ -1647,7 +1213,7 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
 
     if compute_se:
         # Hessian & robust SE (like your MLE)
-        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps)) / N
+        hess = approx_hess(params, full_obj, np.sqrt(np.finfo(float).eps))
         invh = np.linalg.pinv(hess)
 
         scores = approx_fprime(params, ind_loglik, np.sqrt(np.finfo(float).eps))
@@ -1655,7 +1221,7 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
             scores = scores[:, None]
         if scores.shape[0] != N and scores.shape[1] == N:
             scores = scores.T
-        S = scores.T @ scores / N
+        S = scores.T @ scores
         cov = invh @ S @ invh
         se = np.sqrt(np.clip(np.diag(cov), a_min=0.0, a_max=None))
     else:
@@ -1729,30 +1295,30 @@ def BEGE_AsymSharedGJR_MLE(
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
-                (0.0720 - 2*0.086, 0.0720 + 2*0.086),
-                (0.2881 - 2*0.073, 0.2881 + 2*0.073),
-                (0.7508 - 2*0.125, 0.7508 + 2*0.125)
+                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
+                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
+                (0.7337 - 2*0.167, 0.7337 + 2*0.167)
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
-                (0.0792 - 2*0.087, 0.0792 + 2*0.087),
-                (0.2793 - 2*0.073, 0.2793 + 2*0.073),
-                (0.0728 - 2*0.080, 0.0728 + 2*0.080),
-                (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
+                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
+                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
+                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
-                (0.0761 - 2*0.087, 0.0761 + 2*0.087),
-                (0.2880 - 2*0.076, 0.2880 + 2*0.076),
-                (0.0799 - 2*0.082, 0.0799 + 2*0.082),
-                (0.4720 - 2*0.459, 0.4720 + 2*0.459),
-                (0.1793 - 2*0.399, 0.1793 + 2*0.399),
+                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
+                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
+                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
+                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
+                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
             ]
         else:
             raise ValueError("Invalid mean_type")
@@ -2160,125 +1726,8 @@ def ID_GARCH(
     from types import SimpleNamespace
 
     rng = np.random.default_rng(random_state)
-    Y = np.asarray(Y, dtype=float)
+    Y, X = _align_mean_sample(Y, X)
     N_obs = int(Y.shape[0])
-
-    def _x_len(x):
-        if x is None:
-            return len(Y)
-        if isinstance(x, pd.DataFrame):
-            return len(x)
-        if isinstance(x, dict):
-            return min(len(v) for v in x.values()) if x else len(Y)
-        return len(x)
-
-    def _slice_x(x, n):
-        if x is None:
-            return None
-        if isinstance(x, pd.DataFrame):
-            return x.iloc[:n].copy()
-        if isinstance(x, dict):
-            return {k: np.asarray(v, dtype=float)[:n] for k, v in x.items()}
-        return np.asarray(x, dtype=float)[:n]
-
-    if X is not None:
-        n = min(len(Y), _x_len(X))
-        Y = Y[:n]
-        X = _slice_x(X, n)
-        N_obs = int(n)
-
-    def _make_residual_function(y, x, model):
-        y, data = _coerce_mean_inputs(y, x)
-
-        if model == 'constant':
-            return lambda params: y
-
-        if model == 'ARX(1,1)':
-            if {"Inflation_lag_1", "SPF"}.issubset(data):
-                inflation_lag_1 = data["Inflation_lag_1"]
-                spf = data["SPF"]
-
-                def _resids(params):
-                    c, rho_1, phi_1 = params
-                    return y - (c + rho_1 * inflation_lag_1 + phi_1 * spf)
-                return _resids
-
-            if "SPF" in data:
-                spf = data["SPF"]
-
-                def _resids(params):
-                    c, rho_1, phi_1 = params
-                    y_pred = np.empty_like(y)
-                    y_pred[0] = c + phi_1 * spf[0]
-                    y_pred[1:] = c + rho_1 * y[:-1] + phi_1 * spf[1:]
-                    return y - y_pred
-                return _resids
-
-        if model == 'ARX(2,1)':
-            if {"Inflation_lag_1", "Inflation_lag_2", "SPF"}.issubset(data):
-                inflation_lag_1 = data["Inflation_lag_1"]
-                inflation_lag_2 = data["Inflation_lag_2"]
-                spf = data["SPF"]
-
-                def _resids(params):
-                    c, rho_1, rho_2, phi_1 = params
-                    return y - (
-                        c
-                        + rho_1 * inflation_lag_1
-                        + rho_2 * inflation_lag_2
-                        + phi_1 * spf
-                    )
-                return _resids
-
-            if "SPF" in data:
-                spf = data["SPF"]
-
-                def _resids(params):
-                    c, rho_1, rho_2, phi_1 = params
-                    y_pred = np.empty_like(y)
-                    y_pred[0] = c + phi_1 * spf[0]
-                    y_pred[1] = c + rho_1 * y[0] + phi_1 * spf[1]
-                    y_pred[2:] = c + rho_1 * y[1:-1] + rho_2 * y[:-2] + phi_1 * spf[2:]
-                    return y - y_pred
-                return _resids
-
-        if model == 'ARX(2,2)':
-            if {"Inflation_lag_1", "Inflation_lag_2", "SPF", "SPF_lag_1"}.issubset(data):
-                inflation_lag_1 = data["Inflation_lag_1"]
-                inflation_lag_2 = data["Inflation_lag_2"]
-                spf = data["SPF"]
-                spf_lag_1 = data["SPF_lag_1"]
-
-                def _resids(params):
-                    c, rho_1, rho_2, phi_1, phi_2 = params
-                    return y - (
-                        c
-                        + rho_1 * inflation_lag_1
-                        + rho_2 * inflation_lag_2
-                        + phi_1 * spf
-                        + phi_2 * spf_lag_1
-                    )
-                return _resids
-
-            if "SPF" in data:
-                spf = data["SPF"]
-
-                def _resids(params):
-                    c, rho_1, rho_2, phi_1, phi_2 = params
-                    y_pred = np.empty_like(y)
-                    y_pred[0] = c + phi_1 * spf[0]
-                    y_pred[1] = c + rho_1 * y[0] + phi_1 * spf[1] + phi_2 * spf[0]
-                    y_pred[2:] = (
-                        c
-                        + rho_1 * y[1:-1]
-                        + rho_2 * y[:-2]
-                        + phi_1 * spf[2:]
-                        + phi_2 * spf[1:-1]
-                    )
-                    return y - y_pred
-                return _resids
-
-        raise ValueError(f"{model} has incompatible X inputs.")
 
     def _get_mean_spec(y, model):
         ymin, ymax = float(np.min(y)), float(np.max(y))
@@ -2668,7 +2117,6 @@ def ID_GARCH(
     }
 
 
-
 def BEGE_FullGJR_MLE(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
@@ -2719,36 +2167,30 @@ def BEGE_FullGJR_MLE(
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
-                (0.0720 - .2*0.086, 0.0720 + .2*0.086),
-                (0.2881 - .2*0.073, 0.2881 + .2*0.073),
-                (0.7508 - .2*0.125, 0.7508 + .2*0.125),
+                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
+                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
+                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
             ]
-            # ranges = [
-            #     (0.0720 - 2*0.086, 0.0720 + 2*0.086),
-            #     (0.2881 - 2*0.073, 0.2881 + 2*0.073),
-            #     (0.7508 - 2*0.125, 0.7508 + 2*0.125),
-            # ]
-            
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
-                (0.0792 - 2*0.087, 0.0792 + 2*0.087),
-                (0.2793 - 2*0.073, 0.2793 + 2*0.073),
-                (0.0728 - 2*0.080, 0.0728 + 2*0.080),
-                (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
+                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
+                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
+                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
-                (0.0761 - 2*0.087, 0.0761 + 2*0.087),
-                (0.2880 - 2*0.076, 0.2880 + 2*0.076),
-                (0.0799 - 2*0.082, 0.0799 + 2*0.082),
-                (0.4720 - 2*0.459, 0.4720 + 2*0.459),
-                (0.1793 - 2*0.399, 0.1793 + 2*0.399),
+                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
+                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
+                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
+                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
+                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
             ]
         else:
             raise ValueError("Invalid mean_type")
@@ -3193,8 +2635,6 @@ def BEGE_FullGJR_MLE(
     }
 
 
-
-
 def _BEGE_OneConstantFullGJR_MLE(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
@@ -3243,30 +2683,30 @@ def _BEGE_OneConstantFullGJR_MLE(
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
-                (0.0720 - .2*0.086, 0.0720 + .2*0.086),
-                (0.2881 - .2*0.073, 0.2881 + .2*0.073),
-                (0.7508 - .2*0.125, 0.7508 + .2*0.125),
+                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
+                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
+                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
-                (0.0792 - 2*0.087, 0.0792 + 2*0.087),
-                (0.2793 - 2*0.073, 0.2793 + 2*0.073),
-                (0.0728 - 2*0.080, 0.0728 + 2*0.080),
-                (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
+                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
+                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
+                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
-                (0.0761 - 2*0.087, 0.0761 + 2*0.087),
-                (0.2880 - 2*0.076, 0.2880 + 2*0.076),
-                (0.0799 - 2*0.082, 0.0799 + 2*0.082),
-                (0.4720 - 2*0.459, 0.4720 + 2*0.459),
-                (0.1793 - 2*0.399, 0.1793 + 2*0.399),
+                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
+                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
+                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
+                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
+                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
             ]
         else:
             raise ValueError("Invalid mean_type")
@@ -4034,9 +3474,6 @@ def BG_GARCH(
     }
 
 
-
-
-
 def _ID_GARCH_legacy(
     Y, X=None, mean_type='ARX(1,1)',
     n_starts=50, maxiter=800, tol=1e-8, random_state=None,
@@ -4084,30 +3521,30 @@ def _ID_GARCH_legacy(
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
             ranges = [
-                (0.0720 - 2*0.086, 0.0720 + 2*0.086),
-                (0.2881 - 2*0.073, 0.2881 + 2*0.073),
-                (0.7508 - 2*0.125, 0.7508 + 2*0.125),
+                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
+                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
+                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
             ]
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
             ranges = [
-                (0.0792 - 2*0.087, 0.0792 + 2*0.087),
-                (0.2793 - 2*0.073, 0.2793 + 2*0.073),
-                (0.0728 - 2*0.080, 0.0728 + 2*0.080),
-                (0.6661 - 2*0.156, 0.6661 + 2*0.156),
+                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
+                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
+                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
+                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
             ]
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
             ranges = [
-                (0.0761 - 2*0.087, 0.0761 + 2*0.087),
-                (0.2880 - 2*0.076, 0.2880 + 2*0.076),
-                (0.0799 - 2*0.082, 0.0799 + 2*0.082),
-                (0.4720 - 2*0.459, 0.4720 + 2*0.459),
-                (0.1793 - 2*0.399, 0.1793 + 2*0.399),
+                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
+                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
+                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
+                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
+                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
             ]
         else:
             raise ValueError("Invalid mean_type")

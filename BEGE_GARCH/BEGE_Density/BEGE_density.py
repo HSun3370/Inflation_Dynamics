@@ -1,6 +1,6 @@
 import numpy as np
 import mpmath as mp
-from scipy.integrate import quad
+from scipy.integrate import quad, trapezoid
 from scipy.special import digamma, hyperu, loggamma
 from scipy.stats import gamma
 
@@ -42,7 +42,7 @@ def numerical_approximation(x, p, n, sigma_p, sigma_n, n_points=1000):
     integrand = f_p[valid] * f_n[valid]
 
     # Trapezoidal integration
-    density = np.trapz(integrand, z_valid)
+    density = trapezoid(integrand, z_valid)
 
     # Log-likelihood
     log_likelihood = np.log(density)

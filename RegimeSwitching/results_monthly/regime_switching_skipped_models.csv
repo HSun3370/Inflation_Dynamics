@@ -1,0 +1,4 @@
+mean_process,k_regimes,switching_ar,switching_spf,reason
+Constant,2,Y,Y,No AR regressors available for switching AR
+Constant,2,Y,N,No AR regressors available for switching AR
+Constant,3,Y,N,No AR regressors available for switching AR

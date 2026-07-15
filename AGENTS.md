@@ -16,9 +16,9 @@ When implementing, refactoring, documenting, or testing estimation code, keep th
 - Keep residual definition consistent across modules: `u_t = pi_t - hat(pi)_t`.
 
 ### Effective Sample and Initialization
-- Use the trimmed effective sample from `DataSummary/README.md`: `1969Q2` to `2022Q4` (`215` observations) for comparable likelihoods.
+- Use the trimmed effective sample from `DataSummary/README.md`: quarterly `1969Q2` to `2026Q1` (`228` observations); monthly `1969M2` to `2026M5` (`688` observations) for comparable likelihoods. (Data updated 2026-07-14; quarterly estimation results committed before that date were produced on the previous `1969Q2`--`2022Q4` sample with `215` observations and are not likelihood-comparable with re-estimates on the updated sample.)
 - Use the same estimation sample across mean and volatility specifications unless the task explicitly studies sample sensitivity.
-- For all estimation exercises, treat the effective sample size (`215`) as fixed and comparable across models.
+- For all estimation exercises, treat the effective sample size at a given frequency and data vintage as fixed and comparable across models.
 - If lagged regressors (for example `Inflation_lag_1`, `Inflation_lag_2`, `SPF_lag_1`) are already precomputed in the effective-sample dataset, use them directly rather than trimming observations again.
 - For GARCH-type pre-sample recursion terms, initialize missing pre-sample variance states with the model-implied unconditional variance where applicable.
 
@@ -164,10 +164,10 @@ When summarizing BEGE results across random-start jobs:
 * Do not compare likelihoods across models unless they use the same effective sample, residual definition, and initialization conventions required by this file.
 
 
-### RS-GARCH
-- Treat `RS_GARCH/README.md` as the canonical RS specification document.
-- Do not introduce new RS-GARCH assumptions in code or docs unless requested.
-- If RS-GARCH settings change, update `RS_GARCH/README.md` and implementation together in the same change.
+### Regime Switching
+- Treat `RegimeSwitching/README.md` as the canonical regime-switching specification document.
+- Do not introduce new regime-switching assumptions in code or docs unless requested.
+- If regime-switching settings change, update `RegimeSwitching/README.md` and implementation together in the same change.
 
 ## Conflict Resolution Rule
 If settings appear inconsistent across files:

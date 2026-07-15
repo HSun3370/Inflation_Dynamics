@@ -108,8 +108,9 @@ def _markdown_table(df: pd.DataFrame) -> str:
     return "\n".join([header, separator, *body])
 
 
-def load_effective_sample() -> pd.DataFrame:
-    path = ROOT / "DataSummary" / "Aggregate_CPI_inflation_Quarterly.pkl"
+def load_effective_sample(path: Path | None = None) -> pd.DataFrame:
+    if path is None:
+        path = ROOT / "DataSummary" / "Aggregate_CPI_inflation_Quarterly.pkl"
     if not path.exists():
         raise FileNotFoundError(f"Missing effective sample file: {path}")
 
@@ -193,7 +194,14 @@ def feasibility_reason(mean: MeanProcessSpec, switch: SwitchingSpec) -> str | No
     return None
 
 
-def build_model_specs() -> tuple[list[ModelSpec], list[dict[str, Any]]]:
+def build_model_specs(include_student_t: bool = False) -> tuple[list[ModelSpec], list[dict[str, Any]]]:
+    """Build the estimation menu.
+
+    Student-t variants are excluded by default: the canonical reporting uses
+    normal residuals only (see README), so estimating t models doubles compute
+    without affecting any report. Pass ``include_student_t=True`` (CLI flag
+    ``--include-student-t``) to estimate them as a robustness exercise.
+    """
     specs: list[ModelSpec] = []
     skipped: list[dict[str, Any]] = []
 
@@ -220,14 +228,15 @@ def build_model_specs() -> tuple[list[ModelSpec], list[dict[str, Any]]]:
                     switching_nu=False,
                 )
             )
-            specs.append(
-                ModelSpec(
-                    mean_process=mean,
-                    error_distribution="Student t",
-                    switch_spec=switch,
-                    switching_nu=switch.switching_distribution,
+            if include_student_t:
+                specs.append(
+                    ModelSpec(
+                        mean_process=mean,
+                        error_distribution="Student t",
+                        switch_spec=switch,
+                        switching_nu=switch.switching_distribution,
+                    )
                 )
-            )
 
     return specs, skipped
 
@@ -666,12 +675,7 @@ def fit_one(
     return summary_row, parameter_rows, attempt_rows, result
 
 
-def build_results_markdown(
-    results_df: pd.DataFrame,
-    best_aic: pd.Series,
-    best_bic: pd.Series,
-    skipped_df: pd.DataFrame,
-) -> str:
+def build_results_markdown(results_df: pd.DataFrame) -> str:
     # Keep only valid Normal estimates; fallbacks and Student-t excluded from display.
     valid_df = results_df[
         (results_df["checks_passed"] == True) &
@@ -1056,37 +1060,41 @@ def _reconstruct_result_from_saved_params(
     return model.smooth(params, transformed=True, cov_type="none")
 
 
-def rebuild_reports_from_csv() -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    df = load_effective_sample()
+def rebuild_reports_from_csv(
+    data_path: Path | None = None, out_dir: Path | None = None
+) -> None:
+    out_dir = OUT_DIR if out_dir is None else out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    df = load_effective_sample(data_path)
 
-    results_csv = OUT_DIR / "regime_switching_results.csv"
-    params_csv = OUT_DIR / "regime_switching_parameters.csv"
-    skipped_csv = OUT_DIR / "regime_switching_skipped_models.csv"
-    md_path = OUT_DIR / "regime_switching_results.md"
-    best_md_path = OUT_DIR / "regime_switching_best_model.md"
+    results_csv = out_dir / "regime_switching_results.csv"
+    params_csv = out_dir / "regime_switching_parameters.csv"
+    md_path = out_dir / "regime_switching_results.md"
+    best_md_path = out_dir / "regime_switching_best_model.md"
 
     results_df = pd.read_csv(results_csv)
     params_df = pd.read_csv(params_csv)
-    skipped_df = pd.read_csv(skipped_csv) if skipped_csv.exists() else pd.DataFrame()
 
     eligible_df = results_df[
         results_df["checks_passed"] &
         (results_df["error_distribution"] == "Normal")
     ].copy()
     if eligible_df.empty:
-        eligible_df = results_df.copy()
+        raise RuntimeError(
+            "No Normal-distribution estimate passed all checks; refusing to "
+            "report a fallback best model (see README selection policy)."
+        )
     best_aic = eligible_df.sort_values("aic", ascending=True).iloc[0]
     best_bic = eligible_df.sort_values("bic", ascending=True).iloc[0]
     best_params = params_df[params_df["model_label"] == best_aic["model_label"]].copy()
     best_result = _reconstruct_result_from_saved_params(df, best_aic, best_params)
 
     md_path.write_text(
-        build_results_markdown(results_df, best_aic, best_bic, skipped_df),
+        build_results_markdown(results_df),
         encoding="utf-8",
     )
     best_md_path.write_text(
-        build_best_model_markdown(best_aic, best_params, best_result, df, OUT_DIR),
+        build_best_model_markdown(best_aic, best_params, best_result, df, out_dir),
         encoding="utf-8",
     )
 
@@ -1095,17 +1103,33 @@ def rebuild_reports_from_csv() -> None:
     print(f"- {best_md_path}")
 
 
+def _argv_value(argv: list[str], flag: str) -> str | None:
+    if flag not in argv:
+        return None
+    idx = argv.index(flag)
+    if idx + 1 >= len(argv):
+        raise ValueError(f"Missing value for {flag}")
+    return argv[idx + 1]
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
+    data_path_arg = _argv_value(argv, "--data-path")
+    out_dir_arg = _argv_value(argv, "--output-dir")
+    data_path = Path(data_path_arg) if data_path_arg else None
+    out_dir = Path(out_dir_arg) if out_dir_arg else OUT_DIR
+
     if "--report-only" in argv:
-        rebuild_reports_from_csv()
+        rebuild_reports_from_csv(data_path=data_path, out_dir=out_dir)
         return
 
     np.random.seed(20260521)
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    df = load_effective_sample()
-    specs, skipped = build_model_specs()
+    df = load_effective_sample(data_path)
+    specs, skipped = build_model_specs(
+        include_student_t="--include-student-t" in argv
+    )
 
     results_rows: list[dict[str, Any]] = []
     parameter_rows: list[dict[str, Any]] = []
@@ -1160,7 +1184,10 @@ def main(argv: list[str] | None = None) -> None:
     ].copy()
     failed_checks_df = results_df[~results_df["checks_passed"]].copy()
     if eligible_df.empty:
-        eligible_df = results_df.copy()
+        raise RuntimeError(
+            "No Normal-distribution estimate passed all checks; refusing to "
+            "report a fallback best model (see README selection policy)."
+        )
 
     eligible_df["aic_rank"] = eligible_df["aic"].rank(method="dense")
     eligible_df["bic_rank"] = eligible_df["bic"].rank(method="dense")
@@ -1177,15 +1204,15 @@ def main(argv: list[str] | None = None) -> None:
     params_df = params_df.sort_values(["model_label", "parameter_type", "parameter"]).reset_index(drop=True)
     attempts_df = attempts_df.sort_values(["model_label", "attempt"]).reset_index(drop=True)
 
-    results_csv = OUT_DIR / "regime_switching_results.csv"
-    params_csv = OUT_DIR / "regime_switching_parameters.csv"
-    attempts_csv = OUT_DIR / "regime_switching_attempts.csv"
-    md_path = OUT_DIR / "regime_switching_results.md"
-    best_md_path = OUT_DIR / "regime_switching_best_model.md"
-    skipped_csv = OUT_DIR / "regime_switching_skipped_models.csv"
-    nonconv_csv = OUT_DIR / "regime_switching_nonconverged.csv"
-    failed_checks_csv = OUT_DIR / "regime_switching_failed_checks.csv"
-    err_json = OUT_DIR / "regime_switching_errors.json"
+    results_csv = out_dir / "regime_switching_results.csv"
+    params_csv = out_dir / "regime_switching_parameters.csv"
+    attempts_csv = out_dir / "regime_switching_attempts.csv"
+    md_path = out_dir / "regime_switching_results.md"
+    best_md_path = out_dir / "regime_switching_best_model.md"
+    skipped_csv = out_dir / "regime_switching_skipped_models.csv"
+    nonconv_csv = out_dir / "regime_switching_nonconverged.csv"
+    failed_checks_csv = out_dir / "regime_switching_failed_checks.csv"
+    err_json = out_dir / "regime_switching_errors.json"
 
     results_df.to_csv(results_csv, index=False)
     params_df.to_csv(params_csv, index=False)
@@ -1195,11 +1222,11 @@ def main(argv: list[str] | None = None) -> None:
     failed_checks_df.to_csv(failed_checks_csv, index=False)
 
     md_path.write_text(
-        build_results_markdown(results_df, best_aic, best_bic, skipped_df),
+        build_results_markdown(results_df),
         encoding="utf-8",
     )
     best_md_path.write_text(
-        build_best_model_markdown(best_aic, best_params, best_result, df, OUT_DIR),
+        build_best_model_markdown(best_aic, best_params, best_result, df, out_dir),
         encoding="utf-8",
     )
 
