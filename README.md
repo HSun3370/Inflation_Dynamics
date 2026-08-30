@@ -4,7 +4,7 @@ This computational notebook documents the data construction, model specification
  
 This notebook is organized around five pieces.
 
-1. **Data summary.** The data section constructs the effective inflation sample  **1969Q2--2022Q4**, with **215 observations** and give statistical summary.  
+1. **Data summary.** The data section constructs the effective inflation sample  **1969Q2--2026Q1** (quarterly, **228 observations**) and **1969M2--2026M7** (monthly, **690 observations**) and give statistical summary.  
 
 2. **Mean processes.** The mean-process menu includes Constant, ARX(1,1), ARX(2,1), and ARX(2,2) specifications. These define $\hat{\pi}_t$ and therefore the residual sequence passed to volatility models.
 

@@ -3,16 +3,8 @@
 ```
 
 # EGARCH BEGE Specification
-
-This folder contains an extension of the Full BEGE model in which the shape
-processes follow EGARCH-type recursions instead of the GJR-type recursions
-used by the canonical five BEGE specifications. It was added as an explicit
-extension of the documented BEGE menu; the canonical menu in
-`BEGE_GARCH/README.md` is unchanged.
-
-## Residual Dynamics
-
-As in every BEGE specification, the inflation residual is
+  
+The inflation residual is
 
 $$
 u_t = \sigma_p \omega_{p,t} - \sigma_n \omega_{n,t},
@@ -37,8 +29,6 @@ z_t = \frac{u_t}{\sigma_t},
 \sigma_t^n = \sigma_n \sqrt{n_t}.
 $$
 
-## EGARCH Shape Recursions
-
 The EGARCH BEGE model applies an EGARCH(1,1)-type update to each component
 volatility, using the project-wide fixed $\sqrt{2/\pi}$ centering convention
 for the magnitude term:
@@ -56,14 +46,8 @@ $$
 \end{aligned}
 $$
 
-Here $\alpha$ is the magnitude (size) loading and $\gamma$ is the sign
-(asymmetry) loading, following standard EGARCH notation. (The original
-proposal note wrote $\alpha_n$ for both loadings; the second loading is
-denoted $\gamma_n$ here so the two effects are separately parameterized.)
-
 Because $\ln(\sigma_t^p)^2 = \ln p_t + 2\ln\sigma_p$, this is equivalent to an
-EGARCH recursion directly on the *log shapes*, which is the parameterization
-used in the code:
+EGARCH recursion directly on the *log shapes*:
 
 $$
 \begin{aligned}
@@ -75,8 +59,7 @@ $$
 $$
 
 with the intercept mapping
-$\omega_p = \omega_p^\sigma - 2(1-\beta_p)\ln\sigma_p$ (and analogously for
-$n$). The two parameterizations describe the same model; $\omega_p$ and
+$\omega_p = \omega_p^\sigma - 2(1-\beta_p)\ln\sigma_p$. The two parameterizations describe the same model; $\omega_p$ and
 $\sigma_p$ are separately identified because $\sigma_p$ also enters the BEGE
 density directly as the gamma scale, exactly as in the GJR-type BEGE models.
 
