@@ -1,50 +1,41 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
+source "${SCRIPT_DIR}/../cbs_grid.sh"
+OUTPUT_DIR="${OUTPUT_DIR:-${SCRATCH_ROOT}/BEGE_GARCH/$(basename "${SCRIPT_DIR}")/output}"
+GRID_NCPUS="${GRID_NCPUS:-4}"
+GRID_MEM="${GRID_MEM:-10G}"
+SUBMIT_DIR=$(pwd)
 
 idarray=($(seq 1 20))
 
 hmc_python_name="SyntheticFullTest.py"
 
-
+action_name="Test_Full_N300"
 
 for id in "${idarray[@]}"; do
-   
-                            count=0
-                                        
-                            action_name="Test_Full_N300"
 
-                            dataname="${action_name}"
+    mkdir -p "${OUTPUT_DIR}/job-outs/${action_name}/id_${id}/"
+    mkdir -p "${OUTPUT_DIR}/bash/${action_name}/id_${id}/"
 
-                            mkdir -p ./job-outs/${action_name}/id_${id}/
+    run_script="${OUTPUT_DIR}/bash/${action_name}/id_${id}/id_${id}.sh"
 
-                            if [ -f ./bash/${action_name}/id_${id}/run.sh ]; then
-                                rm ./bash/${action_name}/id_${id}/run.sh
-                            fi
-
-                            mkdir -p ./bash/${action_name}/id_${id}/
-
-                            touch ./bash/${action_name}/id_${id}/run.sh
-
-                            tee -a ./bash/${action_name}/id_${id}/run.sh <<EOF
+    tee "${run_script}" <<EOF
 #!/bin/bash
+# ${action_name} id ${id}: grid_run --grid_submit=batch --grid_ncpus=${GRID_NCPUS} --grid_mem=${GRID_MEM}
 
-#SBATCH --account=pi-lhansen
-#SBATCH --job-name=id_${id}
-#SBATCH --output=./job-outs/${action_name}/id_${id}/run.out
-#SBATCH --error=./job-outs/${action_name}/id_${id}/run.err
-#SBATCH --time=1-11:00:00
-#SBATCH --partition=caslake
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=10G
+$(python_setup_block)
+export PYTHONPATH="${PROJECT_ROOT}\${PYTHONPATH:+:\${PYTHONPATH}}"
+cd ${SUBMIT_DIR}
 
-module load python/anaconda-2022.05  
-source ~/myenv/bin/activate
-
-echo "\$SLURM_JOB_NAME"
+echo "\${JOB_NAME:-} (job \${JOB_ID:-}) on \$(hostname)"
 
 echo "Program starts \$(date)"
 start_time=\$(date +%s)
 
-python3 -u /project/lhansen/Capital_NN_variant/BEGE_GARCH/$hmc_python_name --id ${id} 
+python3 -u ${SCRIPT_DIR}/${hmc_python_name} --id ${id}
 echo "Program ends \$(date)"
 end_time=\$(date +%s)
 elapsed=\$((end_time - start_time))
@@ -52,7 +43,6 @@ elapsed=\$((end_time - start_time))
 eval "echo Elapsed time: \$(date -ud "@\$elapsed" +'\$((%s/3600/24)) days %H hr %M min %S sec')"
 
 EOF
-    count=$(($count + 1))
-    sbatch ./bash/${action_name}/id_${id}/run.sh
-
+    job_id=$(grid_submit_batch "${OUTPUT_DIR}/job-outs/${action_name}/id_${id}" "${run_script}" "${GRID_NCPUS}" "${GRID_MEM}")
+    echo "Submitted id ${id}: ${job_id}"
 done

@@ -180,11 +180,12 @@ def run_seed(
     maxiter: int,
     tol: float,
     include_arx22: bool,
+    output_dir: Path | None = None,
 ) -> None:
     script_dir = SCRIPT_DIR
     project_root = PROJECT_ROOT
 
-    output_dir = script_dir / "output"
+    output_dir = script_dir / "output" if output_dir is None else Path(output_dir)
     raw_dir = output_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
@@ -253,6 +254,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip ARX(2,2). By default all four mean processes are estimated.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory for raw output. Default is Constant_BEGE/output.",
+    )
     return parser.parse_args()
 
 
@@ -265,4 +272,5 @@ if __name__ == "__main__":
         maxiter=args.maxiter,
         tol=args.tol,
         include_arx22=not args.skip_arx22,
+        output_dir=args.output_dir,
     )

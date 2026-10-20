@@ -752,7 +752,7 @@ def filter_csv_files(csv_files: list[Path], start_seed, end_seed) -> list[Path]:
 
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
-    raw_dir = script_dir / "output" / "raw"
+    raw_dir = Path(os.environ.get("BEGE_COLLECT_OUTPUT_DIR", script_dir / "output")) / "raw"
     results_dir = script_dir / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 

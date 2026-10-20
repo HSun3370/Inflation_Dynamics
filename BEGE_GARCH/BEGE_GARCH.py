@@ -423,7 +423,11 @@ def _bege_variance_bounds_ok_core(r, pseries, nseries, sigma_p, sigma_n, lam, ta
 
 def _resolve_start_n_jobs(n_starts, start_n_jobs=None):
     if start_n_jobs is None:
-        raw = os.environ.get("BEGE_START_N_JOBS") or os.environ.get("SLURM_CPUS_PER_TASK")
+        raw = (
+            os.environ.get("BEGE_START_N_JOBS")
+            or os.environ.get("NSLOTS")
+            or os.environ.get("SLURM_CPUS_PER_TASK")
+        )
     else:
         raw = start_n_jobs
     try:

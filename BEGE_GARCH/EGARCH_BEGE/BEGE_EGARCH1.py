@@ -37,6 +37,7 @@ def run_seed(
     print_summary: bool,
     density_hyperu_method: str,
     compute_se: bool,
+    output_dir: Path | None = None,
 ) -> None:
     run_seed_estimation(
         estimator=BEGE_FullEGARCH_MLE,
@@ -53,6 +54,7 @@ def run_seed(
         print_summary=print_summary,
         density_hyperu_method=density_hyperu_method,
         compute_se=compute_se,
+        output_dir=output_dir,
     )
 
 
@@ -84,6 +86,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Compute robust numerical standard errors. Default skips SEs for fast search.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Directory for raw output. Default is EGARCH_BEGE/output.",
+    )
     return parser.parse_args()
 
 
@@ -99,4 +107,5 @@ if __name__ == "__main__":
         print_summary=args.print_summary,
         density_hyperu_method=args.density_hyperu_method,
         compute_se=args.compute_se,
+        output_dir=args.output_dir,
     )

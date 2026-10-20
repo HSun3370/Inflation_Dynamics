@@ -121,12 +121,14 @@ models.
 
 - `BEGE_EGARCH1.py` — seed-level random-search job (same CLI as the Full BEGE
   job script `Full_BEGE/BEGE_GJR1.py`).
-- `collect_egarch_results.py` — merges `output/raw/draw_*.csv`, applies the
-  admissibility checks, computes standard errors for the best model, and
-  writes `results/best_model.md` plus this folder's `README.md`.
-- `SimulationEGARCH.sh` — Slurm submission script for the canonical
-  server-side protocol (50 seed jobs × 40 draws × 25 starts = 50,000 starts
-  per mean process).
+- `collect_egarch_results.py` — merges the raw `draw_*.csv` files (written to
+  `/scratch/<UNI>/Inflation_Dynamics/BEGE_GARCH/EGARCH_BEGE/output/raw/` on the
+  CBS Research Grid), applies the admissibility checks, computes standard
+  errors for the best model, and writes `results/best_model.md` plus this
+  folder's `README.md`.
+- `SimulationEGARCH.sh` — CBS Research Grid (`grid_run`/SGE) submission script
+  for the canonical server-side protocol (50 seed jobs × 40 draws × 25 starts =
+  50,000 starts per mean process).
 
 The estimator is `BEGE_FullEGARCH_MLE` in `BEGE_GARCH/BEGE_GARCH.py`, and the
 collection layer treats this model as family `full_egarch` in

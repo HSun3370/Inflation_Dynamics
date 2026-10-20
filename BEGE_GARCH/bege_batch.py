@@ -268,8 +268,9 @@ def run_seed_estimation(
     print_summary: bool,
     density_hyperu_method: str,
     compute_se: bool,
+    output_dir: Path | None = None,
 ) -> None:
-    output_dir = script_dir / "output"
+    output_dir = script_dir / "output" if output_dir is None else Path(output_dir)
     raw_dir = output_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
