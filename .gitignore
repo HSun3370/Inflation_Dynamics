@@ -17,6 +17,10 @@ BEGE_GARCH/*_BEGE/archive/pre_systematic_noinit_stable_density_*/
 
 
 
+# Core dumps from crashed processes (hundreds of MB; exceed GitHub's file limit)
+core
+core.[0-9]*
+
 # Python
 __pycache__/
 *.py[cod]
