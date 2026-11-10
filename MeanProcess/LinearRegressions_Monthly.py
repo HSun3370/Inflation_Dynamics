@@ -144,6 +144,7 @@ diag3 = diagnostics_ols(model3)
 # ---------------------------------------------------------------------------
 header = (
     "```{raw:typst}\n#set page(margin: auto)\n```\n\n"
+    '```{raw:typst}\n#set text(fill: rgb("#808080"))\n#show text: set text(fill: rgb("#808080"))\n```\n\n'
     "# OLS Results (Monthly)\n\n"
     "Estimation results of four mean models on the monthly effective sample "
     f"({df.index[0]}--{df.index[-1]}, {len(df)} observations) with HAC(12) "

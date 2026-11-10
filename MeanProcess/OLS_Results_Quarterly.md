@@ -1,4 +1,9 @@
-# OLS Results
+```{raw:typst}
+#set page(margin: auto)
+```
+
+
+# OLS Results (Quarterly)
 
 Estimation results of four mean models with HAC standard errors in parentheses below each estimate. (The log-likelihood is computed under the Gaussian assumption.)
 

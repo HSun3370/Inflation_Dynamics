@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 import os
 from pathlib import Path
 import re
@@ -123,6 +124,11 @@ def _resolve_column(df: pd.DataFrame, preferred: str, aliases: tuple[str, ...]) 
         if col in df.columns:
             return col
     raise KeyError(f"Missing required column. Tried: {candidates}")
+
+
+def expected_effective_nobs(project_root: Path) -> int:
+    """Quarterly effective-sample size of the current data vintage."""
+    return json.loads((project_root / "DataSummary" / "data_vintage.json").read_text())["quarterly"]["nobs"]
 
 
 def load_effective_sample(project_root: Path) -> pd.DataFrame:
@@ -275,8 +281,9 @@ def run_seed_estimation(
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_effective_sample(project_root)
-    if len(df) != 215:
-        print(f"[WARN] Effective sample length is {len(df)} (expected 215).")
+    expected_nobs = expected_effective_nobs(project_root)
+    if len(df) != expected_nobs:
+        print(f"[WARN] Effective sample length is {len(df)} (expected {expected_nobs}).")
 
     require_columns(df, ["Inflation", "SPF", "SPF_shock"], model_label)
     specs = build_model_specs(df, include_arx22=include_arx22)

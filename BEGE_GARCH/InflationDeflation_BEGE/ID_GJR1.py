@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -138,8 +139,9 @@ def run_seed(seed: int, n_draws: int, n_starts: int, maxiter: int, tol: float, o
     out_file = output_dir / f"draw_{seed:03d}.csv"
 
     df = load_effective_sample(PROJECT_ROOT)
-    if len(df) != 215:
-        print(f"[WARN] Effective sample length is {len(df)} (expected 215).", flush=True)
+    expected_nobs = json.loads((PROJECT_ROOT / "DataSummary" / "data_vintage.json").read_text())["quarterly"]["nobs"]
+    if len(df) != expected_nobs:
+        print(f"[WARN] Effective sample length is {len(df)} (expected {expected_nobs}).", flush=True)
     specs = build_model_specs(df)
 
     if out_file.exists():

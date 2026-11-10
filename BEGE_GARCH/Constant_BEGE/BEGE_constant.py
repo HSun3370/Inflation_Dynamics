@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -191,9 +192,10 @@ def run_seed(
 
     df = load_effective_sample(project_root)
 
-    # Effective sample is expected to be fixed at 215 observations.
-    if len(df) != 215:
-        print(f"[WARN] Effective sample length is {len(df)} (expected 215).")
+    # Effective sample is expected to match the current data vintage.
+    expected_nobs = json.loads((project_root / "DataSummary" / "data_vintage.json").read_text())["quarterly"]["nobs"]
+    if len(df) != expected_nobs:
+        print(f"[WARN] Effective sample length is {len(df)} (expected {expected_nobs}).")
 
     _require_columns(df, ["Inflation", "SPF", "SPF_shock"], "BEGE constant runner")
 

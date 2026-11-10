@@ -2,176 +2,225 @@
 #set page(margin: auto)
 ```
 
+```{raw:typst}
+#set text(fill: rgb("#808080"))
+#show text: set text(fill: rgb("#808080"))
+```
+
 # Model Selection Report
 
-For each model combination, the reported row uses the highest log-likelihood estimate that passes optimizer convergence and stationarity checks across 50 starts. If no start passes all checks, the reported row uses the best optimizer-converged attempted log likelihood and is flagged in the CSV `selection_status` column.
+Effective sample: **1969-02--2026-09** (**692 observations**, `Aggregate_CPI_inflation_Monthly.pkl`, data vintage 2026-10-20).
+
+## Parameter Ranges and Random Starts
+
+All models are estimated with `arch` 7.0.0, which maximizes the likelihood by SLSQP subject to the bounds and linear constraints in the second column of the table below. `arch` imposes no bounds on mean-process coefficients or on the EGARCH coefficients $\alpha_i$ and $\gamma_j$. If a supplied starting vector violates any bound or constraint, `arch` silently replaces the whole vector with its own default start. Each model combination uses 5000 starts. Start 1 is the `arch` default (Gaussian mixture: the Student's $t$ estimates plus $(p_1,\mu_1,\sigma_1^2)=(0.3,0.1,1)$ when that vector is feasible, otherwise the `arch` default); starts 2--5000 are random draws from the third column. Every random draw lies inside `arch`'s feasible set and inside the stationary region (volatility persistence and AR roots below $1-10^{-6}$ in modulus), so `arch` uses every random start as drawn.
+
+$\bar v$ denotes the mean squared residual at `arch`'s mean starting values (OLS residuals for ARX means, $\pi_t-SPF_t$ for the Constant mean): Constant 0.0779, ARX(1,1) 0.0590, ARX(2,1) 0.0589, ARX(2,2) 0.0588.
+
+| Parameter | `arch` bound / constraint | Random-start draw |
+|---|---|---|
+| **Mean process** | | |
+| $\rho_1$ in ARX(1,·) | none | $U(-1,1)$ (AR stationarity) |
+| $(\rho_1,\rho_2)$ in ARX(2,·) | none | uniform on the stationarity triangle $\rho_2>-1$, $\lvert\rho_1\rvert<1-\rho_2$ |
+| $c$, $\phi_1$, $\phi_2$ | none | uniform on $\hat b(\rho)\pm 4\,\widehat{SE}(\rho)$, the OLS fit of $\pi_t-\rho_1\pi_{t-1}-\rho_2\pi_{t-2}$ on a constant and the SPF terms given the drawn $\rho$ |
+| **GARCH** | | |
+| $\omega$ | $[10^{-8}\bar v,\ 10\bar v]$ | log-uniform on the bound |
+| $\alpha_i$, $\beta_k$ | $\alpha_i,\beta_k\in[0,1]$; $\sum\alpha_i+\sum\beta_k\le1$ | uniform on $\{\alpha,\beta\ge0,\ \sum\alpha_i+\sum\beta_k<1\}$ |
+| **GJR-GARCH** | | |
+| $\omega$ | $[10^{-8}\bar v,\ 10\bar v]$ | log-uniform on the bound |
+| $\alpha_i$ (on $(u^+)^2$) | $[0,1]$ | uniform on $\{\alpha_i\in[0,1],\ \gamma_i\ge0,\ \beta_k\ge0,\ \tfrac12\sum\alpha_i+\tfrac12\sum\gamma_i+\sum\beta_k<1\}$ |
+| $\gamma_i$ (on $(u^-)^2$) | `arch` estimates $\gamma_i-\alpha_i\in[-1,2]$ subject to $\gamma_i\ge0$ | joint draw above |
+| $\beta_k$ | $[0,1]$; $\tfrac12\sum\alpha_i+\tfrac12\sum\gamma_i+\sum\beta_k\le1$ | joint draw above |
+| **EGARCH** | | |
+| $\omega$ | $[\ln\bar v-\ln10^4,\ \ln\bar v+\ln10^4]$ | uniform on the bound |
+| $\alpha_i$ | none | $U(-2,2)$ |
+| $\gamma_j$ | none | $U(-2,2)$ |
+| $\beta_k$ | $[0,q]$; $\sum\beta_k\le1$ | uniform on $\{\beta\ge0,\ \sum\beta_k<1\}$ |
+| **Student's $t$** | | |
+| $\nu$ | $[2.05,\ 500]$ | log-uniform on the bound |
+| **Gaussian mixture** | | |
+| $p_1$ | $[10^{-4},\ 1-10^{-4}]$ | uniform on the bound |
+| $\mu_1$ | $[-50,\ 50]$ | uniform on the values that allow $\sigma_2^2\ge10^{-6}$ |
+| $\sigma_1^2$ | $[10^{-6},\ 100]$; $\sigma_2^2>0$ through a likelihood penalty | uniform on $[10^{-6},\ \min(100,\bar\sigma_1^2)]$, where $\bar\sigma_1^2$ gives $\sigma_2^2=10^{-6}$ |
+
+Notes:
+
+- *Uniform on a region* means a uniform draw over the whole region: Dirichlet(1,…,1) weights for the volatility simplices, rejection sampling for the AR triangle and for `arch`'s caps. *Log-uniform* draws are uniform in the logarithm of the parameter.
+- Compared with the stationarity conditions in the README, `arch`'s feasible set is the same for GARCH. For GJR-GARCH, `arch` also caps $\alpha_i\le1$, although stationarity alone allows $\alpha_i<2$ when $\gamma_i$ is small. For EGARCH, `arch` requires $\beta_k\ge0$, under which $\sum\beta_k<1$ is the stationarity condition; $\omega$ is also bounded. The mixture bounds come from this repository's `MixNormal` class. $\alpha_i$ and $\gamma_j$ in EGARCH are unbounded in `arch`; the reported EGARCH estimates have $\max|\alpha_i|=0.6378$ and $\max|\gamma_j|=0.2049$, well inside the draw range $[-2,2]$.
+- Selection: for each combination the reported estimate has the highest log likelihood among *admissible* starts, which must pass five checks. (1) SLSQP reports success and `arch` returns convergence flag 0. (2) The first-order (KKT) conditions hold: the numerical gradient of the log likelihood, net of non-negative multipliers on the active bounds and constraints, is at most 0.005$\cdot T$ in absolute value. When a start that would become the best fails this check, SLSQP is restarted from its own solution up to 5 times, because SLSQP sometimes stops just short of a genuine maximum. Points on extremely steep ridges, where SLSQP reports success with gradients of $10^1$--$10^6$, do not move and stay rejected. (3) Volatility is stationary. (4) The AR roots lie inside the unit circle. (5) For the Gaussian mixture, the component variances satisfy $\min(\sigma_1^2,\sigma_2^2)/\max(\sigma_1^2,\sigma_2^2)\ge0.01$. This Hathaway-type restriction keeps the mixture likelihood bounded; without it the best fits place a component with variance $10^{-6}$ on one or two observations. If no start passes, the best converged start that satisfies the first-order conditions is reported and flagged in the CSV `selection_status` column. `best_loglik_hits` in the summary CSV counts the admissible starts that came within 0.01 of the reported log likelihood, and `params_at_arch_bound` lists parameters of the reported estimate that sit on an `arch` bound.
+- In 1 of 144 combinations, a converged fit that satisfies the first-order conditions but fails stationarity or the mixture rule has a higher log likelihood than the reported estimate (largest difference 2.5353). For these combinations the likelihood peaks on the stationarity boundary or at a degenerate mixture, and the reported estimate is the best admissible local maximum. The CSV column `best_inadmissible_loglikelihood` records the higher value.
+- In this run, 44 of 144 reported estimates have at least one parameter on an `arch` bound; parameters on a bound, with counts: beta (37), alpha (7). Standard errors of estimates on a bound or an active constraint (for example $\beta_k=0$, or a GJR $\gamma_i=0$) are not asymptotically normal and should be read with caution.
+
+## Model Selection
+
+For each model combination, the reported row uses the highest log-likelihood estimate that passes all admissibility checks (convergence, first-order conditions, volatility and mean stationarity, and the mixture variance ratio) across 5000 starts. If no start passes all checks, the reported row uses the best converged start that satisfies the first-order conditions and is flagged in the CSV `selection_status` column.
 
 **Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**[^garch-aic-sample-note]
 
 | Distribution | GARCH Mean | GARCH Vol | GARCH AIC | GJR Mean | GJR Vol | GJR AIC | EGARCH Mean | EGARCH Vol | EGARCH AIC |
 |---|---|---|---:|---|---|---:|---|---|---:|
-| Normal | ARX(1,1) | (1,1) | -140.5477 | ARX(1,1) | (2,2) | -143.8422 | ARX(1,1) | (2,1) | -135.8873 |
-| Student's $t$ | ARX(1,1) | (1,1) | -186.3088 | ARX(1,1) | (1,1) | <span style="color:red">-188.2854</span> | ARX(1,1) | (1,1) | -180.8314 |
-| Gaussian mixture | ARX(1,1) | (1,1) | -185.3003 | ARX(1,1) | (1,1) | -187.6112 | ARX(1,1) | (1,1) | -181.8980 |
+| Normal | ARX(1,1) | (1,1) | -133.1821 | ARX(1,1) | (2,1) | -136.9738 | ARX(1,1) | (2,1) | -129.6969 |
+| Student's $t$ | ARX(1,1) | (1,1) | -181.5223 | ARX(1,1) | (1,1) | -184.3886 | ARX(1,1) | (1,1) | -176.6642 |
+| Gaussian mixture | ARX(1,1) | (1,1) | -181.2549 | ARX(1,1) | (1,1) | <span style="color:red">-184.4273</span> | ARX(1,1) | (1,1) | -178.7365 |
 
-[^garch-aic-sample-note]: These numbers differ from earlier GARCH tables because earlier code used inconsistent effective sample sizes across model settings due to a sample-trimming error. The correction is discussed in the [Data Summary effective-sample section](../../DataSummary/README.md#effective-sample). The current estimates use a common effective sample with **688 observations**.
+[^garch-aic-sample-note]: These numbers differ from earlier GARCH tables because earlier code used inconsistent effective sample sizes across model settings due to a sample-trimming error. The correction is discussed in the [Data Summary effective-sample section](../../DataSummary/README.md#effective-sample). The current estimates use a common effective sample with **692 observations**.
 
 **Table 3: Model selection by BIC: GARCH vs GJR vs EGARCH**
 
 | Distribution | GARCH Mean | GARCH Vol | GARCH BIC | GJR Mean | GJR Vol | GJR BIC | EGARCH Mean | EGARCH Vol | EGARCH BIC |
 |---|---|---|---:|---|---|---:|---|---|---:|
-| Normal | ARX(1,1) | (1,1) | -113.3450 | ARX(1,1) | (1,1) | -108.7612 | ARX(1,1) | (1,1) | -95.4457 |
-| Student's $t$ | ARX(1,1) | (1,1) | <span style="color:red">-154.5723</span> | ARX(1,1) | (1,1) | -152.0151 | ARX(1,1) | (1,1) | -144.5611 |
-| Gaussian mixture | ARX(1,1) | (1,1) | -144.4962 | ARX(1,1) | (1,1) | -142.2734 | ARX(1,1) | (1,1) | -136.5601 |
+| Normal | ARX(1,1) | (1,1) | -105.9446 | ARX(1,1) | (1,1) | -102.6268 | ARX(1,1) | (2,1) | -88.8407 |
+| Student's $t$ | ARX(1,1) | (1,1) | <span style="color:red">-149.7452</span> | ARX(1,1) | (1,1) | -148.0719 | ARX(1,1) | (1,1) | -140.3475 |
+| Gaussian mixture | ARX(1,1) | (1,1) | -140.3986 | ARX(1,1) | (1,1) | -139.0314 | ARX(1,1) | (1,1) | -133.3407 |
 
 ## All Model Results
 
 | Distribution | Mean Process | Volatility Process | Best LogLik | AIC | BIC |
 |---|---|---|---:|---:|---:|
-| Normal | Constant | GARCH(1,1) | 21.1614 | -36.3228 | -22.7215 |
-| Normal | Constant | GARCH(1,2) | 22.6158 | -37.2315 | -19.0963 |
-| Normal | Constant | GARCH(2,1) | 21.1614 | -34.3228 | -16.1877 |
-| Normal | Constant | GARCH(2,2) | 22.6158 | -35.2315 | -12.5626 |
-| Normal | Constant | GJR-GARCH(1,1) | 21.3677 | -34.7353 | -16.6002 |
-| Normal | Constant | GJR-GARCH(1,2) | 22.9861 | -35.9722 | -13.3033 |
-| Normal | Constant | GJR-GARCH(2,1) | 21.6293 | -31.2587 | -4.0559 |
-| Normal | Constant | GJR-GARCH(2,2) | 25.9373 | -37.8747 | -6.1381 |
-| Normal | Constant | EGARCH(1,1) | 16.5685 | -25.1371 | -7.0019 |
-| Normal | Constant | EGARCH(1,2) | 19.0223 | -28.0446 | -5.3756 |
-| Normal | Constant | EGARCH(2,1) | 25.9907 | -39.9814 | -12.7787 |
-| Normal | Constant | EGARCH(2,2) | 25.9907 | -37.9814 | -6.2449 |
-| Normal | ARX(1,1) | GARCH(1,1) | 76.2739 | -140.5477 | -113.3450 |
-| Normal | ARX(1,1) | GARCH(1,2) | 76.2746 | -138.5492 | -106.8127 |
-| Normal | ARX(1,1) | GARCH(2,1) | 76.2739 | -138.5477 | -106.8112 |
-| Normal | ARX(1,1) | GARCH(2,2) | 76.3475 | -136.6950 | -100.4247 |
-| Normal | ARX(1,1) | GJR-GARCH(1,1) | 77.2489 | -140.4978 | -108.7612 |
-| Normal | ARX(1,1) | GJR-GARCH(1,2) | 77.2499 | -138.4998 | -102.2295 |
-| Normal | ARX(1,1) | GJR-GARCH(2,1) | 79.6561 | -141.3123 | -100.5082 |
-| Normal | ARX(1,1) | GJR-GARCH(2,2) | 81.9211 | -143.8422 | -98.5043 |
-| Normal | ARX(1,1) | EGARCH(1,1) | 70.5911 | -127.1822 | -95.4457 |
-| Normal | ARX(1,1) | EGARCH(1,2) | 70.8116 | -125.6232 | -89.3529 |
-| Normal | ARX(1,1) | EGARCH(2,1) | 76.9436 | -135.8873 | -95.0832 |
-| Normal | ARX(1,1) | EGARCH(2,2) | 76.9436 | -133.8873 | -88.5494 |
-| Normal | ARX(2,1) | GARCH(1,1) | 76.4837 | -138.9675 | -107.2310 |
-| Normal | ARX(2,1) | GARCH(1,2) | 76.4837 | -136.9675 | -100.6972 |
-| Normal | ARX(2,1) | GARCH(2,1) | 76.4848 | -136.9695 | -100.6992 |
-| Normal | ARX(2,1) | GARCH(2,2) | 76.5935 | -135.1870 | -94.3829 |
-| Normal | ARX(2,1) | GJR-GARCH(1,1) | 77.6015 | -139.2029 | -102.9326 |
-| Normal | ARX(2,1) | GJR-GARCH(1,2) | 77.6015 | -137.2029 | -96.3988 |
-| Normal | ARX(2,1) | GJR-GARCH(2,1) | 80.0966 | -140.1932 | -94.8553 |
-| Normal | ARX(2,1) | GJR-GARCH(2,2) | 82.5502 | -143.1004 | -93.2288 |
-| Normal | ARX(2,1) | EGARCH(1,1) | 70.8342 | -125.6684 | -89.3981 |
-| Normal | ARX(2,1) | EGARCH(1,2) | 71.0550 | -124.1099 | -83.3058 |
-| Normal | ARX(2,1) | EGARCH(2,1) | 77.3960 | -134.7920 | -89.4541 |
-| Normal | ARX(2,1) | EGARCH(2,2) | 77.3960 | -132.7920 | -82.9203 |
-| Normal | ARX(2,2) | GARCH(1,1) | 76.6971 | -137.3941 | -101.1238 |
-| Normal | ARX(2,2) | GARCH(1,2) | 76.6971 | -135.3941 | -94.5900 |
-| Normal | ARX(2,2) | GARCH(2,1) | 76.7001 | -135.4003 | -94.5962 |
-| Normal | ARX(2,2) | GARCH(2,2) | 76.8234 | -133.6467 | -88.3088 |
-| Normal | ARX(2,2) | GJR-GARCH(1,1) | 77.8171 | -137.6342 | -96.8301 |
-| Normal | ARX(2,2) | GJR-GARCH(1,2) | 77.8171 | -135.6342 | -90.2963 |
-| Normal | ARX(2,2) | GJR-GARCH(2,1) | 80.5584 | -139.1168 | -89.2451 |
-| Normal | ARX(2,2) | GJR-GARCH(2,2) | 83.1729 | -142.3459 | -87.9404 |
-| Normal | ARX(2,2) | EGARCH(1,1) | 71.0135 | -124.0269 | -83.2228 |
-| Normal | ARX(2,2) | EGARCH(1,2) | 71.2294 | -122.4588 | -77.1209 |
-| Normal | ARX(2,2) | EGARCH(2,1) | 77.8360 | -133.6719 | -83.8003 |
-| Normal | ARX(2,2) | EGARCH(2,2) | 77.8360 | -131.6719 | -77.2665 |
-| Student's $t$ | Constant | GARCH(1,1) | 38.7813 | -69.5626 | -51.4274 |
-| Student's $t$ | Constant | GARCH(1,2) | 39.7888 | -69.5775 | -46.9086 |
-| Student's $t$ | Constant | GARCH(2,1) | 38.7813 | -67.5626 | -44.8937 |
-| Student's $t$ | Constant | GARCH(2,2) | 39.7888 | -67.5775 | -40.3748 |
-| Student's $t$ | Constant | GJR-GARCH(1,1) | 39.7463 | -69.4925 | -46.8236 |
-| Student's $t$ | Constant | GJR-GARCH(1,2) | 40.9705 | -69.9410 | -42.7383 |
-| Student's $t$ | Constant | GJR-GARCH(2,1) | 39.7996 | -65.5991 | -33.8626 |
-| Student's $t$ | Constant | GJR-GARCH(2,2) | 42.0009 | -68.0017 | -31.7314 |
-| Student's $t$ | Constant | EGARCH(1,1) | 36.5166 | -63.0332 | -40.3642 |
-| Student's $t$ | Constant | EGARCH(1,2) | 38.1862 | -64.3725 | -37.1697 |
-| Student's $t$ | Constant | EGARCH(2,1) | 42.9506 | -71.9012 | -40.1647 |
-| Student's $t$ | Constant | EGARCH(2,2) | 42.9506 | -69.9012 | -33.6309 |
-| Student's $t$ | ARX(1,1) | GARCH(1,1) | 100.1544 | -186.3088 | -154.5723 |
-| Student's $t$ | ARX(1,1) | GARCH(1,2) | 100.1544 | -184.3088 | -148.0385 |
-| Student's $t$ | ARX(1,1) | GARCH(2,1) | 100.1553 | -184.3106 | -148.0403 |
-| Student's $t$ | ARX(1,1) | GARCH(2,2) | 100.1623 | -182.3247 | -141.5206 |
-| Student's $t$ | ARX(1,1) | GJR-GARCH(1,1) | 102.1427 | -188.2854 | -152.0151 |
-| Student's $t$ | ARX(1,1) | GJR-GARCH(1,2) | 102.1431 | -186.2861 | -145.4820 |
-| Student's $t$ | ARX(1,1) | GJR-GARCH(2,1) | 102.5336 | -185.0673 | -139.7294 |
-| Student's $t$ | ARX(1,1) | GJR-GARCH(2,2) | 103.3727 | -184.7455 | -134.8738 |
-| Student's $t$ | ARX(1,1) | EGARCH(1,1) | 98.4157 | -180.8314 | -144.5611 |
-| Student's $t$ | ARX(1,1) | EGARCH(1,2) | 98.5319 | -179.0639 | -138.2598 |
-| Student's $t$ | ARX(1,1) | EGARCH(2,1) | 100.0980 | -180.1960 | -134.8581 |
-| Student's $t$ | ARX(1,1) | EGARCH(2,2) | 101.1880 | -180.3761 | -130.5044 |
-| Student's $t$ | ARX(2,1) | GARCH(1,1) | 100.2634 | -184.5268 | -148.2564 |
-| Student's $t$ | ARX(2,1) | GARCH(1,2) | 100.2634 | -182.5268 | -141.7227 |
-| Student's $t$ | ARX(2,1) | GARCH(2,1) | 100.2639 | -182.5278 | -141.7237 |
-| Student's $t$ | ARX(2,1) | GARCH(2,2) | 100.2702 | -180.5404 | -135.2025 |
-| Student's $t$ | ARX(2,1) | GJR-GARCH(1,1) | 102.4946 | -186.9891 | -146.1850 |
-| Student's $t$ | ARX(2,1) | GJR-GARCH(1,2) | 102.4953 | -184.9906 | -139.6527 |
-| Student's $t$ | ARX(2,1) | GJR-GARCH(2,1) | 102.9181 | -183.8363 | -133.9646 |
-| Student's $t$ | ARX(2,1) | GJR-GARCH(2,2) | 103.8765 | -183.7530 | -129.3475 |
-| Student's $t$ | ARX(2,1) | EGARCH(1,1) | 98.7448 | -179.4897 | -138.6856 |
-| Student's $t$ | ARX(2,1) | EGARCH(1,2) | 98.8712 | -177.7423 | -132.4045 |
-| Student's $t$ | ARX(2,1) | EGARCH(2,1) | 100.6370 | -179.2741 | -129.4024 |
-| Student's $t$ | ARX(2,1) | EGARCH(2,2) | 101.6258 | -179.2516 | -124.8461 |
-| Student's $t$ | ARX(2,2) | GARCH(1,1) | 100.6088 | -183.2175 | -142.4134 |
-| Student's $t$ | ARX(2,2) | GARCH(1,2) | 100.6088 | -181.2175 | -135.8796 |
-| Student's $t$ | ARX(2,2) | GARCH(2,1) | 100.6112 | -181.2224 | -135.8845 |
-| Student's $t$ | ARX(2,2) | GARCH(2,2) | 100.6194 | -179.2387 | -129.3670 |
-| Student's $t$ | ARX(2,2) | GJR-GARCH(1,1) | 102.8861 | -185.7722 | -140.4343 |
-| Student's $t$ | ARX(2,2) | GJR-GARCH(1,2) | 102.8861 | -183.7722 | -133.9005 |
-| Student's $t$ | ARX(2,2) | GJR-GARCH(2,1) | 103.4125 | -182.8251 | -128.4196 |
-| Student's $t$ | ARX(2,2) | GJR-GARCH(2,2) | 104.4932 | -182.9864 | -124.0471 |
-| Student's $t$ | ARX(2,2) | EGARCH(1,1) | 99.1348 | -178.2695 | -132.9316 |
-| Student's $t$ | ARX(2,2) | EGARCH(1,2) | 99.2458 | -176.4916 | -126.6200 |
-| Student's $t$ | ARX(2,2) | EGARCH(2,1) | 101.1255 | -178.2510 | -123.8455 |
-| Student's $t$ | ARX(2,2) | EGARCH(2,2) | 102.2040 | -178.4080 | -119.4687 |
-| Gaussian mixture | Constant | GARCH(1,1) | 40.8067 | -69.6135 | -42.4107 |
-| Gaussian mixture | Constant | GARCH(1,2) | 42.2087 | -70.4173 | -38.6808 |
-| Gaussian mixture | Constant | GARCH(2,1) | 40.8067 | -67.6135 | -35.8770 |
-| Gaussian mixture | Constant | GARCH(2,2) | 42.2087 | -68.4173 | -32.1470 |
-| Gaussian mixture | Constant | GJR-GARCH(1,1) | 43.3968 | -72.7935 | -41.0570 |
-| Gaussian mixture | Constant | GJR-GARCH(1,2) | 44.9503 | -73.9006 | -37.6303 |
-| Gaussian mixture | Constant | GJR-GARCH(2,1) | 43.3968 | -68.7935 | -27.9894 |
-| Gaussian mixture | Constant | GJR-GARCH(2,2) | 45.0894 | -70.1788 | -24.8409 |
-| Gaussian mixture | Constant | EGARCH(1,1) | 41.4377 | -68.8754 | -37.1389 |
-| Gaussian mixture | Constant | EGARCH(1,2) | 43.0855 | -70.1710 | -33.9007 |
-| Gaussian mixture | Constant | EGARCH(2,1) | 45.6972 | -73.3943 | -32.5902 |
-| Gaussian mixture | Constant | EGARCH(2,2) | 45.6972 | -71.3943 | -26.0565 |
-| Gaussian mixture | ARX(1,1) | GARCH(1,1) | 101.6502 | -185.3003 | -144.4962 |
-| Gaussian mixture | ARX(1,1) | GARCH(1,2) | 101.6503 | -183.3005 | -137.9626 |
-| Gaussian mixture | ARX(1,1) | GARCH(2,1) | 101.6502 | -183.3003 | -137.9624 |
-| Gaussian mixture | ARX(1,1) | GARCH(2,2) | 101.6599 | -181.3198 | -131.4481 |
-| Gaussian mixture | ARX(1,1) | GJR-GARCH(1,1) | 103.8056 | -187.6112 | -142.2734 |
-| Gaussian mixture | ARX(1,1) | GJR-GARCH(1,2) | 103.8056 | -185.6112 | -135.7396 |
-| Gaussian mixture | ARX(1,1) | GJR-GARCH(2,1) | 104.2851 | -184.5702 | -130.1647 |
-| Gaussian mixture | ARX(1,1) | GJR-GARCH(2,2) | 104.9765 | -183.9530 | -125.0138 |
-| Gaussian mixture | ARX(1,1) | EGARCH(1,1) | 100.9490 | -181.8980 | -136.5601 |
-| Gaussian mixture | ARX(1,1) | EGARCH(1,2) | 100.9582 | -179.9164 | -130.0447 |
-| Gaussian mixture | ARX(1,1) | EGARCH(2,1) | 102.4071 | -180.8143 | -126.4088 |
-| Gaussian mixture | ARX(1,1) | EGARCH(2,2) | 103.2633 | -180.5267 | -121.5874 |
-| Gaussian mixture | ARX(2,1) | GARCH(1,1) | 101.8307 | -183.6615 | -138.3236 |
-| Gaussian mixture | ARX(2,1) | GARCH(1,2) | 101.8308 | -181.6616 | -131.7899 |
-| Gaussian mixture | ARX(2,1) | GARCH(2,1) | 101.8307 | -181.6615 | -131.7898 |
-| Gaussian mixture | ARX(2,1) | GARCH(2,2) | 101.8386 | -179.6772 | -125.2718 |
-| Gaussian mixture | ARX(2,1) | GJR-GARCH(1,1) | 104.4273 | -186.8546 | -136.9829 |
-| Gaussian mixture | ARX(2,1) | GJR-GARCH(1,2) | 104.4273 | -184.8546 | -130.4492 |
-| Gaussian mixture | ARX(2,1) | GJR-GARCH(2,1) | 104.9099 | -183.8198 | -124.8805 |
-| Gaussian mixture | ARX(2,1) | GJR-GARCH(2,2) | 105.6055 | -183.2110 | -119.7380 |
-| Gaussian mixture | ARX(2,1) | EGARCH(1,1) | 101.6090 | -181.2179 | -131.3462 |
-| Gaussian mixture | ARX(2,1) | EGARCH(1,2) | 101.6161 | -179.2322 | -124.8267 |
-| Gaussian mixture | ARX(2,1) | EGARCH(2,1) | 103.1390 | -180.2781 | -121.3388 |
-| Gaussian mixture | ARX(2,1) | EGARCH(2,2) | 103.8033 | -179.6065 | -116.1335 |
-| Gaussian mixture | ARX(2,2) | GARCH(1,1) | 102.0243 | -182.0486 | -132.1769 |
-| Gaussian mixture | ARX(2,2) | GARCH(1,2) | 102.0243 | -180.0486 | -125.6431 |
-| Gaussian mixture | ARX(2,2) | GARCH(2,1) | 102.0243 | -180.0486 | -125.6431 |
-| Gaussian mixture | ARX(2,2) | GARCH(2,2) | 102.0359 | -178.0717 | -119.1325 |
-| Gaussian mixture | ARX(2,2) | GJR-GARCH(1,1) | 104.7171 | -185.4342 | -131.0287 |
-| Gaussian mixture | ARX(2,2) | GJR-GARCH(1,2) | 104.7171 | -183.4342 | -124.4949 |
-| Gaussian mixture | ARX(2,2) | GJR-GARCH(2,1) | 105.2849 | -182.5698 | -119.0968 |
-| Gaussian mixture | ARX(2,2) | GJR-GARCH(2,2) | 106.1043 | -182.2086 | -114.2018 |
-| Gaussian mixture | ARX(2,2) | EGARCH(1,1) | 101.9001 | -179.8001 | -125.3947 |
-| Gaussian mixture | ARX(2,2) | EGARCH(1,2) | 101.9044 | -177.8089 | -118.8696 |
-| Gaussian mixture | ARX(2,2) | EGARCH(2,1) | 103.5168 | -179.0336 | -115.5606 |
-| Gaussian mixture | ARX(2,2) | EGARCH(2,2) | 104.2678 | -178.5357 | -110.5288 |
+| Normal | Constant | GARCH(1,1) | 19.6528 | -33.3056 | -19.6868 |
+| Normal | Constant | GARCH(1,2) | 21.0226 | -34.0452 | -15.8868 |
+| Normal | Constant | GARCH(2,1) | 19.6528 | -31.3056 | -13.1472 |
+| Normal | Constant | GARCH(2,2) | 21.0226 | -32.0452 | -9.3472 |
+| Normal | Constant | GJR-GARCH(1,1) | 19.9204 | -31.8408 | -13.6824 |
+| Normal | Constant | GJR-GARCH(1,2) | 21.4918 | -32.9837 | -10.2858 |
+| Normal | Constant | GJR-GARCH(2,1) | 20.2213 | -28.4425 | -1.2050 |
+| Normal | Constant | GJR-GARCH(2,2) | 24.0727 | -34.1455 | -2.3684 |
+| Normal | Constant | EGARCH(1,1) | 14.9629 | -21.9258 | -3.7675 |
+| Normal | Constant | EGARCH(1,2) | 17.2697 | -24.5394 | -1.8415 |
+| Normal | Constant | EGARCH(2,1) | 23.7179 | -35.4359 | -8.1983 |
+| Normal | Constant | EGARCH(2,2) | 23.7179 | -33.4359 | -1.6588 |
+| Normal | ARX(1,1) | GARCH(1,1) | 72.5910 | -133.1821 | -105.9446 |
+| Normal | ARX(1,1) | GARCH(1,2) | 72.5910 | -131.1821 | -99.4050 |
+| Normal | ARX(1,1) | GARCH(2,1) | 72.7163 | -131.4326 | -99.6555 |
+| Normal | ARX(1,1) | GARCH(2,2) | 72.7332 | -129.4663 | -93.1496 |
+| Normal | ARX(1,1) | GJR-GARCH(1,1) | 74.2020 | -134.4039 | -102.6268 |
+| Normal | ARX(1,1) | GJR-GARCH(1,2) | 74.2020 | -132.4039 | -96.0873 |
+| Normal | ARX(1,1) | GJR-GARCH(2,1) | 77.4869 | -136.9738 | -96.1175 |
+| Normal | ARX(1,1) | GJR-GARCH(2,2) | 77.8230 | -135.6460 | -90.2501 |
+| Normal | ARX(1,1) | EGARCH(1,1) | 67.1366 | -120.2732 | -88.4961 |
+| Normal | ARX(1,1) | EGARCH(1,2) | 67.1494 | -118.2988 | -81.9821 |
+| Normal | ARX(1,1) | EGARCH(2,1) | 73.8485 | -129.6969 | -88.8407 |
+| Normal | ARX(1,1) | EGARCH(2,2) | 73.8485 | -127.6969 | -82.3011 |
+| Normal | ARX(2,1) | GARCH(1,1) | 73.0070 | -132.0140 | -100.2369 |
+| Normal | ARX(2,1) | GARCH(1,2) | 73.0070 | -130.0140 | -93.6973 |
+| Normal | ARX(2,1) | GARCH(2,1) | 73.1873 | -130.3745 | -94.0578 |
+| Normal | ARX(2,1) | GARCH(2,2) | 73.2155 | -128.4311 | -87.5748 |
+| Normal | ARX(2,1) | GJR-GARCH(1,1) | 74.8172 | -133.6343 | -97.3176 |
+| Normal | ARX(2,1) | GJR-GARCH(1,2) | 74.8172 | -131.6343 | -90.7780 |
+| Normal | ARX(2,1) | GJR-GARCH(2,1) | 78.1335 | -136.2671 | -90.8712 |
+| Normal | ARX(2,1) | GJR-GARCH(2,2) | 78.6035 | -135.2071 | -85.2717 |
+| Normal | ARX(2,1) | EGARCH(1,1) | 67.7831 | -119.5661 | -83.2494 |
+| Normal | ARX(2,1) | EGARCH(1,2) | 67.8093 | -117.6187 | -76.7624 |
+| Normal | ARX(2,1) | EGARCH(2,1) | 74.5878 | -129.1757 | -83.7798 |
+| Normal | ARX(2,1) | EGARCH(2,2) | 74.5878 | -127.1757 | -77.2402 |
+| Normal | ARX(2,2) | GARCH(1,1) | 73.2449 | -130.4898 | -94.1731 |
+| Normal | ARX(2,2) | GARCH(1,2) | 73.2449 | -128.4898 | -87.6335 |
+| Normal | ARX(2,2) | GARCH(2,1) | 73.4491 | -128.8982 | -88.0419 |
+| Normal | ARX(2,2) | GARCH(2,2) | 73.4808 | -126.9616 | -81.5657 |
+| Normal | ARX(2,2) | GJR-GARCH(1,1) | 75.0642 | -132.1285 | -91.2722 |
+| Normal | ARX(2,2) | GJR-GARCH(1,2) | 75.0642 | -130.1285 | -84.7326 |
+| Normal | ARX(2,2) | GJR-GARCH(2,1) | 78.6767 | -135.3535 | -85.4180 |
+| Normal | ARX(2,2) | GJR-GARCH(2,2) | 79.2383 | -134.4766 | -80.0016 |
+| Normal | ARX(2,2) | EGARCH(1,1) | 67.9456 | -117.8913 | -77.0350 |
+| Normal | ARX(2,2) | EGARCH(1,2) | 67.9676 | -115.9353 | -70.5394 |
+| Normal | ARX(2,2) | EGARCH(2,1) | 75.1030 | -128.2061 | -78.2706 |
+| Normal | ARX(2,2) | EGARCH(2,2) | 75.1030 | -126.2061 | -71.7310 |
+| Student's $t$ | Constant | GARCH(1,1) | 37.5723 | -67.1445 | -48.9862 |
+| Student's $t$ | Constant | GARCH(1,2) | 38.5614 | -67.1228 | -44.4249 |
+| Student's $t$ | Constant | GARCH(2,1) | 37.5723 | -65.1445 | -42.4466 |
+| Student's $t$ | Constant | GARCH(2,2) | 38.5614 | -65.1228 | -37.8853 |
+| Student's $t$ | Constant | GJR-GARCH(1,1) | 38.6006 | -67.2011 | -44.5032 |
+| Student's $t$ | Constant | GJR-GARCH(1,2) | 39.8392 | -67.6785 | -40.4410 |
+| Student's $t$ | Constant | GJR-GARCH(2,1) | 38.6614 | -63.3227 | -31.5456 |
+| Student's $t$ | Constant | GJR-GARCH(2,2) | 40.8526 | -65.7052 | -29.3885 |
+| Student's $t$ | Constant | EGARCH(1,1) | 35.4115 | -60.8229 | -38.1250 |
+| Student's $t$ | Constant | EGARCH(1,2) | 37.1046 | -62.2091 | -34.9716 |
+| Student's $t$ | Constant | EGARCH(2,1) | 41.4660 | -68.9320 | -37.1549 |
+| Student's $t$ | Constant | EGARCH(2,2) | 41.4660 | -66.9320 | -30.6153 |
+| Student's $t$ | ARX(1,1) | GARCH(1,1) | 97.7611 | -181.5223 | -149.7452 |
+| Student's $t$ | ARX(1,1) | GARCH(1,2) | 97.7611 | -179.5223 | -143.2056 |
+| Student's $t$ | ARX(1,1) | GARCH(2,1) | 97.8253 | -179.6507 | -143.3340 |
+| Student's $t$ | ARX(1,1) | GARCH(2,2) | 97.8253 | -177.6507 | -136.7944 |
+| Student's $t$ | ARX(1,1) | GJR-GARCH(1,1) | 100.1943 | -184.3886 | -148.0719 |
+| Student's $t$ | ARX(1,1) | GJR-GARCH(1,2) | 100.1943 | -182.3886 | -141.5323 |
+| Student's $t$ | ARX(1,1) | GJR-GARCH(2,1) | 100.7451 | -181.4902 | -136.0943 |
+| Student's $t$ | ARX(1,1) | GJR-GARCH(2,2) | 101.0645 | -180.1291 | -130.1936 |
+| Student's $t$ | ARX(1,1) | EGARCH(1,1) | 96.3321 | -176.6642 | -140.3475 |
+| Student's $t$ | ARX(1,1) | EGARCH(1,2) | 96.3432 | -174.6863 | -133.8300 |
+| Student's $t$ | ARX(1,1) | EGARCH(2,1) | 97.7896 | -175.5792 | -130.1833 |
+| Student's $t$ | ARX(1,1) | EGARCH(2,2) | 98.8160 | -175.6321 | -125.6966 |
+| Student's $t$ | ARX(2,1) | GARCH(1,1) | 97.9755 | -179.9510 | -143.6343 |
+| Student's $t$ | ARX(2,1) | GARCH(1,2) | 97.9755 | -177.9510 | -137.0947 |
+| Student's $t$ | ARX(2,1) | GARCH(2,1) | 98.0343 | -178.0687 | -137.2124 |
+| Student's $t$ | ARX(2,1) | GARCH(2,2) | 98.0343 | -176.0687 | -130.6728 |
+| Student's $t$ | ARX(2,1) | GJR-GARCH(1,1) | 100.7475 | -183.4950 | -142.6388 |
+| Student's $t$ | ARX(2,1) | GJR-GARCH(1,2) | 100.7475 | -181.4950 | -136.0992 |
+| Student's $t$ | ARX(2,1) | GJR-GARCH(2,1) | 101.3312 | -180.6625 | -130.7270 |
+| Student's $t$ | ARX(2,1) | GJR-GARCH(2,2) | 101.8068 | -179.6135 | -125.1385 |
+| Student's $t$ | ARX(2,1) | EGARCH(1,1) | 96.9145 | -175.8291 | -134.9728 |
+| Student's $t$ | ARX(2,1) | EGARCH(1,2) | 96.9385 | -173.8769 | -128.4811 |
+| Student's $t$ | ARX(2,1) | EGARCH(2,1) | 98.6009 | -175.2018 | -125.2663 |
+| Student's $t$ | ARX(2,1) | EGARCH(2,2) | 99.5521 | -175.1043 | -120.6292 |
+| Student's $t$ | ARX(2,2) | GARCH(1,1) | 98.3232 | -178.6463 | -137.7901 |
+| Student's $t$ | ARX(2,2) | GARCH(1,2) | 98.3232 | -176.6463 | -131.2505 |
+| Student's $t$ | ARX(2,2) | GARCH(2,1) | 98.3965 | -176.7929 | -131.3971 |
+| Student's $t$ | ARX(2,2) | GARCH(2,2) | 98.3965 | -174.7930 | -124.8575 |
+| Student's $t$ | ARX(2,2) | GJR-GARCH(1,1) | 101.1346 | -182.2693 | -136.8734 |
+| Student's $t$ | ARX(2,2) | GJR-GARCH(1,2) | 101.1346 | -180.2693 | -130.3338 |
+| Student's $t$ | ARX(2,2) | GJR-GARCH(2,1) | 101.8440 | -179.6879 | -125.2129 |
+| Student's $t$ | ARX(2,2) | GJR-GARCH(2,2) | 102.3657 | -178.7315 | -119.7169 |
+| Student's $t$ | ARX(2,2) | EGARCH(1,1) | 97.2669 | -174.5338 | -129.1379 |
+| Student's $t$ | ARX(2,2) | EGARCH(1,2) | 97.2838 | -172.5675 | -122.6321 |
+| Student's $t$ | ARX(2,2) | EGARCH(2,1) | 99.0761 | -174.1522 | -119.6772 |
+| Student's $t$ | ARX(2,2) | EGARCH(2,2) | 100.0842 | -174.1684 | -115.1538 |
+| Gaussian mixture | Constant | GARCH(1,1) | 39.4976 | -66.9951 | -39.7576 |
+| Gaussian mixture | Constant | GARCH(1,2) | 40.9181 | -67.8363 | -36.0592 |
+| Gaussian mixture | Constant | GARCH(2,1) | 39.4976 | -64.9951 | -33.2180 |
+| Gaussian mixture | Constant | GARCH(2,2) | 40.9181 | -65.8363 | -29.5196 |
+| Gaussian mixture | Constant | GJR-GARCH(1,1) | 42.1330 | -70.2660 | -38.4889 |
+| Gaussian mixture | Constant | GJR-GARCH(1,2) | 43.7196 | -71.4392 | -35.1225 |
+| Gaussian mixture | Constant | GJR-GARCH(2,1) | 42.1330 | -66.2661 | -25.4098 |
+| Gaussian mixture | Constant | GJR-GARCH(2,2) | 43.8628 | -67.7257 | -22.3298 |
+| Gaussian mixture | Constant | EGARCH(1,1) | 40.1126 | -66.2252 | -34.4481 |
+| Gaussian mixture | Constant | EGARCH(1,2) | 41.8257 | -67.6514 | -31.3347 |
+| Gaussian mixture | Constant | EGARCH(2,1) | 44.0248 | -70.0495 | -29.1933 |
+| Gaussian mixture | Constant | EGARCH(2,2) | 44.0248 | -68.0495 | -22.6537 |
+| Gaussian mixture | ARX(1,1) | GARCH(1,1) | 99.6274 | -181.2549 | -140.3986 |
+| Gaussian mixture | ARX(1,1) | GARCH(1,2) | 99.6274 | -179.2549 | -133.8590 |
+| Gaussian mixture | ARX(1,1) | GARCH(2,1) | 99.6583 | -179.3166 | -133.9208 |
+| Gaussian mixture | ARX(1,1) | GARCH(2,2) | 99.6732 | -177.3463 | -127.4109 |
+| Gaussian mixture | ARX(1,1) | GJR-GARCH(1,1) | 102.2136 | -184.4273 | -139.0314 |
+| Gaussian mixture | ARX(1,1) | GJR-GARCH(1,2) | 102.2136 | -182.4273 | -132.4918 |
+| Gaussian mixture | ARX(1,1) | GJR-GARCH(2,1) | 102.7267 | -181.4534 | -126.9784 |
+| Gaussian mixture | ARX(1,1) | GJR-GARCH(2,2) | 102.9598 | -179.9196 | -120.9050 |
+| Gaussian mixture | ARX(1,1) | EGARCH(1,1) | 99.3683 | -178.7365 | -133.3407 |
+| Gaussian mixture | ARX(1,1) | EGARCH(1,2) | 99.3683 | -176.7365 | -126.8011 |
+| Gaussian mixture | ARX(1,1) | EGARCH(2,1) | 100.5121 | -177.0242 | -122.5492 |
+| Gaussian mixture | ARX(1,1) | EGARCH(2,2) | 101.0997 | -176.1993 | -117.1847 |
+| Gaussian mixture | ARX(2,1) | GARCH(1,1) | 99.9402 | -179.8804 | -134.4845 |
+| Gaussian mixture | ARX(2,1) | GARCH(1,2) | 99.9402 | -177.8804 | -127.9449 |
+| Gaussian mixture | ARX(2,1) | GARCH(2,1) | 99.9697 | -177.9393 | -128.0039 |
+| Gaussian mixture | ARX(2,1) | GARCH(2,2) | 99.9802 | -175.9604 | -121.4853 |
+| Gaussian mixture | ARX(2,1) | GJR-GARCH(1,1) | 103.0966 | -184.1932 | -134.2577 |
+| Gaussian mixture | ARX(2,1) | GJR-GARCH(1,2) | 103.0966 | -182.1932 | -127.7181 |
+| Gaussian mixture | ARX(2,1) | GJR-GARCH(2,1) | 103.6097 | -181.2194 | -122.2048 |
+| Gaussian mixture | ARX(2,1) | GJR-GARCH(2,2) | 103.9211 | -179.8422 | -116.2880 |
+| Gaussian mixture | ARX(2,1) | EGARCH(1,1) | 100.3623 | -178.7245 | -128.7891 |
+| Gaussian mixture | ARX(2,1) | EGARCH(1,2) | 100.3623 | -176.7245 | -122.2495 |
+| Gaussian mixture | ARX(2,1) | EGARCH(2,1) | 101.5850 | -177.1700 | -118.1554 |
+| Gaussian mixture | ARX(2,1) | EGARCH(2,2) | 102.0046 | -176.0093 | -112.4551 |
+| Gaussian mixture | ARX(2,2) | GARCH(1,1) | 100.1470 | -178.2941 | -128.3586 |
+| Gaussian mixture | ARX(2,2) | GARCH(1,2) | 100.1470 | -176.2941 | -121.8190 |
+| Gaussian mixture | ARX(2,2) | GARCH(2,1) | 100.1789 | -176.3579 | -121.8829 |
+| Gaussian mixture | ARX(2,2) | GARCH(2,2) | 100.1938 | -174.3876 | -115.3730 |
+| Gaussian mixture | ARX(2,2) | GJR-GARCH(1,1) | 103.4022 | -182.8044 | -128.3294 |
+| Gaussian mixture | ARX(2,2) | GJR-GARCH(1,2) | 103.4022 | -180.8044 | -121.7898 |
+| Gaussian mixture | ARX(2,2) | GJR-GARCH(2,1) | 104.0077 | -180.0155 | -116.4612 |
+| Gaussian mixture | ARX(2,2) | GJR-GARCH(2,2) | 104.3842 | -178.7684 | -110.6746 |
+| Gaussian mixture | ARX(2,2) | EGARCH(1,1) | 100.6554 | -177.3108 | -122.8357 |
+| Gaussian mixture | ARX(2,2) | EGARCH(1,2) | 100.6554 | -175.3108 | -116.2961 |
+| Gaussian mixture | ARX(2,2) | EGARCH(2,1) | 101.9673 | -175.9346 | -112.3804 |
+| Gaussian mixture | ARX(2,2) | EGARCH(2,2) | 102.4488 | -174.8975 | -106.8037 |
 
 ## Best Models by Criterion and Volatility Family
 
@@ -183,51 +232,51 @@ The main result tables contain 144 reported model combinations.
 #### GARCH
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
-| `M061` | Student's $t$ | ARX(1,1) | GARCH(1,1) | 100.1544 | -186.3088 | -154.5723 |
+| `M061` | Student's $t$ | ARX(1,1) | GARCH(1,1) | 97.7611 | -181.5223 | -149.7452 |
 
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0148 +0.4441\,\pi_t +0.5718\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0141 +0.4398\,\pi_t +0.5770\,SPF_t + \mu_{t+1}
 $$
 
 Volatility process:
 
 $$
-\hat{\sigma}_t^2 = 0.0061 +0.2477\,u_{t-1}^2 +0.6670\,\sigma_{t-1}^2
+\hat{\sigma}_t^2 = 0.0060 +0.2544\,u_{t-1}^2 +0.6693\,\sigma_{t-1}^2
 $$
 
 Distribution parameters:
 
 | Parameter | Estimate |
 |---|---:|
-| $\nu$ | 5.0899 |
+| $\nu$ | 4.9892 |
 
 | Parameter | Coef | Std Err | t-value | p-value |
 |---|---:|---:|---:|---:|
-| $c$ | 0.0148 | 0.0180 | 0.8241 | 0.4099 |
-| $\rho_1$ | 0.4441 | 0.0451 | 9.8407 | 0.0000 |
-| $\phi_1$ | 0.5718 | 0.0760 | 7.5191 | 0.0000 |
-| $\omega$ | 0.0061 | 0.0024 | 2.5927 | 0.0095 |
-| $\alpha_1$ | 0.2477 | 0.0666 | 3.7198 | 0.0002 |
-| $\beta_1$ | 0.6670 | 0.0735 | 9.0700 | 0.0000 |
-| $\nu$ | 5.0899 | 0.8695 | 5.8540 | 0.0000 |
+| $c$ | 0.0141 | 0.0180 | 0.7828 | 0.4337 |
+| $\rho_1$ | 0.4398 | 0.0452 | 9.7379 | 0.0000 |
+| $\phi_1$ | 0.5770 | 0.0761 | 7.5839 | 0.0000 |
+| $\omega$ | 0.0060 | 0.0022 | 2.6762 | 0.0074 |
+| $\alpha_1$ | 0.2544 | 0.0665 | 3.8256 | 0.0001 |
+| $\beta_1$ | 0.6693 | 0.0679 | 9.8562 | 0.0000 |
+| $\nu$ | 4.9892 | 0.8263 | 6.0380 | 0.0000 |
 
 #### GJR-GARCH
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
-| `M062` | Student's $t$ | ARX(1,1) | GJR-GARCH(1,1) | 102.1427 | -188.2854 | -152.0151 |
+| `M110` | Gaussian mixture | ARX(1,1) | GJR-GARCH(1,1) | 102.2136 | -184.4273 | -139.0314 |
 
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0216 +0.4340\,\pi_t +0.5660\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0206 +0.4274\,\pi_t +0.5784\,SPF_t + \mu_{t+1}
 $$
 
 Volatility process:
 
 $$
-\hat{\sigma}_t^2 = 0.0054 +0.3015\,(u_{t-1}^+)^2 +0.1484\,(u_{t-1}^-)^2 +0.6979\,\sigma_{t-1}^2
+\hat{\sigma}_t^2 = 0.0049 +0.2932\,(u_{t-1}^+)^2 +0.1221\,(u_{t-1}^-)^2 +0.7211\,\sigma_{t-1}^2
 $$
 
 Reported in README notation. (`arch` estimates the equivalent indicator form.)
@@ -236,112 +285,120 @@ Distribution parameters:
 
 | Parameter | Estimate |
 |---|---:|
-| $\nu$ | 5.0138 |
+| $p_1$ | 0.1810 |
+| $\mu_1$ | -0.0520 |
+| $\sigma_1^2$ | 3.0052 |
+| $p_2$ | 0.8190 |
+| $\mu_2$ | 0.0115 |
+| $\sigma_2^2$ | 0.5560 |
 
-For GJR-GARCH, $\gamma_i-\alpha_i$ is the raw `arch` indicator coefficient; the equation above reports the negative-shock coefficient $\gamma_i$.
+For GJR-GARCH, `arch` estimates the indicator coefficient $\gamma_i-\alpha_i$ (row $\gamma_i-\alpha_i$). The negative-shock coefficient of the README specification is $\gamma_i = \alpha_i + (\gamma_i-\alpha_i)$ (row $\gamma_i$); its standard error uses the delta method on the same robust covariance matrix, $\operatorname{Var}(\hat\gamma_i) = \operatorname{Var}(\hat\alpha_i) + \operatorname{Var}(\widehat{\gamma_i-\alpha_i}) + 2\operatorname{Cov}(\hat\alpha_i, \widehat{\gamma_i-\alpha_i})$.
 
 | Parameter | Coef | Std Err | t-value | p-value |
 |---|---:|---:|---:|---:|
-| $c$ | 0.0216 | 0.0183 | 1.1819 | 0.2373 |
-| $\rho_1$ | 0.4340 | 0.0440 | 9.8613 | 0.0000 |
-| $\phi_1$ | 0.5660 | 0.0741 | 7.6411 | 0.0000 |
-| $\omega$ | 0.0054 | 0.0020 | 2.7726 | 0.0056 |
-| $\alpha_1$ | 0.3015 | 0.0733 | 4.1159 | 0.0000 |
-| $\gamma_1-\alpha_1$ | -0.1531 | 0.0695 | -2.2040 | 0.0275 |
-| $\beta_1$ | 0.6979 | 0.0695 | 10.0370 | 0.0000 |
-| $\nu$ | 5.0138 | 0.8531 | 5.8772 | 0.0000 |
+| $c$ | 0.0206 | 0.0186 | 1.1050 | 0.2692 |
+| $\rho_1$ | 0.4274 | 0.0429 | 9.9551 | 0.0000 |
+| $\phi_1$ | 0.5784 | 0.0739 | 7.8286 | 0.0000 |
+| $\omega$ | 0.0049 | 0.0019 | 2.5434 | 0.0110 |
+| $\alpha_1$ | 0.2932 | 0.0709 | 4.1367 | 0.0000 |
+| $\gamma_1-\alpha_1$ | -0.1711 | 0.0674 | -2.5410 | 0.0111 |
+| $\gamma_1$ | 0.1221 | 0.0629 | 1.9407 | 0.0523 |
+| $\beta_1$ | 0.7211 | 0.0711 | 10.1453 | 0.0000 |
+| $p_1$ | 0.1810 | 0.0662 | 2.7357 | 0.0062 |
+| $\mu_1$ | -0.0520 | 0.1802 | -0.2888 | 0.7728 |
+| $\sigma_1^2$ | 3.0052 | 0.6970 | 4.3118 | 0.0000 |
 
 #### EGARCH
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
-| `M111` | Gaussian mixture | ARX(1,1) | EGARCH(1,1) | 100.9490 | -181.8980 | -136.5601 |
+| `M111` | Gaussian mixture | ARX(1,1) | EGARCH(1,1) | 99.3683 | -178.7365 | -133.3407 |
 
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0176 +0.4272\,\pi_t +0.5975\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0171 +0.4241\,\pi_t +0.6006\,SPF_t + \mu_{t+1}
 $$
 
 Volatility process:
 
 $$
-\ln \hat{\sigma}_t^2 = -0.2797 +0.3475\,(|z_{t-1}|-\sqrt{2/\pi}) +0.0628\,z_{t-1} +0.9011\,\ln\sigma_{t-1}^2
+\ln \hat{\sigma}_t^2 = -0.2692 +0.3475\,(|z_{t-1}|-\sqrt{2/\pi}) +0.0680\,z_{t-1} +0.9039\,\ln\sigma_{t-1}^2
 $$
 
 Distribution parameters:
 
 | Parameter | Estimate |
 |---|---:|
-| $p_1$ | 0.8289 |
-| $\mu_1$ | 0.0039 |
-| $\sigma_1^2$ | 0.5544 |
-| $p_2$ | 0.1711 |
-| $\mu_2$ | -0.0191 |
-| $\sigma_2^2$ | 3.1581 |
+| $p_1$ | 0.8328 |
+| $\mu_1$ | 0.0096 |
+| $\sigma_1^2$ | 0.5493 |
+| $p_2$ | 0.1672 |
+| $\mu_2$ | -0.0480 |
+| $\sigma_2^2$ | 3.2426 |
 
 | Parameter | Coef | Std Err | t-value | p-value |
 |---|---:|---:|---:|---:|
-| $c$ | 0.0176 | 0.0165 | 1.0676 | 0.2857 |
-| $\rho_1$ | 0.4272 | 0.0422 | 10.1279 | 0.0000 |
-| $\phi_1$ | 0.5975 | 0.0669 | 8.9321 | 0.0000 |
-| $\omega$ | -0.2797 | 0.1456 | -1.9212 | 0.0547 |
-| $\alpha_1$ | 0.3475 | 0.0960 | 3.6209 | 0.0003 |
-| $\gamma_1$ | 0.0628 | 0.0370 | 1.6985 | 0.0894 |
-| $\beta_1$ | 0.9011 | 0.0490 | 18.3830 | 0.0000 |
-| $p_1$ | 0.8289 | 0.0604 | 13.7212 | 0.0000 |
-| $\mu_1$ | 0.0039 | 0.0405 | 0.0974 | 0.9224 |
-| $\sigma_1^2$ | 0.5544 | 0.0690 | 8.0391 | 0.0000 |
+| $c$ | 0.0171 | 0.0016 | 10.8808 | 0.0000 |
+| $\rho_1$ | 0.4241 | 0.0111 | 38.1959 | 0.0000 |
+| $\phi_1$ | 0.6006 | 0.0116 | 51.7610 | 0.0000 |
+| $\omega$ | -0.2692 | 0.1223 | -2.2016 | 0.0277 |
+| $\alpha_1$ | 0.3475 | 0.0863 | 4.0252 | 0.0001 |
+| $\gamma_1$ | 0.0680 | 0.0328 | 2.0714 | 0.0383 |
+| $\beta_1$ | 0.9039 | 0.0412 | 21.9564 | 0.0000 |
+| $p_1$ | 0.8328 | 0.0532 | 15.6688 | 0.0000 |
+| $\mu_1$ | 0.0096 | 0.0330 | 0.2916 | 0.7706 |
+| $\sigma_1^2$ | 0.5493 | 0.0654 | 8.3988 | 0.0000 |
 
 ### BIC
 
 #### GARCH
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
-| `M061` | Student's $t$ | ARX(1,1) | GARCH(1,1) | 100.1544 | -186.3088 | -154.5723 |
+| `M061` | Student's $t$ | ARX(1,1) | GARCH(1,1) | 97.7611 | -181.5223 | -149.7452 |
 
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0148 +0.4441\,\pi_t +0.5718\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0141 +0.4398\,\pi_t +0.5770\,SPF_t + \mu_{t+1}
 $$
 
 Volatility process:
 
 $$
-\hat{\sigma}_t^2 = 0.0061 +0.2477\,u_{t-1}^2 +0.6670\,\sigma_{t-1}^2
+\hat{\sigma}_t^2 = 0.0060 +0.2544\,u_{t-1}^2 +0.6693\,\sigma_{t-1}^2
 $$
 
 Distribution parameters:
 
 | Parameter | Estimate |
 |---|---:|
-| $\nu$ | 5.0899 |
+| $\nu$ | 4.9892 |
 
 | Parameter | Coef | Std Err | t-value | p-value |
 |---|---:|---:|---:|---:|
-| $c$ | 0.0148 | 0.0180 | 0.8241 | 0.4099 |
-| $\rho_1$ | 0.4441 | 0.0451 | 9.8407 | 0.0000 |
-| $\phi_1$ | 0.5718 | 0.0760 | 7.5191 | 0.0000 |
-| $\omega$ | 0.0061 | 0.0024 | 2.5927 | 0.0095 |
-| $\alpha_1$ | 0.2477 | 0.0666 | 3.7198 | 0.0002 |
-| $\beta_1$ | 0.6670 | 0.0735 | 9.0700 | 0.0000 |
-| $\nu$ | 5.0899 | 0.8695 | 5.8540 | 0.0000 |
+| $c$ | 0.0141 | 0.0180 | 0.7828 | 0.4337 |
+| $\rho_1$ | 0.4398 | 0.0452 | 9.7379 | 0.0000 |
+| $\phi_1$ | 0.5770 | 0.0761 | 7.5839 | 0.0000 |
+| $\omega$ | 0.0060 | 0.0022 | 2.6762 | 0.0074 |
+| $\alpha_1$ | 0.2544 | 0.0665 | 3.8256 | 0.0001 |
+| $\beta_1$ | 0.6693 | 0.0679 | 9.8562 | 0.0000 |
+| $\nu$ | 4.9892 | 0.8263 | 6.0380 | 0.0000 |
 
 #### GJR-GARCH
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
-| `M062` | Student's $t$ | ARX(1,1) | GJR-GARCH(1,1) | 102.1427 | -188.2854 | -152.0151 |
+| `M062` | Student's $t$ | ARX(1,1) | GJR-GARCH(1,1) | 100.1943 | -184.3886 | -148.0719 |
 
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0216 +0.4340\,\pi_t +0.5660\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0214 +0.4302\,\pi_t +0.5699\,SPF_t + \mu_{t+1}
 $$
 
 Volatility process:
 
 $$
-\hat{\sigma}_t^2 = 0.0054 +0.3015\,(u_{t-1}^+)^2 +0.1484\,(u_{t-1}^-)^2 +0.6979\,\sigma_{t-1}^2
+\hat{\sigma}_t^2 = 0.0053 +0.3145\,(u_{t-1}^+)^2 +0.1458\,(u_{t-1}^-)^2 +0.6995\,\sigma_{t-1}^2
 $$
 
 Reported in README notation. (`arch` estimates the equivalent indicator form.)
@@ -350,53 +407,54 @@ Distribution parameters:
 
 | Parameter | Estimate |
 |---|---:|
-| $\nu$ | 5.0138 |
+| $\nu$ | 4.9530 |
 
-For GJR-GARCH, $\gamma_i-\alpha_i$ is the raw `arch` indicator coefficient; the equation above reports the negative-shock coefficient $\gamma_i$.
+For GJR-GARCH, `arch` estimates the indicator coefficient $\gamma_i-\alpha_i$ (row $\gamma_i-\alpha_i$). The negative-shock coefficient of the README specification is $\gamma_i = \alpha_i + (\gamma_i-\alpha_i)$ (row $\gamma_i$); its standard error uses the delta method on the same robust covariance matrix, $\operatorname{Var}(\hat\gamma_i) = \operatorname{Var}(\hat\alpha_i) + \operatorname{Var}(\widehat{\gamma_i-\alpha_i}) + 2\operatorname{Cov}(\hat\alpha_i, \widehat{\gamma_i-\alpha_i})$.
 
 | Parameter | Coef | Std Err | t-value | p-value |
 |---|---:|---:|---:|---:|
-| $c$ | 0.0216 | 0.0183 | 1.1819 | 0.2373 |
-| $\rho_1$ | 0.4340 | 0.0440 | 9.8613 | 0.0000 |
-| $\phi_1$ | 0.5660 | 0.0741 | 7.6411 | 0.0000 |
-| $\omega$ | 0.0054 | 0.0020 | 2.7726 | 0.0056 |
-| $\alpha_1$ | 0.3015 | 0.0733 | 4.1159 | 0.0000 |
-| $\gamma_1-\alpha_1$ | -0.1531 | 0.0695 | -2.2040 | 0.0275 |
-| $\beta_1$ | 0.6979 | 0.0695 | 10.0370 | 0.0000 |
-| $\nu$ | 5.0138 | 0.8531 | 5.8772 | 0.0000 |
+| $c$ | 0.0214 | 0.0181 | 1.1817 | 0.2373 |
+| $\rho_1$ | 0.4302 | 0.0435 | 9.8960 | 0.0000 |
+| $\phi_1$ | 0.5699 | 0.0739 | 7.7097 | 0.0000 |
+| $\omega$ | 0.0053 | 0.0018 | 2.8957 | 0.0038 |
+| $\alpha_1$ | 0.3145 | 0.0747 | 4.2125 | 0.0000 |
+| $\gamma_1-\alpha_1$ | -0.1687 | 0.0690 | -2.4462 | 0.0144 |
+| $\gamma_1$ | 0.1458 | 0.0718 | 2.0305 | 0.0423 |
+| $\beta_1$ | 0.6995 | 0.0644 | 10.8698 | 0.0000 |
+| $\nu$ | 4.9530 | 0.8237 | 6.0127 | 0.0000 |
 
 #### EGARCH
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
-| `M063` | Student's $t$ | ARX(1,1) | EGARCH(1,1) | 98.4157 | -180.8314 | -144.5611 |
+| `M063` | Student's $t$ | ARX(1,1) | EGARCH(1,1) | 96.3321 | -176.6642 | -140.3475 |
 
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0175 +0.4342\,\pi_t +0.5867\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0175 +0.4290\,\pi_t +0.5919\,SPF_t + \mu_{t+1}
 $$
 
 Volatility process:
 
 $$
-\ln \hat{\sigma}_t^2 = -0.3089 +0.3702\,(|z_{t-1}|-\sqrt{2/\pi}) +0.0551\,z_{t-1} +0.8902\,\ln\sigma_{t-1}^2
+\ln \hat{\sigma}_t^2 = -0.3052 +0.3805\,(|z_{t-1}|-\sqrt{2/\pi}) +0.0628\,z_{t-1} +0.8904\,\ln\sigma_{t-1}^2
 $$
 
 Distribution parameters:
 
 | Parameter | Estimate |
 |---|---:|
-| $\nu$ | 4.7812 |
+| $\nu$ | 4.7151 |
 
 | Parameter | Coef | Std Err | t-value | p-value |
 |---|---:|---:|---:|---:|
-| $c$ | 0.0175 | 0.0044 | 3.9949 | 0.0001 |
-| $\rho_1$ | 0.4342 | 0.0233 | 18.6127 | 0.0000 |
-| $\phi_1$ | 0.5867 | 0.0353 | 16.6237 | 0.0000 |
-| $\omega$ | -0.3089 | 0.1518 | -2.0349 | 0.0419 |
-| $\alpha_1$ | 0.3702 | 0.1193 | 3.1018 | 0.0019 |
-| $\gamma_1$ | 0.0551 | 0.0395 | 1.3949 | 0.1631 |
-| $\beta_1$ | 0.8902 | 0.0520 | 17.1277 | 0.0000 |
-| $\nu$ | 4.7812 | 0.7685 | 6.2216 | 0.0000 |
+| $c$ | 0.0175 | 0.0164 | 1.0683 | 0.2854 |
+| $\rho_1$ | 0.4290 | 0.0424 | 10.1097 | 0.0000 |
+| $\phi_1$ | 0.5919 | 0.0682 | 8.6724 | 0.0000 |
+| $\omega$ | -0.3052 | 0.1433 | -2.1295 | 0.0332 |
+| $\alpha_1$ | 0.3805 | 0.1171 | 3.2493 | 0.0012 |
+| $\gamma_1$ | 0.0628 | 0.0401 | 1.5680 | 0.1169 |
+| $\beta_1$ | 0.8904 | 0.0493 | 18.0473 | 0.0000 |
+| $\nu$ | 4.7151 | 0.7452 | 6.3272 | 0.0000 |
 
 

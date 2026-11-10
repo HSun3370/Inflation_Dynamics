@@ -1,0 +1,93 @@
+{
+  "vintage": "2026-10-20",
+  "workbook": "Aggregate_CPI_inflation_20261020.xlsx",
+  "reference_workbook": "Aggregate_CPI_inflation_20230513.xls",
+  "raw_files": {
+    "cpi": "raw/CPIAUCSL_20261020.csv",
+    "spf": "raw/median_pgdp_level_20261020.xlsx"
+  },
+  "cpi_coverage": [
+    "1947-01",
+    "2026-09"
+  ],
+  "spf_target_coverage": [
+    "1969Q1",
+    "2026Q4"
+  ],
+  "missing_cpi_months": [
+    "2025-10"
+  ],
+  "cpi_gap_rule": "geometric (log-linear) interpolation between the nearest published months",
+  "interpolated_cpi_months": [
+    {
+      "month": "2025-10",
+      "value": 324.6537423702369
+    }
+  ],
+  "quarterly": {
+    "pickle": "Aggregate_CPI_inflation_Quarterly.pkl",
+    "start": "1969Q2",
+    "end": "2026Q3",
+    "nobs": 230,
+    "missing_inflation": [],
+    "rows_with_missing_values": []
+  },
+  "monthly": {
+    "pickle": "Aggregate_CPI_inflation_Monthly.pkl",
+    "start": "1969-02",
+    "end": "2026-09",
+    "nobs": 692,
+    "missing_inflation": [],
+    "rows_with_missing_values": []
+  },
+  "reference_check": {
+    "quarterly": {
+      "reference_window": [
+        "1947Q1",
+        "2022Q4"
+      ],
+      "Price": {
+        "max_abs_diff_checked": 0.0,
+        "max_abs_diff_since_revision_start": 0.228999999999985,
+        "n_revised_since_revision_start": 16
+      },
+      "Inflation": {
+        "max_abs_diff_checked": 0.0,
+        "max_abs_diff_since_revision_start": 0.14253166547502083,
+        "n_revised_since_revision_start": 16
+      },
+      "SPF": {
+        "max_abs_diff_checked": 0.0
+      },
+      "Shock": {
+        "max_abs_diff_checked": 0.0,
+        "max_abs_diff_since_revision_start": 0.14253166547502083,
+        "n_revised_since_revision_start": 16
+      }
+    },
+    "monthly": {
+      "reference_window": [
+        "1947-01",
+        "2022-12"
+      ],
+      "Price": {
+        "max_abs_diff_checked": 0.0,
+        "max_abs_diff_since_revision_start": 0.285000000000025,
+        "n_revised_since_revision_start": 48
+      },
+      "Inflation": {
+        "max_abs_diff_checked": 0.0,
+        "max_abs_diff_since_revision_start": 0.17248116782937473,
+        "n_revised_since_revision_start": 48
+      },
+      "SPF": {
+        "max_abs_diff_checked": 2.220446049250313e-14
+      },
+      "Shock": {
+        "max_abs_diff_checked": 2.220446049250313e-14,
+        "max_abs_diff_since_revision_start": 0.17248116782937473,
+        "n_revised_since_revision_start": 48
+      }
+    }
+  }
+}

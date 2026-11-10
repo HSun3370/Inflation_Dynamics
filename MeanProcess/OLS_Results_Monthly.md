@@ -2,6 +2,11 @@
 #set page(margin: auto)
 ```
 
+```{raw:typst}
+#set text(fill: rgb("#808080"))
+#show text: set text(fill: rgb("#808080"))
+```
+
 # OLS Results (Monthly)
 
 Estimation results of four mean models on the monthly effective sample (1969-02--2026-05, 688 observations) with HAC(12) standard errors in parentheses below each estimate. (The log-likelihood is computed under the Gaussian assumption.)

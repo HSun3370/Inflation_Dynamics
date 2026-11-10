@@ -2,6 +2,11 @@
 #set page(margin: auto)
 ```
 
+```{raw:typst}
+#set text(fill: rgb("#808080"))
+#show text: set text(fill: rgb("#808080"))
+```
+
 # Best Regime-Switching Model
 
 Selected by AIC among estimates that passed optimizer convergence, stationarity, parameter-bound, distribution, and transition checks.

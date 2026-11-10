@@ -46,6 +46,23 @@ ROOT = Path(__file__).resolve().parents[1]
 RS_DIR = Path(__file__).resolve().parent
 OUT_DIR = RS_DIR / "results"
 TYPST_PREAMBLE = "```{raw:typst}\n#set page(margin: auto)\n```"
+MONTHLY_TYPST_STYLE = (
+    '```{raw:typst}\n'
+    '#set text(fill: rgb("#808080"))\n'
+    '#show text: set text(fill: rgb("#808080"))\n'
+    '```\n\n'
+)
+
+
+def style_monthly_report(markdown: str, data_path: Path | None) -> str:
+    """De-emphasize monthly PDF reports without changing estimation results."""
+    if data_path is not None and "monthly" in data_path.name.lower():
+        return markdown.replace(
+            TYPST_PREAMBLE, TYPST_PREAMBLE + "\n\n" + MONTHLY_TYPST_STYLE, 1
+        )
+    return markdown
+
+
 N_STARTS = 50
 EM_ITER = 50
 MLE_MAXITER = 1500
@@ -1090,11 +1107,13 @@ def rebuild_reports_from_csv(
     best_result = _reconstruct_result_from_saved_params(df, best_aic, best_params)
 
     md_path.write_text(
-        build_results_markdown(results_df),
+        style_monthly_report(build_results_markdown(results_df), data_path),
         encoding="utf-8",
     )
     best_md_path.write_text(
-        build_best_model_markdown(best_aic, best_params, best_result, df, out_dir),
+        style_monthly_report(
+            build_best_model_markdown(best_aic, best_params, best_result, df, out_dir), data_path
+        ),
         encoding="utf-8",
     )
 
@@ -1222,11 +1241,13 @@ def main(argv: list[str] | None = None) -> None:
     failed_checks_df.to_csv(failed_checks_csv, index=False)
 
     md_path.write_text(
-        build_results_markdown(results_df),
+        style_monthly_report(build_results_markdown(results_df), data_path),
         encoding="utf-8",
     )
     best_md_path.write_text(
-        build_best_model_markdown(best_aic, best_params, best_result, df, out_dir),
+        style_monthly_report(
+            build_best_model_markdown(best_aic, best_params, best_result, df, out_dir), data_path
+        ),
         encoding="utf-8",
     )
 

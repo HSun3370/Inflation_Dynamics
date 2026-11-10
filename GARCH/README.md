@@ -55,21 +55,34 @@ The likelihood, the fitted $\sigma_t^2$ path, and all forecasts are identical un
 
 ## Estimation Initialization And Collection
 
-The GARCH-family estimation is executed by the `arch` package.
-For each distribution, mean process, volatility family, and order, the script
-tries the package default optimizer start and additional randomized feasible
-starts. For ARX mean specifications, the mean-parameter block in randomized
-starts is drawn from OLS-centered intervals, $\hat\theta_j \pm 2\,SE(\hat\theta_j)$,
-while volatility and distribution parameters are randomized over feasible
-regions. The current reporting run uses 50 starts per model combination. The
-preferred reported estimate is the highest log-likelihood estimate among starts
-that both converged according to the optimizer and passed the relevant
-stationarity proxy with a small numerical margin below one (`1e-6`). If none of
-the 50 starts passes all checks, the script reports the best optimizer-converged
-attempted log likelihood for that model combination and flags the row in the
-CSV `selection_status` column. Attempt-level restart diagnostics are also saved
-for audit. Conditional-variance recursion starts use the default initialization
-implemented by the `arch` package.
+The GARCH-family estimation is executed by the `arch` package (version 7.0.0), which maximizes the likelihood by SLSQP subject to its own parameter bounds and linear constraints. Each model combination (distribution, mean process, volatility family, and order) uses **5,000 optimizer starts**. Start 1 is the `arch` default start; for the Gaussian mixture it is the Student's $t$ estimates with $(p_1,\mu_1,\sigma_1^2)=(0.3,0.1,1)$ when that vector is feasible, and the `arch` default otherwise. The other 4,999 starts are random draws.
+
+Every random draw lies inside `arch`'s feasible set and inside the stationary region, where volatility persistence and the inflation-lag AR roots are below $1-10^{-6}$ in modulus. The feasible-set requirement matters because `arch` silently replaces any infeasible starting vector with its default start. Within those sets the draws are as wide as possible. Parameters that `arch` bounds are drawn over their full `arch` range. Parameters that `arch` leaves unbounded (mean-process coefficients, EGARCH $\alpha_i$ and $\gamma_j$) are drawn over the finite ranges listed in the *Parameter Ranges and Random Starts* table at the beginning of each results report.
+
+The reported estimate for a combination is the highest log likelihood among starts that pass five checks:
+
+- the optimizer converged (SLSQP success and `arch` convergence flag 0);
+- the first-order (KKT) conditions hold: the numerical gradient of the log likelihood, net of non-negative multipliers on the active bounds and constraints, is at most $0.005\,T$ in absolute value;
+- the volatility stationarity condition holds with a margin of $10^{-6}$;
+- the inflation-lag AR roots lie inside the unit circle;
+- for the Gaussian mixture, the two component variances satisfy $\min(\sigma_1^2,\sigma_2^2)/\max(\sigma_1^2,\sigma_2^2)\ge 0.01$.
+
+The second check is needed because, with 5,000 wide starts, SLSQP occasionally reports success at points on extremely steep ridges of the likelihood, where gradients are $10^1$--$10^6$; these points are not maxima. SLSQP also sometimes stops just short of a genuine maximum. So when a start that would become the best fails the check, SLSQP is restarted from its own solution (up to five times) before the check is applied again; ridge points do not move and stay rejected. The last check is a Hathaway-type restriction that keeps the mixture likelihood bounded. Without it, the best mixture fits put a component with variance $10^{-6}$ (the `MixNormal` lower bound) and weight of a few percent on one or two standardized residuals. If no start passes all checks, the script reports the best converged start that satisfies the first-order conditions and flags the row in the CSV `selection_status` column. The summary CSV also records, for each combination, how many starts were admissible, how many reached the reported log likelihood (within 0.01), and which parameters of the reported estimate sit on an `arch` bound. Every start's outcome is saved in `garch_family_restart_attempts.csv.gz`, which is kept out of git because of its size. Conditional-variance recursion starts use the default initialization implemented by the `arch` package.
+
+Standard errors are robust (sandwich) and are computed only for each combination's reported estimate. For GJR-GARCH, `arch` estimates the indicator form $\sigma_t^2=\omega+\alpha_i u_{t-i}^2+(\gamma_i-\alpha_i)u_{t-i}^2\mathbf 1(u_{t-i}<0)+\dots$. The reports therefore add the negative-shock coefficient $\gamma_i=\alpha_i+(\gamma_i-\alpha_i)$ of the specification above. Its standard error comes from the delta method on the same covariance matrix, including the covariance term:
+$$
+\operatorname{Var}(\hat\gamma_i)=\operatorname{Var}(\hat\alpha_i)+\operatorname{Var}(\widehat{\gamma_i-\alpha_i})+2\operatorname{Cov}(\hat\alpha_i,\widehat{\gamma_i-\alpha_i}).
+$$
+
+### Running the search on the CBS Grid
+
+```
+bash GARCH/submit_garch_grid.sh submit    # one job per combination + a held collector per frequency
+bash GARCH/submit_garch_grid.sh status    # finished combinations and queue state
+bash GARCH/submit_garch_grid.sh collect   # collect again by hand if needed
+```
+
+Each combination runs as a single-core job with 1 GB of memory. At 5,000 starts a job takes about 10 minutes with normal innovations, 15--20 minutes with Student's $t$, and about an hour with the Gaussian mixture. Per-combination results, SGE logs, and job scripts go to `/scratch/hs3370/Inflation_Dynamics/GARCH/<run>/`. The collector then writes `results_garch_distributions/` (quarterly) and `results_garch_distributions_monthly/` (monthly). Without the Grid, `python estimate_garch_results.py` runs all combinations in sequence.
 
 
 ## Log-Likelihood Specifications
@@ -148,9 +161,14 @@ $$
 \ln L(\theta) \;=\; -\sum_{t=1}^{T}\ln\sigma_t \;+\; \sum_{t=1}^{T}\ln \left[\,p_1\,\varphi(z_t;\,\mu_1,\sigma_1^{2}) \;+\; p_2\,\varphi(z_t;\,\mu_2,\sigma_2^{2})\right].
 $$
 
+```{raw:typst}
+#set text(fill: rgb("#808080"))
+#show text: set text(fill: rgb("#808080"))
+```
+
 ## Monthly Estimation
 
-The same estimation menu (three volatility families, four mean processes, three residual distributions, 50 starts per combination) can be run on the monthly effective sample (1969M2--2026M5, 688 observations):
+The same estimation menu (three volatility families, four mean processes, three residual distributions, 5,000 starts per combination) is run on the monthly effective sample of the newest data vintage (see the Data Summary). `submit_garch_grid.sh` runs both frequencies by default; the sequential equivalent is:
 
 ```
 python estimate_garch_results.py \

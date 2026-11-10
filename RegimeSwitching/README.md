@@ -61,8 +61,14 @@ By default `estimate_regime_switching_models.py` estimates on the quarterly
 effective sample (`DataSummary/Aggregate_CPI_inflation_Quarterly.pkl`,
 1969Q2--2026Q1, 228 observations after the 2026-07-14 data update; the
 committed quarterly results in `results/` were estimated on the previous
-1969Q2--2022Q4, 215-observation sample) and writes to `results/`. The same
-specification menu can be estimated on the monthly effective sample
+1969Q2--2022Q4, 215-observation sample) and writes to `results/`.
+
+```{raw:typst}
+#set text(fill: rgb("#808080"))
+#show text: set text(fill: rgb("#808080"))
+```
+
+The same specification menu can be estimated on the monthly effective sample
 (`DataSummary/Aggregate_CPI_inflation_Monthly.pkl`, 1969M2--2026M5,
 688 observations) with the `--data-path` and `--output-dir` flags; monthly
 results are stored in `results_monthly/`:

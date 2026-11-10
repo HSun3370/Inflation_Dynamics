@@ -2,6 +2,11 @@
 #set page(margin: auto)
 ```
 
+```{raw:typst}
+#set text(fill: rgb("#808080"))
+#show text: set text(fill: rgb("#808080"))
+```
+
 Each model is selected from 50 starts; only estimates that passed all checks (optimizer convergence, AR stationarity, parameter bounds, and valid transition probabilities) are reported. Specifications where no start passed all checks are excluded. `Sw.Dist` reflects whether $\sigma^2$ is regime-specific.
 
 | Mean | K | Sw.AR | Sw.SPF | Sw.Dist | LogLik | AIC | BIC |

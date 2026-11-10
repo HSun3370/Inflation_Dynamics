@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -234,8 +235,9 @@ def run_seed(
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_effective_sample(PROJECT_ROOT)
-    if len(df) != 215:
-        print(f"[WARN] Effective sample length is {len(df)} (expected 215).")
+    expected_nobs = json.loads((PROJECT_ROOT / "DataSummary" / "data_vintage.json").read_text())["quarterly"]["nobs"]
+    if len(df) != expected_nobs:
+        print(f"[WARN] Effective sample length is {len(df)} (expected {expected_nobs}).")
 
     _require_columns(df, ["Inflation", "SPF", "SPF_shock"], "BadGood BEGE runner")
     specs = build_model_specs(
