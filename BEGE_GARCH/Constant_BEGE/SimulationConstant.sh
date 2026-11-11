@@ -4,13 +4,15 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
 source "${SCRIPT_DIR}/../cbs_grid.sh"
-OUTPUT_DIR="${OUTPUT_DIR:-${SCRATCH_ROOT}/BEGE_GARCH/$(basename "${SCRIPT_DIR}")/output}"
+FREQUENCY="${FREQUENCY:-quarterly}"
+RESULTS_DIR=$(bege_results_dir "${SCRIPT_DIR}" "${FREQUENCY}")
+OUTPUT_DIR="${OUTPUT_DIR:-${SCRATCH_ROOT}/BEGE_GARCH/$(basename "${SCRIPT_DIR}")/output_${FREQUENCY}_$(bege_data_vintage "${PROJECT_ROOT}")}"
 ACTION_NAME="BEGE_Constant_RandomSearch"
 PY_SCRIPT="${SCRIPT_DIR}/BEGE_constant.py"
 COLLECT_SCRIPT="${SCRIPT_DIR}/collect_constant_results.py"
 
 START_ID="${START_ID:-1}"
-END_ID="${END_ID:-50}"
+END_ID="${END_ID:-10}"
 N_DRAWS="${N_DRAWS:-40}"
 N_STARTS="${N_STARTS:-25}"
 MAXITER="${MAXITER:-1500}"
@@ -29,9 +31,10 @@ Usage:
   bash ${0} collect   Merge existing raw CSV files and write markdown now (interactive grid_run).
 
 Environment overrides:
+  FREQUENCY=${FREQUENCY}  # quarterly or monthly; results go to ${RESULTS_DIR}
   START_ID=${START_ID} END_ID=${END_ID}
   N_DRAWS=${N_DRAWS} N_STARTS=${N_STARTS} MAXITER=${MAXITER} TOL=${TOL}
-  INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 reports all four mean processes
+  INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 reports all six mean processes
   SUBMIT_COLLECTOR=${SUBMIT_COLLECTOR}
   OUTPUT_DIR=${OUTPUT_DIR}  # raw CSVs, SGE logs and job scripts
   GRID_NCPUS=${GRID_NCPUS} GRID_MEM=${GRID_MEM} COLLECT_MEM=${COLLECT_MEM}  # memory is the job total
@@ -61,9 +64,10 @@ build_python_args() {
 }
 
 run_collect_now() {
-    mkdir -p "${SCRIPT_DIR}/results"
+    mkdir -p "${RESULTS_DIR}"
     cd "${PROJECT_ROOT}"
-    START_ID="${START_ID}" END_ID="${END_ID}" BEGE_COLLECT_OUTPUT_DIR="${OUTPUT_DIR}" \
+    START_ID="${START_ID}" END_ID="${END_ID}" BEGE_FREQUENCY="${FREQUENCY}" \
+        BEGE_COLLECT_OUTPUT_DIR="${OUTPUT_DIR}" BEGE_COLLECT_RESULTS_DIR="${RESULTS_DIR}" \
         grid_python_now "${COLLECT_MEM}" "${COLLECT_SCRIPT}"
 }
 
@@ -80,6 +84,7 @@ submit_collector() {
 set -euo pipefail
 
 $(python_setup_block)
+export BEGE_FREQUENCY=${FREQUENCY}
 
 cd ${PROJECT_ROOT}
 
@@ -87,7 +92,7 @@ echo "\${JOB_NAME:-} (job \${JOB_ID:-}) on \$(hostname)"
 echo "Collector starts \$(date)"
 start_time=\$(date +%s)
 
-START_ID=${START_ID} END_ID=${END_ID} BEGE_COLLECT_OUTPUT_DIR="${OUTPUT_DIR}" python3 -u "${COLLECT_SCRIPT}"
+START_ID=${START_ID} END_ID=${END_ID} BEGE_COLLECT_OUTPUT_DIR="${OUTPUT_DIR}" BEGE_COLLECT_RESULTS_DIR="${RESULTS_DIR}" python3 -u "${COLLECT_SCRIPT}"
 
 echo "Collector ends \$(date)"
 $(elapsed_block)
@@ -125,6 +130,7 @@ submit_jobs() {
 set -euo pipefail
 
 $(python_setup_block)
+export BEGE_FREQUENCY=${FREQUENCY}
 
 cd ${PROJECT_ROOT}
 

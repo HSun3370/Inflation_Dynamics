@@ -4,13 +4,15 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
 source "${SCRIPT_DIR}/../cbs_grid.sh"
-OUTPUT_DIR="${OUTPUT_DIR:-${SCRATCH_ROOT}/BEGE_GARCH/$(basename "${SCRIPT_DIR}")/output}"
+FREQUENCY="${FREQUENCY:-quarterly}"
+RESULTS_DIR=$(bege_results_dir "${SCRIPT_DIR}" "${FREQUENCY}")
+OUTPUT_DIR="${OUTPUT_DIR:-${SCRATCH_ROOT}/BEGE_GARCH/$(basename "${SCRIPT_DIR}")/output_${FREQUENCY}_$(bege_data_vintage "${PROJECT_ROOT}")}"
 ACTION_NAME="${ACTION_NAME:-BadGood_BEGE_RandomSearch}"
 PY_SCRIPT="${SCRIPT_DIR}/BG_GJR1.py"
 COLLECT_SCRIPT="${SCRIPT_DIR}/collect_bg_results.py"
 
 START_ID="${START_ID:-1}"
-END_ID="${END_ID:-50}"
+END_ID="${END_ID:-10}"
 N_DRAWS="${N_DRAWS:-40}"
 N_STARTS="${N_STARTS:-25}"
 MAXITER="${MAXITER:-800}"
@@ -19,7 +21,7 @@ INCLUDE_ARX22="${INCLUDE_ARX22:-1}"
 MEAN_TYPE="${MEAN_TYPE:-all}"
 RUN_OUTPUT_DIR="${RUN_OUTPUT_DIR:-${OUTPUT_DIR}}"
 COLLECT_OUTPUT_DIR="${COLLECT_OUTPUT_DIR:-${RUN_OUTPUT_DIR}}"
-COLLECT_RESULTS_DIR="${COLLECT_RESULTS_DIR:-${SCRIPT_DIR}/results}"
+COLLECT_RESULTS_DIR="${COLLECT_RESULTS_DIR:-${RESULTS_DIR}}"
 USE_SHAPE_INITIALIZATION="${USE_SHAPE_INITIALIZATION:-0}"
 DENSITY_HYPERU_METHOD="${DENSITY_HYPERU_METHOD:-scipy_approx}"
 COMPUTE_SE="${COMPUTE_SE:-0}"
@@ -37,9 +39,10 @@ Usage:
   bash ${0} estimate  Print rough optimizer-start and wall-time estimates.
 
 Environment overrides:
+  FREQUENCY=${FREQUENCY}  # quarterly or monthly; results go to ${RESULTS_DIR}
   START_ID=${START_ID} END_ID=${END_ID}
   N_DRAWS=${N_DRAWS} N_STARTS=${N_STARTS} MAXITER=${MAXITER} TOL=${TOL}
-  INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 estimates all four mean processes
+  INCLUDE_ARX22=${INCLUDE_ARX22}  # 1 estimates all six mean processes
   MEAN_TYPE=${MEAN_TYPE}          # all, constant, ARX(1,1), ARX(2,1), or ARX(2,2)
   RUN_OUTPUT_DIR=${RUN_OUTPUT_DIR}
   COLLECT_OUTPUT_DIR=${COLLECT_OUTPUT_DIR}
@@ -53,8 +56,8 @@ Environment overrides:
   PYTHON_ENV_BIN=${PYTHON_ENV_BIN}
 
 Default workload:
-  50 seed jobs x 40 draws x 25 starts = 50,000 starts per mean process.
-  With all four mean processes, this is 200,000 optimizer starts total.
+  10 seed jobs x 40 draws x 25 starts = 10,000 starts per mean process.
+  With all six mean processes, this is 60,000 optimizer starts total.
   Each seed job writes one CSV only after it finishes.
 USAGE
 }
@@ -65,9 +68,9 @@ mean_count() {
         return
     fi
     if [ "${INCLUDE_ARX22}" = "1" ]; then
-        printf '4\n'
+        printf '6\n'
     else
-        printf '3\n'
+        printf '5\n'
     fi
 }
 
@@ -124,7 +127,7 @@ build_python_args() {
 run_collect_now() {
     mkdir -p "${COLLECT_RESULTS_DIR}"
     cd "${PROJECT_ROOT}"
-    START_ID="${START_ID}" END_ID="${END_ID}" \
+    START_ID="${START_ID}" END_ID="${END_ID}" BEGE_FREQUENCY="${FREQUENCY}" \
         BEGE_COLLECT_OUTPUT_DIR="${COLLECT_OUTPUT_DIR}" \
         BEGE_COLLECT_RESULTS_DIR="${COLLECT_RESULTS_DIR}" \
         grid_python_now "${COLLECT_MEM}" "${COLLECT_SCRIPT}"
@@ -143,6 +146,7 @@ submit_collector() {
 set -euo pipefail
 
 $(python_setup_block)
+export BEGE_FREQUENCY=${FREQUENCY}
 
 cd ${PROJECT_ROOT}
 
@@ -193,6 +197,7 @@ submit_jobs() {
 set -euo pipefail
 
 $(python_setup_block)
+export BEGE_FREQUENCY=${FREQUENCY}
 
 cd ${PROJECT_ROOT}
 

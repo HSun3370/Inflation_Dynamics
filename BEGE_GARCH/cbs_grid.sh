@@ -23,8 +23,28 @@ SCRATCH_ROOT="${SCRATCH_ROOT:-/scratch/$(whoami)/Inflation_Dynamics}"
 python_setup_block() {
     cat <<EOF
 export PATH="${PYTHON_ENV_BIN}:\${PATH}"
+# One BLAS/OpenMP thread per process: on 128-core hosts the default thread pools of the
+# main process and its start workers reserve enough virtual memory to exceed h_vmem.
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMBA_NUM_THREADS=1
 echo "Python: \$(command -v python3) (\$(python3 --version 2>&1)), NSLOTS=\${NSLOTS:-unset}"
 EOF
+}
+
+# bege_results_dir SCRIPT_DIR FREQUENCY
+# Collected BEGE results folder: results/ for quarterly, results_monthly/ for monthly.
+bege_results_dir() {
+    case "$2" in
+        quarterly) printf '%s\n' "$1/results" ;;
+        monthly) printf '%s\n' "$1/results_monthly" ;;
+        *) printf "FREQUENCY must be quarterly or monthly, not '%s'.\n" "$2" >&2; return 1 ;;
+    esac
+}
+
+# bege_data_vintage PROJECT_ROOT
+# Data vintage date from DataSummary/data_vintage.json; it names the raw-output folder so a
+# data update never resumes from, or collects, seed files estimated on an older vintage.
+bege_data_vintage() {
+    sed -n 's/^ *"vintage": *"\([^"]*\)".*/\1/p' "$1/DataSummary/data_vintage.json"
 }
 
 # grid_submit_batch LOG_DIR JOB_SCRIPT NCPUS MEM [HOLD_JOB_IDS]

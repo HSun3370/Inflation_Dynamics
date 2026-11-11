@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-arx22",
         action="store_true",
-        help="Skip ARX(2,2). By default all four mean processes are estimated.",
+        help="Skip ARX(2,2). By default all six mean processes are estimated.",
     )
     parser.add_argument(
         "--print-summary",

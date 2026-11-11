@@ -2,10 +2,9 @@
 #set page(margin: auto)
 ```
 
-
 # OLS Results (Quarterly)
 
-Estimation results of four mean models with HAC standard errors in parentheses below each estimate. (The log-likelihood is computed under the Gaussian assumption.)
+Estimation results of the six mean models on the quarterly effective sample (1969Q2--2026Q3, 230 observations) with HAC(12) standard errors in parentheses below each estimate. (The log-likelihood is computed under the Gaussian assumption.) ARX(1,1) has the lowest AIC and BIC.
 
 **Constant**:
 
@@ -13,54 +12,83 @@ $$
 \hat{\pi}_{t+1} = SPF_t
 $$
 
-No estimated coefficients. Residuals $\mu_{t+1} = \pi_{t+1} - SPF_t$.
+No estimated coefficients. Residuals $u_{t+1} = \pi_{t+1} - SPF_t$.
 
-- Log-likelihood: **-222.664**
-- AIC: **447.329**, BIC: **450.700**
-- Residual skewness: **-0.713**, excess kurtosis: **7.301**
+- Log-likelihood: **-232.436**
+- AIC: **466.871**, BIC: **470.309**
+- Residual skewness: **-0.693**, excess kurtosis: **7.702**
+
+**ARX(1,0)**:
+
+$$
+\begin{array}{rl}
+\hat{\pi}_{t+1} = & \begin{array}{cc}
+0.4010 & +\,0.5894\,\pi_t \\
+(0.087) & (0.121)
+\end{array}
+\end{array}
+$$
+
+- Log-likelihood: **-235.369**
+- AIC: **474.739**, BIC: **481.615**
+- Residual skewness: **-0.732**, excess kurtosis: **6.997**
 
 **ARX(1,1)**:
 
 $$
 \begin{array}{rl}
 \hat{\pi}_{t+1} = & \begin{array}{ccc}
-0.0824 & +\,0.3005\,\pi_t & +\,0.7337\,SPF_t \\
-(0.086) & (0.112) & (0.167)
+0.0798 & +\,0.2862\,\pi_t & +\,0.7529\,SPF_t \\
+(0.085) & (0.107) & (0.163)
 \end{array}
 \end{array}
 $$
 
-- Log-likelihood: **-207.381**
-- AIC: **420.762**, BIC: **430.874**
-- Residual skewness: **-1.047**, excess kurtosis: **8.210**
+- Log-likelihood: **-216.769**
+- AIC: **439.538**, BIC: **449.852**
+- Residual skewness: **-1.034**, excess kurtosis: **8.486**
+
+**ARX(2,0)**:
+
+$$
+\begin{array}{rl}
+\hat{\pi}_{t+1} = & \begin{array}{ccc}
+0.2859 & +\,0.4211\,\pi_t & +\,0.2849\,\pi_{t-1} \\
+(0.085) & (0.079) & (0.087)
+\end{array}
+\end{array}
+$$
+
+- Log-likelihood: **-225.631**
+- AIC: **457.262**, BIC: **467.576**
+- Residual skewness: **-1.252**, excess kurtosis: **10.192**
 
 **ARX(2,1)**:
 
 $$
 \begin{array}{rl}
 \hat{\pi}_{t+1} = & \begin{array}{cccc}
-0.0897 & +\,0.2892\,\pi_t & +\,0.0834\,\pi_{t-1} & +\,0.6385\,SPF_t \\
-(0.086) & (0.098) & (0.126) & (0.251)
+0.0873 & +\,0.2751\,\pi_t & +\,0.0872\,\pi_{t-1} & +\,0.6526\,SPF_t \\
+(0.084) & (0.094) & (0.124) & (0.244)
 \end{array}
 \end{array}
 $$
 
-- Log-likelihood: **-206.810**
-- AIC: **421.619**, BIC: **435.102**
-- Residual skewness: **-1.191**, excess kurtosis: **9.050**
+- Log-likelihood: **-216.097**
+- AIC: **440.193**, BIC: **453.946**
+- Residual skewness: **-1.189**, excess kurtosis: **9.393**
 
 **ARX(2,2)**:
 
 $$
 \begin{array}{rl}
 \hat{\pi}_{t+1} = & \begin{array}{ccccc}
-0.0856 & +\,0.2992\,\pi_t & +\,0.0914\,\pi_{t-1} & +\,0.4084\,SPF_t & +\,0.2136\,SPF_{t-1} \\
-(0.086) & (0.106) & (0.125) & (0.433) & (0.297)
+0.0847 & +\,0.2804\,\pi_t & +\,0.0923\,\pi_{t-1} & +\,0.5150\,SPF_t & +\,0.1283\,SPF_{t-1} \\
+(0.085) & (0.099) & (0.123) & (0.397) & (0.271)
 \end{array}
 \end{array}
 $$
 
-- Log-likelihood: **-206.660**
-- AIC: **423.319**, BIC: **440.172**
-- Residual skewness: **-1.212**, excess kurtosis: **9.129**
-
+- Log-likelihood: **-216.036**
+- AIC: **442.072**, BIC: **459.262**
+- Residual skewness: **-1.201**, excess kurtosis: **9.434**

@@ -26,6 +26,18 @@ $$
 
 **Constraints.** The forecast coefficient is fixed at one; there is no estimated intercept or autoregressive coefficient.
 
+**ARX(1,0).**
+
+$$
+\hat{\pi}_{t+1}=c+\rho_1\pi_t.
+$$
+
+**Constraints.**
+
+$$
+c\in\mathbb R,\qquad |\rho_1|<1-\varepsilon.
+$$
+
 **ARX(1,1).**
 
 $$
@@ -39,6 +51,14 @@ c,\phi_1\in\mathbb R,\qquad |\rho_1|<1-\varepsilon.
 $$
 
 The intercept and SPF loading have no finite parameter bounds. Only the inflation-lag coefficient enters the stationarity restriction.
+
+**ARX(2,0).**
+
+$$
+\hat{\pi}_{t+1}=c+\rho_1\pi_t+\rho_2\pi_{t-1}.
+$$
+
+**Constraints.** The intercept is unrestricted, and the AR(2) restrictions stated for ARX(2,1) below apply.
 
 **ARX(2,1).**
 

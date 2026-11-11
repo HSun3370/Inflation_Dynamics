@@ -92,9 +92,8 @@ $$
 
 enforced during optimization (with the same $10^{-6}$ margin used by the
 GJR-type stability constraints) and re-checked at collection. The mean-process
-menu, mean-parameter bounds, mean-stationarity checks, EWMA implied-variance
-bounds, density evaluator, random-search protocol, and selection rules are
-identical to the other BEGE specifications (see `BEGE_GARCH/README.md`).
+menu, mean-parameter bounds, mean-stationarity checks, density evaluator,
+random-search protocol, and selection rules are identical to the other BEGE specifications (see `BEGE_GARCH/README.md`).
 
 ## Initialization and Numerical Guards
 
@@ -104,8 +103,7 @@ identical to the other BEGE specifications (see `BEGE_GARCH/README.md`).
   $\sqrt{2/\pi}$ centering convention).
 - Shape paths are floored at $10^{-4}$, the same numerical floor used by
   `gjr_recursion`.
-- Log shapes are capped at $50$ to avoid overflow; such explosive paths are
-  subsequently rejected by the EWMA implied-variance bounds.
+- Log shapes are capped at $50$ to avoid overflow.
 
 ## Starting Values
 
@@ -127,8 +125,8 @@ models.
   errors for the best model, and writes `results/best_model.md` plus this
   folder's `README.md`.
 - `SimulationEGARCH.sh` — CBS Research Grid (`grid_run`/SGE) submission script
-  for the canonical server-side protocol (50 seed jobs × 40 draws × 25 starts =
-  50,000 starts per mean process).
+  for the canonical server-side protocol (10 seed jobs × 40 draws × 25 starts =
+  10,000 starts per mean process).
 
 The estimator is `BEGE_FullEGARCH_MLE` in `BEGE_GARCH/BEGE_GARCH.py`, and the
 collection layer treats this model as family `full_egarch` in

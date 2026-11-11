@@ -3,12 +3,24 @@
 Outputs:
 - results/regime_switching_results.csv
 - results/regime_switching_parameters.csv
+- results/regime_switching_attempts.csv.gz (every optimizer start; not tracked in git)
+- results/regime_switching_stability_attempts.csv (final-solution perturbation checks)
 - results/regime_switching_results.md
 - results/regime_switching_best_model.md
+
+Run modes
+- Sequential (default): run every start of every specification, then write the outputs.
+- Grid: ``--model-id Rxx --attempts FIRST LAST --raw-dir DIR`` runs one block of
+  starts for one specification and pickles it to DIR; ``--collect --raw-dir DIR``
+  merges the blocks and writes the outputs. ``submit_regime_switching_grid.sh``
+  drives both on the CBS Grid. ``--list-models`` prints the specification ids.
+- ``--verify-saved`` orders and locally verifies saved provisional estimates;
+  reports retain the provenance of the original search's collection rules.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -63,13 +75,16 @@ def style_monthly_report(markdown: str, data_path: Path | None) -> str:
     return markdown
 
 
-N_STARTS = 50
+N_STARTS = 5000
 EM_ITER = 50
 MLE_MAXITER = 1500
 STATIONARITY_MARGIN = 1e-6
-SIGMA2_BOUNDARY_TOL = 1e-6
-SIGMA2_RELATIVE_FLOOR = 1e-3
-TRANSITION_BOUNDARY_TOL = 1e-4
+# Bekaert et al. specify the perturb-and-refit check, but not these tuning values.
+STABILITY_REPS = 20
+STABILITY_SCALE = 0.05
+STABILITY_LLF_TOL = 1e-4
+STABILITY_MAX_ROUNDS = 3
+METHODOLOGY_VERSION = "bekaert-identification-stability-v1"
 REGIME_COLORS = ["#d62728", "#2ca02c", "#1f77b4"]
 
 
@@ -361,6 +376,61 @@ def _value_by_regime(estimates: dict[str, float], base_name: str, regime: int) -
     return np.nan
 
 
+def _variance_ordered_params(model: Any, params: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Relabel every switching block and both transition axes by shock variance."""
+    original = np.asarray(params, dtype=float)
+    variances = np.asarray([
+        original[model.parameters[r, "variance"]][0] for r in range(model.k_regimes)
+    ])
+    order = np.argsort(variances, kind="stable")
+    ordered = original.copy()
+    for block in model.parameters.k_parameters:
+        if block == "regime_transition":
+            continue
+        for new_regime, old_regime in enumerate(order):
+            ordered[model.parameters[new_regime, block]] = original[
+                model.parameters[int(old_regime), block]
+            ]
+    transition = model.regime_transition_matrix(original)[:, :, 0]
+    transition = transition[np.ix_(order, order)]
+    ordered[model.parameters["regime_transition"]] = transition[:-1].ravel()
+    return ordered, order
+
+
+def _variance_ordered_result(result: Any) -> tuple[Any, np.ndarray]:
+    params, order = _variance_ordered_params(result.model, result.params)
+    if np.array_equal(order, np.arange(result.model.k_regimes)):
+        return result, order
+    ordered = result.model.smooth(params, transformed=True, cov_type="none")
+    for attr in ("mle_retvals", "mle_settings"):
+        if hasattr(result, attr):
+            setattr(ordered, attr, getattr(result, attr))
+    if not np.isclose(ordered.llf, result.llf, rtol=0, atol=1e-7):
+        raise ValueError("Variance relabeling changed the log likelihood.")
+    return ordered, order
+
+
+def _optimization_coordinates(model: Any, params: np.ndarray) -> np.ndarray:
+    """Invert the transition softmax analytically, including near-boundary fits.
+
+    statsmodels 0.14.2 uses a nonlinear root solve for K > 2. Avoid that solve
+    when constructing local perturbations. Clipping only makes finite starting
+    logits; it is not a constraint on subsequent likelihood evaluations.
+    """
+    interior = np.asarray(params, dtype=float).copy()
+    interior[model.parameters["regime_transition"]] = 1.0 / model.k_regimes
+    unconstrained = model.untransform_params(interior)
+    transition = np.maximum(model.regime_transition_matrix(params)[:, :, 0], 1e-12)
+    transition /= transition.sum(axis=0)
+    for origin in range(model.k_regimes):
+        unconstrained[model.parameters[origin, "regime_transition"]] = np.log(
+            transition[:-1, origin] / transition[-1, origin]
+        )
+    if not np.all(np.isfinite(unconstrained)):
+        raise ValueError("Cannot construct finite optimization coordinates.")
+    return unconstrained
+
+
 def _ar_stationarity_check(
     result: Any, spec: ModelSpec, mask: list[bool]
 ) -> tuple[bool, str]:
@@ -404,15 +474,11 @@ def _ar_stationarity_check(
 
 def _distribution_check(result: Any) -> tuple[bool, str]:
     reasons: list[str] = []
-    endog_var = float(np.nanvar(np.asarray(result.model.endog, dtype=float)))
-    sigma2_floor = max(SIGMA2_BOUNDARY_TOL, SIGMA2_RELATIVE_FLOOR * endog_var)
     for raw_name, value in zip(result.model.param_names, result.params):
         val = float(np.real(value))
         if raw_name.startswith("sigma2"):
             if not np.isfinite(val) or val <= 0:
                 reasons.append(f"{raw_name}_nonpositive")
-            elif val <= sigma2_floor:
-                reasons.append(f"{raw_name}_boundary")
         if raw_name.startswith("nu"):
             lower = getattr(MarkovRegression_t, "NU_LOWER", 2.05)
             upper = getattr(MarkovRegression_t, "NU_UPPER", 200.0)
@@ -435,11 +501,6 @@ def _transition_check(result: Any) -> tuple[bool, str]:
         return False, "transition_nonfinite"
     if np.nanmin(mat) < -1e-8 or np.nanmax(mat) > 1.0 + 1e-8:
         return False, "transition_out_of_bounds"
-    if (
-        np.nanmin(mat) <= TRANSITION_BOUNDARY_TOL
-        or np.nanmax(mat) >= 1.0 - TRANSITION_BOUNDARY_TOL
-    ):
-        return False, "transition_boundary"
     if not np.allclose(mat.sum(axis=1), 1.0, atol=1e-6):
         return False, "transition_rows_not_stochastic"
     return True, "ok"
@@ -488,17 +549,40 @@ def _randomized_start_params(model: Any, rng: np.random.Generator) -> np.ndarray
     return params
 
 
+def model_label(spec: ModelSpec) -> str:
+    switch = spec.switch_spec
+    return (
+        f"{spec.mean_process.name}_"
+        f"{spec.error_distribution.replace(' ', '_').lower()}_"
+        f"r{switch.k_regimes}_"
+        f"ar{format_bool(switch.switching_ar)}_"
+        f"spf{format_bool(switch.switching_spf)}_"
+        f"nu{format_bool(spec.switching_nu)}"
+    )
+
+
 def _fit_with_restarts(
     model: Any,
     spec: ModelSpec,
     mask: list[bool],
     seed_base: int,
     model_label: str,
-) -> tuple[Any, str, int, int, int, str, list[dict[str, Any]]]:
-    successful: list[tuple[float, bool, str, Any, dict[str, Any]]] = []
+    attempts: range,
+) -> tuple[tuple | None, tuple | None, int, int, list[dict[str, Any]]]:
+    """Run the given optimizer starts and keep only the two best fits.
+
+    Returns the highest-likelihood start that passed all checks and the
+    highest-likelihood start with a finite likelihood, each as
+    ``(llf, attempt, tag, result)`` or None (the earliest start wins ties),
+    followed by the converged and valid counts and one audit row per start.
+    """
+    best_valid: tuple | None = None
+    best_any: tuple | None = None
+    n_converged = 0
+    n_valid = 0
     attempt_rows: list[dict[str, Any]] = []
 
-    for attempt in range(1, N_STARTS + 1):
+    for attempt in attempts:
         seed = seed_base + 1009 * attempt
         np.random.seed(seed)
         rng = np.random.default_rng(seed + 17)
@@ -541,7 +625,14 @@ def _fit_with_restarts(
                 }
             )
             if checks["finite_llf"]:
-                successful.append((checks["llf"], checks["checks_passed"], tag, result, checks))
+                llf = checks["llf"]
+                n_converged += bool(checks["converged"])
+                if best_any is None or llf > best_any[0]:
+                    best_any = (llf, attempt, tag, result)
+                if checks["checks_passed"]:
+                    n_valid += 1
+                    if best_valid is None or llf > best_valid[0]:
+                        best_valid = (llf, attempt, tag, result)
         except Exception as exc:
             attempt_rows.append(
                 {
@@ -563,73 +654,28 @@ def _fit_with_restarts(
                 }
             )
 
-    if not successful:
-        raise RuntimeError("All optimization attempts failed.")
+    return best_valid, best_any, n_converged, n_valid, attempt_rows
 
-    valid = [item for item in successful if item[1]]
-    n_converged = sum(1 for _, _, _, _, checks in successful if checks["converged"])
-    n_valid = len(valid)
 
-    if valid:
-        valid.sort(key=lambda x: x[0], reverse=True)
-        best_llf, _, best_tag, best_result, _ = valid[0]
-        return (
-            best_result,
-            best_tag,
-            N_STARTS,
-            n_converged,
-            n_valid,
-            "passed_checks",
-            attempt_rows,
-        )
-
-    successful.sort(key=lambda x: x[0], reverse=True)
-    best_llf, _, best_tag, best_result, _ = successful[0]
-    return (
-        best_result,
-        f"{best_tag}|fallback_highest_llf_no_valid_attempt",
-        N_STARTS,
-        n_converged,
-        n_valid,
-        "fallback_highest_llf_no_valid_attempt",
-        attempt_rows,
-    )
-
-def fit_one(
-    df: pd.DataFrame, spec: ModelSpec
-) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], Any]:
+def _candidate(
+    df: pd.DataFrame,
+    spec: ModelSpec,
+    mask: list[bool],
+    has_arx_intercept: bool,
+    best: tuple,
+) -> dict[str, Any]:
+    """Summary and parameter rows of one fitted start, for selection across start blocks."""
+    llf, attempt, tag, result = best
+    result, order = _variance_ordered_result(result)
     mean = spec.mean_process
     switch = spec.switch_spec
-    model, mask, has_arx_intercept = build_model(df, spec)
-
-    model_label = (
-        f"{mean.name}_"
-        f"{spec.error_distribution.replace(' ', '_').lower()}_"
-        f"r{switch.k_regimes}_"
-        f"ar{format_bool(switch.switching_ar)}_"
-        f"spf{format_bool(switch.switching_spf)}_"
-        f"nu{format_bool(spec.switching_nu)}"
-    )
-    (
-        result,
-        fit_strategy,
-        fit_attempts,
-        fit_converged_candidates,
-        fit_valid_candidates,
-        selection_status,
-        attempt_rows,
-    ) = _fit_with_restarts(
-        model,
-        spec=spec,
-        mask=mask,
-        seed_base=_stable_seed(model_label),
-        model_label=model_label,
-    )
+    label = model_label(spec)
     retvals = getattr(result, "mle_retvals", {})
     selected_checks = _result_checks(result, spec, mask)
 
+    # Search-level fields (None here) are filled in by select_model.
     summary_row: dict[str, Any] = {
-        "model_label": model_label,
+        "model_label": label,
         "mean_process": mean.name,
         "has_intercept": format_bool(has_arx_intercept),
         "intercept_switches_by_regime": format_bool(bool(has_arx_intercept and switch.switching_ar)),
@@ -656,13 +702,15 @@ def fit_one(
         "transition_valid": selected_checks["transition_valid"],
         "transition_reason": selected_checks["transition_reason"],
         "checks_passed": selected_checks["checks_passed"],
-        "selection_status": selection_status,
+        "selection_status": None,
         "iterations": _safe_get(retvals, "iterations"),
         "warnflag": _safe_get(retvals, "warnflag"),
-        "fit_strategy": fit_strategy,
-        "fit_attempts": fit_attempts,
-        "fit_converged_candidates": fit_converged_candidates,
-        "fit_valid_candidates": fit_valid_candidates,
+        "fit_strategy": None,
+        "fit_attempts": None,
+        "fit_converged_candidates": None,
+        "fit_valid_candidates": None,
+        "regime_identification": "increasing_innovation_variance",
+        "regime_order_from_optimizer": ",".join(str(int(r)) for r in order),
     }
 
     parameter_rows: list[dict[str, Any]] = []
@@ -678,7 +726,7 @@ def fit_one(
 
         parameter_rows.append(
             {
-                "model_label": model_label,
+                "model_label": label,
                 "mean_process": mean.name,
                 "error_distribution": spec.error_distribution,
                 "k_regimes": switch.k_regimes,
@@ -689,7 +737,78 @@ def fit_one(
             }
         )
 
-    return summary_row, parameter_rows, attempt_rows, result
+    return {
+        "llf": llf,
+        "attempt": attempt,
+        "tag": tag,
+        "summary_row": summary_row,
+        "parameter_rows": parameter_rows,
+    }
+
+
+def search_model(df: pd.DataFrame, spec: ModelSpec, attempts: range) -> dict[str, Any]:
+    """Run one block of starts for one specification; the record is picklable."""
+    model, mask, has_arx_intercept = build_model(df, spec)
+    label = model_label(spec)
+    best_valid, best_any, n_converged, n_valid, attempt_rows = _fit_with_restarts(
+        model,
+        spec=spec,
+        mask=mask,
+        seed_base=_stable_seed(label),
+        model_label=label,
+        attempts=attempts,
+    )
+    return {
+        "model_label": label,
+        "search_methodology": METHODOLOGY_VERSION,
+        "attempts": (attempts.start, attempts.stop - 1),
+        "n_attempts": len(attempts),
+        "n_converged": n_converged,
+        "n_valid": n_valid,
+        "best_valid": None if best_valid is None else _candidate(df, spec, mask, has_arx_intercept, best_valid),
+        "best_any": None if best_any is None else _candidate(df, spec, mask, has_arx_intercept, best_any),
+        "attempt_rows": attempt_rows,
+    }
+
+
+def select_model(
+    records: list[dict[str, Any]],
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Combine the start blocks of one specification and select its estimate.
+
+    The estimate is the highest-likelihood start that passed all checks; only
+    when no start passed is the highest finite likelihood kept, flagged as a
+    fallback. The earliest start wins ties, so the selection does not depend on
+    how the starts were split into blocks.
+    """
+    if not records:
+        raise RuntimeError("No start blocks were collected.")
+    attempt_rows = [row for rec in records for row in rec["attempt_rows"]]
+    valid = [rec["best_valid"] for rec in records if rec["best_valid"] is not None]
+    fallback = [rec["best_any"] for rec in records if rec["best_any"] is not None]
+    if valid:
+        chosen = max(valid, key=lambda c: (c["llf"], -c["attempt"]))
+        selection_status = "passed_checks"
+        fit_strategy = chosen["tag"]
+    elif fallback:
+        chosen = max(fallback, key=lambda c: (c["llf"], -c["attempt"]))
+        selection_status = "fallback_highest_llf_no_valid_attempt"
+        fit_strategy = f"{chosen['tag']}|{selection_status}"
+    else:
+        raise RuntimeError("All optimization attempts failed.")
+
+    summary_row = dict(chosen["summary_row"])
+    summary_row.update(
+        {
+            "selection_status": selection_status,
+            "fit_strategy": fit_strategy,
+            "fit_attempts": sum(rec["n_attempts"] for rec in records),
+            "fit_converged_candidates": sum(rec["n_converged"] for rec in records),
+            "fit_valid_candidates": sum(rec["n_valid"] for rec in records),
+            "search_methodology": records[0].get("search_methodology", "legacy_cutoffs"),
+        }
+    )
+    return summary_row, chosen["parameter_rows"], attempt_rows
 
 
 def build_results_markdown(results_df: pd.DataFrame) -> str:
@@ -755,13 +874,28 @@ def build_results_markdown(results_df: pd.DataFrame) -> str:
     for c in ["LogLik", "AIC", "BIC"]:
         view[c] = view[c].map(lambda x: f"{x:.4f}")
 
+    n_starts = int(results_df["fit_attempts"].max())
     intro = (
-        "Each model is selected from 50 starts; only estimates that passed all "
-        "checks (optimizer convergence, AR stationarity, parameter bounds, and "
-        "valid transition probabilities) are reported. Specifications where no "
-        "start passed all checks are excluded. `Sw.Dist` reflects whether "
-        "$\\sigma^2$ is regime-specific."
+        f"Each model is selected from {n_starts:,} starts; only estimates that passed all "
+        "checks (optimizer convergence, AR stationarity, positive finite variances, "
+        "valid transition probabilities, and final-solution stability) are reported. "
+        "Regimes are labeled by increasing innovation variance. `Sw.Dist` reflects "
+        "whether $\\sigma^2$ is regime-specific."
     )
+    if "verification_methodology" not in results_df:
+        intro = (
+            f"These saved estimates were selected from {n_starts:,} starts under the "
+            "previous collection rules. Regimes are relabeled by increasing innovation "
+            "variance. Final-solution stability has not yet been verified. "
+            "`Sw.Dist` reflects whether $\\sigma^2$ is regime-specific."
+        )
+    if "search_methodology" in results_df and (results_df["search_methodology"] == "legacy_cutoffs").any():
+        intro += (
+            "\n\nThe initial search used the former transition and variance cutoffs. "
+            "A fresh 5,000-start search is required to rank all candidates under the "
+            "updated collection rules; verification of saved estimates checks their "
+            "local stability only."
+        )
     return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view)
 
 
@@ -864,14 +998,18 @@ def _parallel_distribution_parameter_table(
     estimates = dict(zip(best_params["parameter"], best_params["estimate"]))
     rows: list[dict[str, Any]] = []
 
-    entries = [("sigma2", "$\\sigma^2$", best_row["switching_distribution"] == "Y")]
+    # The model estimates sigma^2; the report shows the shock standard deviation sigma.
+    entries = [("sigma2", "$\\sigma$", best_row["switching_distribution"] == "Y")]
     if any(str(p).startswith("nu") for p in best_params["parameter"]):
         entries.append(("nu", "$\\nu$", best_row["switching_nu"] == "Y"))
 
     for base_name, label, switches in entries:
         row: dict[str, Any] = {"Parameter": label, "Switching": format_bool(switches)}
         for r in range(k_regimes):
-            row[f"Regime {r}"] = _fmt4(_value_by_regime(estimates, base_name, r))
+            value = _value_by_regime(estimates, base_name, r)
+            if base_name == "sigma2":
+                value = np.sqrt(value)
+            row[f"Regime {r}"] = _fmt4(value)
         rows.append(row)
 
     return pd.DataFrame(rows)
@@ -1013,7 +1151,9 @@ def build_best_model_markdown(
     lines = [
         "# Best Regime-Switching Model",
         "",
-        "Selected by AIC among estimates that passed optimizer convergence, stationarity, parameter-bound, distribution, and transition checks.",
+        "Selected by AIC among the eligible estimates. Regimes are labeled by increasing innovation variance.",
+        "",
+        "Final-solution stability: " + str(best_row.get("stability_status", "not_checked")) + ".",
         "",
         "## Model Summary",
         _markdown_table(summary_table),
@@ -1036,6 +1176,11 @@ def build_best_model_markdown(
         "## Regime Classification Plot",
         f"![Inflation with Smoothed Predicted Regimes]({plot_name})",
     ]
+    if best_row.get("search_methodology", "legacy_cutoffs") == "legacy_cutoffs":
+        lines[2:2] = [
+            "The initial search used the former transition and variance cutoffs. "
+            "The expanded admissible set requires a fresh 5,000-start search.", "",
+        ]
     return TYPST_PREAMBLE + "\n\n" + "\n".join(lines)
 
 
@@ -1077,6 +1222,165 @@ def _reconstruct_result_from_saved_params(
     return model.smooth(params, transformed=True, cov_type="none")
 
 
+def _check_saved_sample(df: pd.DataFrame, row: pd.Series) -> None:
+    """Never validate saved parameters against a different effective sample."""
+    actual = (str(df.index.min()), str(df.index.max()), len(df))
+    saved = (str(row["sample_start"]), str(row["sample_end"]), int(row["nobs"]))
+    if actual != saved:
+        raise ValueError(f"Saved sample {saved} differs from effective sample {actual}.")
+
+
+def _verify_solution(
+    result: Any, spec: ModelSpec, mask: list[bool], n_reps: int = STABILITY_REPS,
+) -> tuple[Any, dict[str, Any], list[dict[str, Any]]]:
+    """Bekaert Appendix B: perturb the provisional optimum and maximize again.
+
+    If a better admissible maximum is found, verify that new maximum with a
+    fresh batch. A verification batch passes only if every refit converges,
+    passes the model checks, and returns to the center's likelihood tolerance.
+    """
+    if n_reps < 1:
+        raise ValueError("Solution verification requires at least one perturbation.")
+    center, _ = _variance_ordered_result(result)
+    audit: list[dict[str, Any]] = []
+    final_batch: list[dict[str, Any]] = []
+    verified = False
+    label = model_label(spec)
+    initial_llf = float(center.llf)
+    for round_no in range(1, STABILITY_MAX_ROUNDS + 1):
+        coordinates = _optimization_coordinates(center.model, center.params)
+        best = center
+        final_batch = []
+        for repetition in range(1, n_reps + 1):
+            seed = _stable_seed(f"{label}|stability|{round_no}|{repetition}")
+            rng = np.random.default_rng(seed)
+            start = coordinates + rng.normal(
+                size=len(coordinates)
+            ) * STABILITY_SCALE * np.maximum(1.0, np.abs(coordinates))
+            method = "lbfgs" if repetition % 2 else "bfgs"
+            row: dict[str, Any] = {
+                "model_label": label, "round": round_no, "perturbation": repetition,
+                "seed": seed, "method": method, "center_llf": float(center.llf),
+                "llf": np.nan, "llf_difference": np.nan,
+                "converged": False, "checks_passed": False, "returned": False,
+                "warnflag": np.nan, "iterations": np.nan,
+                "max_scaled_parameter_difference": np.nan, "error": "",
+            }
+            try:
+                options = ({"pgtol": 1e-7, "factr": 1e4} if method == "lbfgs"
+                           else {"gtol": 1e-7})
+                fitted = center.model.fit(
+                    start_params=start, transformed=False, method=method,
+                    maxiter=MLE_MAXITER, em_iter=0, search_reps=0,
+                    cov_type="none", disp=False, **options,
+                )
+                fitted, _ = _variance_ordered_result(fitted)
+                checks = _result_checks(fitted, spec, mask)
+                retvals = getattr(fitted, "mle_retvals", {})
+                difference = float(fitted.llf - center.llf)
+                row.update(
+                    llf=float(fitted.llf), llf_difference=difference,
+                    converged=checks["converged"], checks_passed=checks["checks_passed"],
+                    warnflag=retvals.get("warnflag"), iterations=retvals.get("iterations"),
+                    returned=bool(checks["checks_passed"] and abs(difference) <= STABILITY_LLF_TOL),
+                    max_scaled_parameter_difference=float(np.max(
+                        np.abs(np.asarray(fitted.params) - np.asarray(center.params))
+                        / np.maximum(1.0, np.abs(center.params))
+                    )),
+                    error=";".join(
+                        checks[k] for k in ("stationarity_reason", "distribution_reason", "transition_reason")
+                        if checks[k] not in {"stationary", "no_ar_terms", "ok"}
+                    ),
+                )
+                if not checks["converged"]:
+                    row["error"] = ";".join(filter(None, ["optimizer_not_converged", row["error"]]))
+                if checks["checks_passed"] and fitted.llf > best.llf:
+                    best = fitted
+            except Exception as exc:
+                row["error"] = str(exc)
+            audit.append(row)
+            final_batch.append(row)
+        improved = best.llf > center.llf + STABILITY_LLF_TOL
+        if improved:
+            center = best
+        else:
+            verified = all(row["returned"] for row in final_batch)
+            break
+    diagnostics = {
+        "stability_verified": verified,
+        "stability_reps": n_reps,
+        "stability_rounds": round_no,
+        "stability_fit_attempts": len(audit),
+        "stability_returns": sum(row["returned"] for row in final_batch),
+        "stability_initial_llf": initial_llf,
+        "stability_llf_improvement": float(center.llf - initial_llf),
+        "stability_status": "verified" if verified else "not_verified",
+    }
+    return center, diagnostics, audit
+
+
+def _finalize_estimates(
+    df: pd.DataFrame, results_df: pd.DataFrame, params_df: pd.DataFrame,
+    n_reps: int = STABILITY_REPS, verify: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Identify and verify each model after all its Grid blocks are merged."""
+    summaries, parameters, audit = [], [], []
+    for _, saved in results_df.iterrows():
+        _check_saved_sample(df, saved)
+        spec = _spec_from_row(saved)
+        subset = params_df[params_df["model_label"] == saved["model_label"]]
+        result = _reconstruct_result_from_saved_params(df, saved, subset)
+        result.mle_retvals = {
+            "converged": _yn_to_bool(saved["converged"]),
+            "iterations": saved.get("iterations"), "warnflag": saved.get("warnflag"),
+        }
+        result, order = _variance_ordered_result(result)
+        mask = exog_switch_mask(spec.mean_process.exog_cols, spec.switch_spec)
+        row = saved.to_dict()
+        row.setdefault("regime_order_from_optimizer", ",".join(str(int(r)) for r in order))
+        row.setdefault("search_fit_strategy", str(saved["fit_strategy"]))
+        basic_checks = _result_checks(result, spec, mask)
+        if not np.isclose(result.llf, float(saved["llf"]), atol=1e-6, rtol=0):
+            raise ValueError(f"{model_label(spec)}: saved likelihood does not match this dataset.")
+        if verify and basic_checks["checks_passed"]:
+            result, diagnostics, attempts = _verify_solution(result, spec, mask, n_reps)
+            row.update(diagnostics)
+            if diagnostics["stability_llf_improvement"] > STABILITY_LLF_TOL:
+                row["fit_strategy"] = str(row["search_fit_strategy"]) + "|stability_refit"
+            audit.extend(attempts)
+            print(
+                f"[VERIFY] {model_label(spec)}: {diagnostics['stability_status']}, "
+                f"returns={diagnostics['stability_returns']}/{n_reps}, "
+                f"llf={result.llf:.4f}", flush=True,
+            )
+        elif verify:
+            row.update(stability_verified=False, stability_status="ineligible_before_verification")
+        elif "stability_verified" not in row:
+            row.update(stability_verified=False, stability_status="not_checked")
+        identified = _candidate(
+            df, spec, mask, spec.mean_process.name != "Constant",
+            (float(result.llf), 0, str(saved["fit_strategy"]), result),
+        )
+        for key, value in identified["summary_row"].items():
+            if key not in {"selection_status", "fit_strategy", "fit_attempts",
+                           "fit_converged_candidates", "fit_valid_candidates",
+                           "regime_order_from_optimizer"}:
+                row[key] = value
+        row["regime_order_before_finalization"] = ",".join(str(int(r)) for r in order)
+        row.setdefault("search_methodology", "legacy_cutoffs")
+        if verify or "verification_methodology" in row:
+            row["checks_passed"] = bool(
+                row["checks_passed"] and _yn_to_bool(row.get("stability_verified", False))
+            )
+            row["selection_status"] = (
+                "passed_checks_and_stability" if row["checks_passed"] else "failed_final_checks"
+            )
+            row["verification_methodology"] = METHODOLOGY_VERSION
+        summaries.append(row)
+        parameters.extend(identified["parameter_rows"])
+    return pd.DataFrame(summaries), pd.DataFrame(parameters), pd.DataFrame(audit)
+
+
 def rebuild_reports_from_csv(
     data_path: Path | None = None, out_dir: Path | None = None
 ) -> None:
@@ -1091,6 +1395,7 @@ def rebuild_reports_from_csv(
 
     results_df = pd.read_csv(results_csv)
     params_df = pd.read_csv(params_csv)
+    results_df, params_df, _ = _finalize_estimates(df, results_df, params_df, verify=False)
 
     eligible_df = results_df[
         results_df["checks_passed"] &
@@ -1105,6 +1410,8 @@ def rebuild_reports_from_csv(
     best_bic = eligible_df.sort_values("bic", ascending=True).iloc[0]
     best_params = params_df[params_df["model_label"] == best_aic["model_label"]].copy()
     best_result = _reconstruct_result_from_saved_params(df, best_aic, best_params)
+    results_df.to_csv(results_csv, index=False)
+    params_df.to_csv(params_csv, index=False)
 
     md_path.write_text(
         style_monthly_report(build_results_markdown(results_df), data_path),
@@ -1122,80 +1429,32 @@ def rebuild_reports_from_csv(
     print(f"- {best_md_path}")
 
 
-def _argv_value(argv: list[str], flag: str) -> str | None:
-    if flag not in argv:
-        return None
-    idx = argv.index(flag)
-    if idx + 1 >= len(argv):
-        raise ValueError(f"Missing value for {flag}")
-    return argv[idx + 1]
-
-
-def main(argv: list[str] | None = None) -> None:
-    argv = sys.argv[1:] if argv is None else argv
-    data_path_arg = _argv_value(argv, "--data-path")
-    out_dir_arg = _argv_value(argv, "--output-dir")
-    data_path = Path(data_path_arg) if data_path_arg else None
-    out_dir = Path(out_dir_arg) if out_dir_arg else OUT_DIR
-
-    if "--report-only" in argv:
-        rebuild_reports_from_csv(data_path=data_path, out_dir=out_dir)
-        return
-
-    np.random.seed(20260521)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    df = load_effective_sample(data_path)
-    specs, skipped = build_model_specs(
-        include_student_t="--include-student-t" in argv
-    )
-
-    results_rows: list[dict[str, Any]] = []
-    parameter_rows: list[dict[str, Any]] = []
-    attempt_rows: list[dict[str, Any]] = []
-    errors: list[dict[str, Any]] = []
-    results_obj_by_label: dict[str, Any] = {}
-
-    for spec in specs:
-        switch = spec.switch_spec
-        tag = (
-            f"{spec.mean_process.name} | {spec.error_distribution} | "
-            f"K={switch.k_regimes} | AR={format_bool(switch.switching_ar)} | "
-            f"SPF={format_bool(switch.switching_spf)}"
-        )
-        try:
-            row, params, attempts, result_obj = fit_one(df, spec)
-            results_rows.append(row)
-            parameter_rows.extend(params)
-            attempt_rows.extend(attempts)
-            results_obj_by_label[row["model_label"]] = result_obj
-            print(
-                f"[OK] {tag}: llf={row['llf']:.3f}, aic={row['aic']:.3f}, "
-                f"bic={row['bic']:.3f}, checks={format_bool(row['checks_passed'])}, "
-                f"selection={row['selection_status']}, nobs={row['nobs']}"
-            )
-        except Exception as exc:  # pragma: no cover
-            tb = traceback.format_exc()
-            print(f"[ERROR] {tag}: {exc}")
-            errors.append(
-                {
-                    "mean_process": spec.mean_process.name,
-                    "error_distribution": spec.error_distribution,
-                    "k_regimes": switch.k_regimes,
-                    "switching_ar": format_bool(switch.switching_ar),
-                    "switching_spf": format_bool(switch.switching_spf),
-                    "error": str(exc),
-                    "traceback": tb,
-                }
-            )
-
+def write_outputs(
+    df: pd.DataFrame,
+    data_path: Path | None,
+    out_dir: Path,
+    results_rows: list[dict[str, Any]],
+    parameter_rows: list[dict[str, Any]],
+    attempt_rows: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    errors: list[dict[str, Any]],
+    stability_reps: int = STABILITY_REPS,
+) -> None:
     if not results_rows:
         raise RuntimeError("No model estimated successfully.")
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     results_df = pd.DataFrame(results_rows)
     params_df = pd.DataFrame(parameter_rows)
     attempts_df = pd.DataFrame(attempt_rows)
+    if attempts_df.empty:
+        attempts_df = pd.DataFrame(columns=["model_label", "attempt"])
     skipped_df = pd.DataFrame(skipped)
+    results_df, params_df, stability_df = _finalize_estimates(
+        df, results_df, params_df, n_reps=stability_reps,
+    )
+    stability_csv = out_dir / "regime_switching_stability_attempts.csv"
+    stability_df.to_csv(stability_csv, index=False)
 
     eligible_df = results_df[
         results_df["checks_passed"] &
@@ -1203,19 +1462,33 @@ def main(argv: list[str] | None = None) -> None:
     ].copy()
     failed_checks_df = results_df[~results_df["checks_passed"]].copy()
     if eligible_df.empty:
-        raise RuntimeError(
-            "No Normal-distribution estimate passed all checks; refusing to "
-            "report a fallback best model (see README selection policy)."
+        results_df.to_csv(out_dir / "regime_switching_results.csv", index=False)
+        params_df.to_csv(out_dir / "regime_switching_parameters.csv", index=False)
+        attempts_df.to_csv(out_dir / "regime_switching_attempts.csv.gz", index=False)
+        failed_checks_df.to_csv(out_dir / "regime_switching_failed_checks.csv", index=False)
+        skipped_df.to_csv(out_dir / "regime_switching_skipped_models.csv", index=False)
+        results_df[~results_df["converged"]].to_csv(
+            out_dir / "regime_switching_nonconverged.csv", index=False,
         )
+        (out_dir / "regime_switching_results.md").write_text(
+            style_monthly_report(build_results_markdown(results_df), data_path), encoding="utf-8",
+        )
+        (out_dir / "regime_switching_best_model.md").write_text(
+            style_monthly_report(
+                TYPST_PREAMBLE + "\n\n# Best Regime-Switching Model\n\n"
+                "No Normal-distribution estimate passed all checks and final-solution "
+                "stability verification. See the diagnostic CSVs.\n", data_path,
+            ), encoding="utf-8",
+        )
+        print(f"No verified Normal estimate; diagnostic outputs saved in {out_dir}.")
+        return
 
     eligible_df["aic_rank"] = eligible_df["aic"].rank(method="dense")
     eligible_df["bic_rank"] = eligible_df["bic"].rank(method="dense")
 
     best_aic = eligible_df.sort_values("aic", ascending=True).iloc[0]
-    best_bic = eligible_df.sort_values("bic", ascending=True).iloc[0]
-    best_result = results_obj_by_label[best_aic["model_label"]]
-
     best_params = params_df[params_df["model_label"] == best_aic["model_label"]].copy()
+    best_result = _reconstruct_result_from_saved_params(df, best_aic, best_params)
 
     results_df = results_df.sort_values(
         ["mean_process", "error_distribution", "k_regimes", "aic"]
@@ -1225,7 +1498,7 @@ def main(argv: list[str] | None = None) -> None:
 
     results_csv = out_dir / "regime_switching_results.csv"
     params_csv = out_dir / "regime_switching_parameters.csv"
-    attempts_csv = out_dir / "regime_switching_attempts.csv"
+    attempts_csv = out_dir / "regime_switching_attempts.csv.gz"
     md_path = out_dir / "regime_switching_results.md"
     best_md_path = out_dir / "regime_switching_best_model.md"
     skipped_csv = out_dir / "regime_switching_skipped_models.csv"
@@ -1260,6 +1533,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"- {results_csv}")
     print(f"- {params_csv}")
     print(f"- {attempts_csv}")
+    print(f"- {stability_csv}")
     print(f"- {md_path}")
     print(f"- {best_md_path}")
     print(f"- {skipped_csv}")
@@ -1267,6 +1541,220 @@ def main(argv: list[str] | None = None) -> None:
     print(f"- {failed_checks_csv}")
     if errors:
         print(f"- {err_json} (contains failed-spec traces)")
+
+
+def model_entries(include_student_t: bool) -> tuple[list[tuple[str, ModelSpec]], list[dict[str, Any]]]:
+    """Specification menu with stable ids R01, R02, ... used by the grid jobs."""
+    specs, skipped = build_model_specs(include_student_t=include_student_t)
+    return [(f"R{i:02d}", spec) for i, spec in enumerate(specs, start=1)], skipped
+
+
+def _spec_tag(spec: ModelSpec) -> str:
+    switch = spec.switch_spec
+    return (
+        f"{spec.mean_process.name} | {spec.error_distribution} | "
+        f"K={switch.k_regimes} | AR={format_bool(switch.switching_ar)} | "
+        f"SPF={format_bool(switch.switching_spf)}"
+    )
+
+
+def _error_row(spec: ModelSpec, exc: Exception) -> dict[str, Any]:
+    switch = spec.switch_spec
+    return {
+        "mean_process": spec.mean_process.name,
+        "error_distribution": spec.error_distribution,
+        "k_regimes": switch.k_regimes,
+        "switching_ar": format_bool(switch.switching_ar),
+        "switching_spf": format_bool(switch.switching_spf),
+        "error": str(exc),
+        "traceback": traceback.format_exc(),
+    }
+
+
+def _select_and_record(
+    spec: ModelSpec,
+    records: list[dict[str, Any]],
+    results_rows: list[dict[str, Any]],
+    parameter_rows: list[dict[str, Any]],
+    attempt_rows: list[dict[str, Any]],
+    errors: list[dict[str, Any]],
+) -> None:
+    tag = _spec_tag(spec)
+    try:
+        row, params, attempts = select_model(records)
+    except Exception as exc:  # pragma: no cover
+        print(f"[ERROR] {tag}: {exc}")
+        errors.append(_error_row(spec, exc))
+        return
+    results_rows.append(row)
+    parameter_rows.extend(params)
+    attempt_rows.extend(attempts)
+    print(
+        f"[OK] {tag}: llf={row['llf']:.3f}, aic={row['aic']:.3f}, "
+        f"bic={row['bic']:.3f}, checks={format_bool(row['checks_passed'])}, "
+        f"selection={row['selection_status']}, nobs={row['nobs']}"
+    )
+
+
+def run_model_job(
+    df: pd.DataFrame, model_id: str, spec: ModelSpec, attempts: range, raw_dir: Path
+) -> None:
+    """Grid job: run one block of starts for one specification and pickle the record."""
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    record = search_model(df, spec, attempts)
+    record["model_id"] = model_id
+    name = f"{model_id}_{attempts.start:04d}-{attempts.stop - 1:04d}"
+    tmp = raw_dir / f".{name}.pkl.tmp"
+    pd.to_pickle(record, tmp)
+    tmp.replace(raw_dir / f"{name}.pkl")  # atomic: the collector never sees a partial file
+    best = record["best_valid"] or record["best_any"]
+    best_llf = "NA" if best is None else f"{best['llf']:.4f}"
+    print(
+        f"{model_id} {record['model_label']} starts {attempts.start}-{attempts.stop - 1}: "
+        f"converged={record['n_converged']}, valid={record['n_valid']}, best llf={best_llf}",
+        flush=True,
+    )
+
+
+def collect_model_jobs(
+    df: pd.DataFrame,
+    data_path: Path | None,
+    raw_dir: Path,
+    out_dir: Path,
+    entries: list[tuple[str, ModelSpec]],
+    skipped: list[dict[str, Any]],
+    n_starts: int,
+    allow_missing: bool,
+    stability_reps: int = STABILITY_REPS,
+) -> None:
+    """Merge the start blocks written by run_model_job and write all outputs."""
+    expected = set(range(1, n_starts + 1))
+    by_model: dict[str, list[dict[str, Any]]] = {}
+    incomplete: list[str] = []
+    for model_id, spec in entries:
+        records = [pd.read_pickle(p) for p in sorted(raw_dir.glob(f"{model_id}_*.pkl"))]
+        for rec in records:
+            if rec.get("search_methodology") != METHODOLOGY_VERSION:
+                raise SystemExit(
+                    f"{model_id}: raw blocks use older collection rules; run a fresh "
+                    "search, or use --verify-saved to check previously selected estimates."
+                )
+            if rec["model_label"] != model_label(spec):
+                raise SystemExit(f"{raw_dir}: {model_id} holds {rec['model_label']}, expected {model_label(spec)}")
+        covered = [a for rec in records for a in range(rec["attempts"][0], rec["attempts"][1] + 1)]
+        if len(covered) != len(set(covered)) or set(covered) != expected:
+            incomplete.append(f"{model_id} ({len(set(covered) & expected)}/{n_starts} starts)")
+        by_model[model_id] = records
+    if incomplete and not allow_missing:
+        raise SystemExit(f"Incomplete start blocks in {raw_dir}: {incomplete}")
+    if incomplete:
+        print(f"WARNING: collecting with incomplete start blocks: {incomplete}")
+
+    results_rows: list[dict[str, Any]] = []
+    parameter_rows: list[dict[str, Any]] = []
+    attempt_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for model_id, spec in entries:
+        _select_and_record(spec, by_model[model_id], results_rows, parameter_rows, attempt_rows, errors)
+    write_outputs(df, data_path, out_dir, results_rows, parameter_rows, attempt_rows, skipped, errors,
+                  stability_reps=stability_reps)
+
+
+def verify_saved_estimates(data_path: Path | None, out_dir: Path, n_reps: int) -> None:
+    """Verify saved provisional optima; this does not repeat the initial search."""
+    df = load_effective_sample(data_path)
+    results = pd.read_csv(out_dir / "regime_switching_results.csv")
+    params = pd.read_csv(out_dir / "regime_switching_parameters.csv")
+    attempts_path = out_dir / "regime_switching_attempts.csv.gz"
+    if not attempts_path.exists():
+        attempts_path = out_dir / "regime_switching_attempts.csv"
+    attempts = pd.read_csv(attempts_path).to_dict("records") if attempts_path.exists() else []
+    skipped_path = out_dir / "regime_switching_skipped_models.csv"
+    try:
+        skipped = pd.read_csv(skipped_path).to_dict("records") if skipped_path.exists() else []
+    except pd.errors.EmptyDataError:
+        skipped = []
+    errors_path = out_dir / "regime_switching_errors.json"
+    errors = json.loads(errors_path.read_text()) if errors_path.exists() else []
+    write_outputs(df, data_path, out_dir, results.to_dict("records"), params.to_dict("records"),
+                  attempts, skipped, errors, stability_reps=n_reps)
+
+
+def parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--data-path", type=Path, default=None, help="Effective-sample pickle (default: quarterly).")
+    parser.add_argument("--output-dir", type=Path, default=OUT_DIR, help="Directory for the collected outputs.")
+    parser.add_argument("--report-only", action="store_true", help="Rebuild the markdown reports from saved CSVs.")
+    parser.add_argument("--verify-saved", action="store_true", help="Identify and locally verify saved estimates; does not rerun the initial search.")
+    parser.add_argument("--stability-reps", type=int, default=STABILITY_REPS, help="Local perturbations per final-solution verification round (default: 20).")
+    parser.add_argument("--include-student-t", action="store_true", help="Also estimate Student-t variants.")
+    parser.add_argument("--n-starts", type=int, default=N_STARTS, help="Optimizer starts per specification.")
+    parser.add_argument("--list-models", action="store_true", help="Print specification ids and labels.")
+    parser.add_argument("--model-id", default=None, help="Grid job mode: specification id from --list-models.")
+    parser.add_argument(
+        "--attempts", type=int, nargs=2, metavar=("FIRST", "LAST"), default=None,
+        help="Grid job mode: run starts FIRST..LAST (inclusive) of --model-id.",
+    )
+    parser.add_argument("--collect", action="store_true", help="Merge the start blocks in --raw-dir.")
+    parser.add_argument("--allow-missing", action="store_true", help="Collect even if start blocks are missing.")
+    parser.add_argument("--raw-dir", type=Path, default=None, help="Directory of per-block pickles.")
+    args = parser.parse_args(argv)
+    if args.stability_reps < 1:
+        parser.error("--stability-reps must be positive")
+    if sum(bool(v) for v in (args.report_only, args.verify_saved, args.model_id, args.collect)) > 1:
+        parser.error("Choose only one of --report-only, --verify-saved, --model-id, or --collect")
+    if (args.model_id or args.collect) and args.raw_dir is None:
+        parser.error("--model-id and --collect require --raw-dir")
+    if args.model_id and args.attempts is None:
+        parser.error("--model-id requires --attempts FIRST LAST")
+    return args
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    data_path, out_dir = args.data_path, args.output_dir
+    entries, skipped = model_entries(args.include_student_t)
+
+    if args.list_models:
+        for model_id, spec in entries:
+            print(f"{model_id}\t{model_label(spec)}")
+        return
+
+    if args.report_only:
+        rebuild_reports_from_csv(data_path=data_path, out_dir=out_dir)
+        return
+
+    if args.verify_saved:
+        verify_saved_estimates(data_path, out_dir, args.stability_reps)
+        return
+
+    np.random.seed(20260521)
+    df = load_effective_sample(data_path)
+
+    if args.model_id:
+        specs_by_id = dict(entries)
+        if args.model_id not in specs_by_id:
+            raise SystemExit(f"Unknown model id {args.model_id}; see --list-models")
+        first, last = args.attempts
+        run_model_job(df, args.model_id, specs_by_id[args.model_id], range(first, last + 1), args.raw_dir)
+        return
+
+    if args.collect:
+        collect_model_jobs(
+            df, data_path, args.raw_dir, out_dir, entries, skipped, args.n_starts,
+            args.allow_missing, stability_reps=args.stability_reps,
+        )
+        return
+
+    results_rows: list[dict[str, Any]] = []
+    parameter_rows: list[dict[str, Any]] = []
+    attempt_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for _, spec in entries:
+        records = [search_model(df, spec, range(1, args.n_starts + 1))]
+        _select_and_record(spec, records, results_rows, parameter_rows, attempt_rows, errors)
+    write_outputs(df, data_path, out_dir, results_rows, parameter_rows, attempt_rows, skipped, errors,
+                  stability_reps=args.stability_reps)
 
 
 if __name__ == "__main__":

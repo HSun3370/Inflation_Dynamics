@@ -28,9 +28,13 @@ When implementing, refactoring, documenting, or testing estimation code, keep th
 ### Mean Process Menu
 From `MeanProcess/README.md`, keep mean-model options aligned with:
 - Constant
+- ARX(1,0)
 - ARX(1,1)
+- ARX(2,0)
 - ARX(2,1)
 - ARX(2,2)
+
+ARX(1,0) and ARX(2,0) (pure AR, no SPF terms) were added by the user on 2026-11-10 for all volatility models (GARCH family and BEGE); they use the precomputed inflation-lag columns. Regime-switching keeps its own menu (see `RegimeSwitching/README.md`). In the GARCH script, model ids and seeds follow `MEAN_ADDITION_ROUNDS`, so the earlier 144 combinations keep their ids `M001`--`M144` and the new means are `M145`--`M216`.
 
 For BEGE runs, default to skipping ARX(2,2) unless explicitly requested, matching documented practice.
 
@@ -59,13 +63,13 @@ When implementing, refactoring, documenting, or testing BEGE estimation code:
 * Keep these five BEGE specifications aligned across code, scripts, result collection, and documentation.
 * Do not silently add, remove, rename, or merge BEGE specifications.
 * If a BEGE specification is intentionally excluded from a run, state the reason explicitly in the script output, logs, or accompanying documentation.
-* For BEGE runs, continue to run all four mean processes unless explicitly requested, consistent with documented practice.
+* For BEGE runs, continue to run all six mean processes unless explicitly requested, consistent with documented practice.
 * When submitting jobs in server, don't compute SE of paramters. When reporting the best results, compute SE for the best models and report them in md file. 
 ### BEGE Random-Start Estimation Protocol
 
 BEGE likelihood maximization uses randomized initial starts. For server-side production runs, the canonical search protocol is:
 
-* Submit `50` independent jobs for each BEGE volatility specification.
+* Submit `10` independent jobs for each BEGE volatility specification and frequency (reduced from `50` by the user on 2026-11-10 to save computation).
 * Within each job, use:
 
   ```python
@@ -75,15 +79,17 @@ BEGE likelihood maximization uses randomized initial starts. For server-side pro
 * Therefore, for each mean-model and BEGE-volatility-specification pair, the intended production search covers:
 
   ```text
-  50 jobs × 40 draws per job × 25 starts per draw = 50,000 starting points
+  10 jobs × 40 draws per job × 25 starts per draw = 10,000 starting points
   ```
 
 When modifying estimation scripts:
 
 * Preserve this job/draw/start interpretation unless the user explicitly requests a change.
 * Do not reinterpret `--n-draws` or `--n-starts` in a way that changes the total number of candidate starting points.
-* Ensure job-level random seeds or job identifiers generate independent randomized starts across the 50 jobs.
-* Result aggregation must treat the 50 jobs as one combined search for the same model, mean process, and BEGE specification.
+* Ensure job-level random seeds or job identifiers generate independent randomized starts across the 10 jobs.
+* Result aggregation must treat the 10 jobs as one combined search for the same model, mean process, and BEGE specification.
+* Mean-parameter starting values are drawn uniformly from OLS-centered intervals `theta_hat ± 2 SE` computed on the estimation sample at run time (HAC(12) standard errors, as in `MeanProcess/`); do not hard-code them.
+* BEGE is estimated at both frequencies. `FREQUENCY=quarterly|monthly` in the submit scripts (exported to Python as `BEGE_FREQUENCY`) selects the effective-sample pickle, writes raw output to a scratch folder named by frequency and data vintage, and writes collected results to `results/` and `README.md` (quarterly) or `results_monthly/` and `README_monthly.md` (monthly). `BEGE_GARCH/submit_bege_grid.sh` submits every specification at both frequencies.
 
 ### BEGE Best-Model Collection Checks
 
@@ -99,7 +105,7 @@ For any estimated mean process with autoregressive inflation lags, impose the AR
 * Reject or flag estimates whose AR roots do not satisfy the stationarity condition.
 * Use only the inflation-lag coefficients for this check; do not include SPF or other exogenous-regressor coefficients in the AR stationarity polynomial.
 
-#### BEGE Shape-Process and Variance-Bound Checks
+#### BEGE Shape-Process Checks
 
 For BEGE shape processes, compute the recursive shape states `p_t` and `n_t` from the estimated recursion. The implied conditional variance at time `t` is:
 
@@ -107,53 +113,27 @@ For BEGE shape processes, compute the recursive shape states `p_t` and `n_t` fro
 Var_t = sigma_p^2 * p_t + sigma_n^2 * n_t
 ```
 
-The collection stage must verify that the implied variance path satisfies the documented BEGE variance constraints.
+The collection stage must verify that the shape states and the implied variance are finite and positive for all effective-sample observations `t`.
 
-When variance bounds are used in optimization or post-estimation filtering, construct them as follows:
+Do not impose an EWMA implied-variance bound on `Var_t`, either in optimization or in post-estimation filtering. The user dropped it on 2026-11-10. A paired test with the full 50,000 starts on the 2026-10-20 vintage showed that it never binds at a converged estimate. The parameter bounds and stability restrictions below already keep `Var_t` finite. The estimators keep `enforce_variance_bounds` only as an off-by-default option for replicating that test, and the collectors no longer check the bound.
 
-* Compute `EWMA_t` using decay parameter `lambda = 0.94`.
-* Use up to `tau = min(75, T)` observations for the EWMA initialization/window.
-* Let `resids` denote the effective-sample residuals used by the BEGE likelihood.
-* Define the lower bound:
-
-  ```text
-  lower[t] = max(EWMA_t / 1e6, var(resids) / 1e8)
-  ```
-* Define the upper bound:
-
-  ```text
-  upper[t] = min(EWMA_t * 1e6, 1e7 * (1 + max(resids^2)))
-  ```
-* Additionally, always enforce:
-
-  ```text
-  upper[t] >= 1 + max(resids^2)
-  ```
-
-The implied BEGE variance must satisfy:
-
-```text
-lower[t] <= sigma_p^2 * p_t + sigma_n^2 * n_t <= upper[t]
-```
-
-for all effective-sample observations `t`.
-
-When changing BEGE variance-bound logic:
+When changing BEGE shape-process logic:
 
 * Keep `sigma_p`, `sigma_n`, shape states, persistence terms, and shock-load terms within their documented bounds.
 * Preserve documented BEGE stability restrictions, including persistence-plus-loading restrictions where applicable.
-* Do not silently change the EWMA decay parameter, variance scaling constants, or upper/lower bound formulas.
 * If the optimizer imposes these constraints directly, the collection stage should still re-check them before reporting final best estimates.
 
 ### BEGE Result Aggregation and Reporting
 
 When summarizing BEGE results across random-start jobs:
 
-* Aggregate all valid estimates across the 50 jobs for the same mean process and BEGE specification.
+* Aggregate all valid estimates across the 10 jobs for the same mean process and BEGE specification.
 * Rank admissible estimates by maximized log likelihood within each mean process.
 * Write cleaned estimation outputs split by mean process under `results/`, using stable filenames:
   * `constant.csv`
+  * `ARX_1_0.csv`
   * `ARX_1_1.csv`
+  * `ARX_2_0.csv`
   * `ARX_2_1.csv`
   * `ARX_2_2.csv`
 * In `results/best_model.md`, report only the single best admissible estimate for each BEGE specification, ranked by maximized log likelihood.
@@ -164,7 +144,6 @@ When summarizing BEGE results across random-start jobs:
   * optimizer convergence checks,
   * parameter-bound checks,
   * BEGE stability checks,
-  * implied variance-bound checks,
   * and mean-process stationarity checks.
 * If the likelihood-best estimate fails an admissibility check, select the best admissible estimate and clearly record why the likelihood-best estimate was rejected or flagged.
 * Do not compare likelihoods across models unless they use the same effective sample, residual definition, and initialization conventions required by this file.
@@ -172,6 +151,10 @@ When summarizing BEGE results across random-start jobs:
 
 ### Regime Switching
 - Treat `RegimeSwitching/README.md` as the canonical regime-switching specification document.
+- Random starts: 5,000 starts per specification (start 1 is the statsmodels default; the others are the script's random perturbations of it), run on the CBS Grid via `RegimeSwitching/submit_regime_switching_grid.sh` as blocks of 1,000 starts, one job per block. Each start keeps its own seed, so the selected estimate does not depend on the block size.
+- Identification and optimization follow Bekaert, Engstrom and Ermolov (2015), Section 4.1.2 and Appendix B: initialize regime probabilities at their unconditional distribution, label selected estimates and reports by increasing innovation variance, and perturb/refit the selected provisional optimum after combining the search blocks. Permute switching mean parameters, both transition-matrix axes, and regime-probability paths together.
+- Final-solution verification uses 20 additional perturbation refits per batch in unrestricted coordinates (scale `0.05 * max(1, abs(parameter))`), with an absolute likelihood return tolerance of `1e-4` and at most three batches. A higher admissible maximum becomes the new center and requires a fresh verification batch. Report only estimates for which every refit in the final batch converges, passes the model checks, and returns within tolerance. Record all refits separately from the 5,000 initial starts. These numerical choices are this project's implementation; the paper does not specify them.
+- User-approved 2026-11-10: remove the extra transition cutoff `(1e-4, 1-1e-4)` and the sample-scaled variance floor. Require finite positive innovation variances and valid stochastic transition probabilities, and retain the inflation application's regime-specific AR stationarity check. Saved searches selected using the former cutoffs must be identified as such until a fresh search is run under the updated rules.
 - Do not introduce new regime-switching assumptions in code or docs unless requested.
 - If regime-switching settings change, update `RegimeSwitching/README.md` and implementation together in the same change.
 

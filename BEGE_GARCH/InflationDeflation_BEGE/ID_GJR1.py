@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -15,20 +14,23 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from BEGE_GARCH.BEGE_GARCH import ID_GARCH
+from BEGE_GARCH.bege_batch import data_frequency, effective_sample_path, expected_effective_nobs
 
 
 MEAN_PARAM_NAMES = {
     "constant": [],
+    "ARX(1,0)": ["c", "rho_1"],
     "ARX(1,1)": ["c", "rho_1", "phi_1"],
+    "ARX(2,0)": ["c", "rho_1", "rho_2"],
     "ARX(2,1)": ["c", "rho_1", "rho_2", "phi_1"],
     "ARX(2,2)": ["c", "rho_1", "rho_2", "phi_1", "phi_2"],
 }
 VOL_PARAM_NAMES = ["p0", "n0", "rho_p", "rho_n", "phi_p_plus", "phi_n_minus", "sigma_p", "sigma_n"]
-MEAN_TYPES = ["constant", "ARX(1,1)", "ARX(2,1)", "ARX(2,2)"]
+MEAN_TYPES = ["constant", "ARX(1,0)", "ARX(1,1)", "ARX(2,0)", "ARX(2,1)", "ARX(2,2)"]
 
 
 def load_effective_sample(project_root: Path) -> pd.DataFrame:
-    data_path = project_root / "DataSummary" / "Aggregate_CPI_inflation_Quarterly.pkl"
+    data_path = effective_sample_path(project_root)
     if not data_path.exists():
         raise FileNotFoundError(f"Missing effective-sample file: {data_path}")
 
@@ -54,9 +56,19 @@ def build_model_specs(df: pd.DataFrame) -> list[dict]:
             "X": None,
         },
         {
+            "mean_type": "ARX(1,0)",
+            "Y": inflation,
+            "X": {"Inflation_lag_1": infl_lag1},
+        },
+        {
             "mean_type": "ARX(1,1)",
             "Y": inflation,
             "X": {"SPF": spf, "Inflation_lag_1": infl_lag1},
+        },
+        {
+            "mean_type": "ARX(2,0)",
+            "Y": inflation,
+            "X": {"Inflation_lag_1": infl_lag1, "Inflation_lag_2": infl_lag2},
         },
         {
             "mean_type": "ARX(2,1)",
@@ -139,7 +151,8 @@ def run_seed(seed: int, n_draws: int, n_starts: int, maxiter: int, tol: float, o
     out_file = output_dir / f"draw_{seed:03d}.csv"
 
     df = load_effective_sample(PROJECT_ROOT)
-    expected_nobs = json.loads((PROJECT_ROOT / "DataSummary" / "data_vintage.json").read_text())["quarterly"]["nobs"]
+    print(f"Data: {effective_sample_path(PROJECT_ROOT)} ({data_frequency()}, {len(df)} observations).", flush=True)
+    expected_nobs = expected_effective_nobs(PROJECT_ROOT)
     if len(df) != expected_nobs:
         print(f"[WARN] Effective sample length is {len(df)} (expected {expected_nobs}).", flush=True)
     specs = build_model_specs(df)

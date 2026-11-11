@@ -1,8 +1,8 @@
 #!/bin/bash
 # GARCH-family random-start search on the CBS Research Grid.
 #
-# One single-core job per model combination (3 distributions x 4 mean processes x
-# 12 volatility specifications = 144 jobs per frequency), each running N_STARTS
+# One single-core job per model combination (3 distributions x 6 mean processes x
+# 12 volatility specifications = 216 jobs per frequency), each running N_STARTS
 # optimizer starts, plus one collector per frequency that is held until that
 # frequency's jobs finish and then writes results_garch_distributions*/.
 # Per-combination pickles, SGE logs and generated job scripts live on /scratch.
@@ -133,11 +133,12 @@ EOF
 show_status() {
     RUN_DIR="${RUN_DIR:-$(readlink -f "${LATEST_LINK}")}"
     echo "Run directory: ${RUN_DIR}"
-    local freq
+    local freq total
+    total=$("${PYTHON_ENV_BIN}/python3" "${PY_SCRIPT}" --list-models | wc -l)
     for freq in ${FREQS}; do
         local n
         n=$(find "${RUN_DIR}/${freq}/raw" -maxdepth 1 -name 'M*.pkl' 2>/dev/null | wc -l)
-        echo "${freq}: ${n}/144 combinations finished"
+        echo "${freq}: ${n}/${total} combinations finished"
     done
     qstat -u "$(whoami)" | awk 'NR > 2 {print $5}' | sort | uniq -c | sed 's/^/  jobs in state /'
 }

@@ -35,14 +35,19 @@ project:
         - file: RegimeSwitching/results_monthly/regime_switching_results.md
         - file: RegimeSwitching/results_monthly/regime_switching_best_model.md
         - file: BEGE_GARCH/README.md 
-        - file: BEGE_GARCH/BEGE_Density/BEGE_Density.md
         - file: BEGE_GARCH/Constant_BEGE/README.md
+        - file: BEGE_GARCH/Constant_BEGE/README_monthly.md
         - file: BEGE_GARCH/Symmetric_BEGE/README.md
         - file: BEGE_GARCH/BadGood_BEGE/README.md
+        - file: BEGE_GARCH/BadGood_BEGE/README_monthly.md
         - file: BEGE_GARCH/InflationDeflation_BEGE/README.md 
         - file: BEGE_GARCH/ConstantP_BEGE/README.md
+        - file: BEGE_GARCH/ConstantP_BEGE/README_monthly.md
         - file: BEGE_GARCH/ConstantN_BEGE/README.md
+        - file: BEGE_GARCH/ConstantN_BEGE/README_monthly.md
         - file: BEGE_GARCH/Full_BEGE/README.md
+        - file: BEGE_GARCH/Full_BEGE/README_monthly.md
         - file: BEGE_GARCH/EGARCH_BEGE/SPECIFICATION.md
+        - file: BEGE_GARCH/BEGE_Density/BEGE_Density.md
 site:
   template: book-theme

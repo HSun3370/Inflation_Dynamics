@@ -10,12 +10,21 @@ mean-process menu, random-search protocol, density evaluator, and result
 selection rules. The model-specific shape recursions and restrictions are
 reported.
 
+Every specification is estimated on the quarterly sample (1969Q2--2026Q3, 230
+observations) and, as supplementary evidence, on the monthly sample
+(1969M2--2026M9, 692 observations), both from the 2026-10-20 data vintage. The
+specifications, parameter bounds, random search, and selection rules are
+identical across the two frequencies; each specification reports its quarterly
+best model followed by its monthly best model.
+
 ## Mean Processes
 
-The BEGE exercises estimate all four mean processes:
+The BEGE exercises estimate all six mean processes:
 
 - **Constant**: $\pi_{t+1} = SPF_t + u_{t+1}$.
+- **ARX(1,0)**: $\pi_{t+1} = c + \rho_1 \pi_t + u_{t+1}$.
 - **ARX(1,1)**: $\pi_{t+1} = c + \rho_1 \pi_t + \phi_1 SPF_t + u_{t+1}$.
+- **ARX(2,0)**: $\pi_{t+1} = c + \rho_1 \pi_t + \rho_2 \pi_{t-1} + u_{t+1}$.
 - **ARX(2,1)**: $\pi_{t+1} = c + \rho_1 \pi_t + \rho_2 \pi_{t-1} + \phi_1 SPF_t + u_{t+1}$.
 - **ARX(2,2)**: $\pi_{t+1} = c + \rho_1 \pi_t + \rho_2 \pi_{t-1} + \phi_1 SPF_t + \phi_2 SPF_{t-1} + u_{t+1}$.
 
@@ -24,13 +33,15 @@ The mean-parameter bounds used in estimation and collection are:
 | Model | $c$ | $\rho_1$ | $\rho_2$ | $\phi_1$ | $\phi_2$ |
 |---|---|---|---|---|---|
 | Constant | --- | --- | --- | --- | --- |
+| ARX(1,0) | $(\min \pi_t,\max \pi_t)$ | $[-1,1]$ | --- | --- | --- |
 | ARX(1,1) | $(\min \pi_t,\max \pi_t)$ | $[-1,1]$ | --- | $[-10,10]$ | --- |
+| ARX(2,0) | $(\min \pi_t,\max \pi_t)$ | $[-2,2]$ | $[-1,1]$ | --- | --- |
 | ARX(2,1) | $(\min \pi_t,\max \pi_t)$ | $[-2,2]$ | $[-1,1]$ | $[-10,10]$ | --- |
 | ARX(2,2) | $(\min \pi_t,\max \pi_t)$ | $[-2,2]$ | $[-1,1]$ | $[-10,10]$ | $[-10,10]$ |
 
 Best-model collection also imposes mean-process stationarity before a BEGE
-estimate is eligible for reporting. For ARX(1,1), this requires
-$|\rho_1|<1$. For ARX(2,1) and ARX(2,2), the stationarity condition is the
+estimate is eligible for reporting. For ARX(1,0) and ARX(1,1), this requires
+$|\rho_1|<1$. For ARX(2,0), ARX(2,1) and ARX(2,2), the stationarity condition is the
 usual AR(2) polynomial restriction:
 
 $$
@@ -51,7 +62,9 @@ stationarity check; the SPF coefficients $\phi_1$ and $\phi_2$ are treated as
 exogenous-regressor loadings and are not included in the AR polynomial.
 
 Starting values for the estimated mean parameters are drawn uniformly from
-OLS-centered intervals,  $\hat\theta_j \pm 2\,SE(\hat\theta_j)$.
+OLS-centered intervals,  $\hat\theta_j \pm 2\,SE(\hat\theta_j)$, where
+$\hat\theta_j$ and $SE(\hat\theta_j)$ are the OLS estimate and HAC(12)
+standard error of the mean equation on the estimation sample.
 
 ## Residual Dynamics
 
@@ -83,47 +96,34 @@ The common parameter bounds used in estimation and result collection are:
 | Shock-loading parameters $\phi^\pm,\phi_p,\phi_n,\phi_p^\pm,\phi_n^\pm$ | $[0,2]$ |
 | Scale parameters $\sigma_p,\sigma_n$ | $[10^{-5},2]$ |
 
+These parameter bounds, together with the stability restrictions of each
+specification below, are the only restrictions on the BEGE variance path.
+Under them, the implied variance $\sigma_p^2p_t+\sigma_n^2n_t$ is finite and
+positive in any finite sample, and I impose no further bound on it. An earlier
+version of the estimation also kept the implied variance inside a wide envelope
+around an exponentially weighted moving average (EWMA) of squared residuals,
+between $10^{-6}$ and $10^{6}$ times that average. I experimented with and
+without this bound and removed it, because the likelihood already rules out the
+paths it was meant to exclude. When the implied variance becomes much smaller
+than the squared residual it must explain, that residual becomes an extreme
+tail event; when the variance becomes very large, the density is spread too
+thinly over the observed residuals. In both cases the model fits poorly and the
+log likelihood falls sharply, so maximizing the likelihood itself avoids
+explosive and vanishing variance paths.
 
-To rule out numerically degenerate and explosive variance paths, I use an EWMA path as a scale-adaptive reference for the
-BEGE implied variance. This is a loose numerical safeguard, not a
-variance-targeting restriction.[^ewma-bound] For residuals $u_t$, define
-
-$$
-EWMA_1 =
-\frac{\sum_{j=1}^{\tau}\lambda^{j-1}u_j^2}
-     {\sum_{j=1}^{\tau}\lambda^{j-1}},
-\qquad
-EWMA_t = \lambda EWMA_{t-1} + (1-\lambda)u_{t-1}^2,\quad t\geq 2.
-$$
-
-The EWMA implied-variance bounds are imposed during optimization and checked
-again during collection. With $\lambda=0.94$ and $\tau=\min(75,T)$, let
-$s_u^2:=1/T \sum_{j=1}^{T} u_j^2$ and
-$M_u:=1+\max_{1\leq s\leq T}u_s^2$. Then
-
-$$
-\begin{aligned}
-\underline v_t
-&:= \max \left\{10^{-6}EWMA_t,\;10^{-8}s_u^2\right\},\\
-\overline v_t
-&:= \max \left\{\min\left(10^6EWMA_t,\;10^7M_u\right),\;M_u\right\},\\
-\underline v_t
-&\leq \sigma_p^2p_t+\sigma_n^2n_t \leq \overline v_t,
-\qquad t=1,\ldots,T.
-\end{aligned}
-$$
-
-[^ewma-bound]: The exponential weights follow the variance-forecasting idea in
-    J.P. Morgan/Reuters, [*RiskMetrics---Technical Document*, Fourth Edition
-    (1996), Chapter 5](https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a),
-    where recent squared shocks receive more weight than older shocks. Here the
-    EWMA path is only a smoothed proxy for the local scale of $u_t^2$, not a
-    BEGE variance target. The loose envelope is adapted from the `arch`
-    package's
-    [`VolatilityProcess.variance_bounds`](https://arch.readthedocs.io/en/latest/_modules/arch/univariate/volatility.html#VolatilityProcess.variance_bounds):
-    the lower bound prevents the implied BEGE variance from collapsing toward
-    zero, while the upper bound screens out explosive variance paths that would
-    make likelihood evaluation numerically unreliable.
+To verify this, I estimated each of the five canonical BEGE specifications with
+the Constant, ARX(1,1), ARX(2,1) and ARX(2,2) mean processes twice on
+the 2026-10-20 data vintage, once with the EWMA bound and once without it, both
+times from the same 50,000 random starting points. Without the bound, every
+converged candidate estimate stayed inside the former envelope. The best
+estimates lie far inside it:
+their implied variance stays at least 80,000 times above the former lower bound
+and at least 6,700 times below the former upper bound.
+In 15 of the 20 combinations of specification and mean process, the best log
+likelihoods of the two runs agree within $10^{-4}$. In the other five they
+differ by at most $0.20$, in both directions. Each of those best estimates lies
+inside the former bound and was therefore attainable in both runs, so the
+differences reflect the random search rather than the bound.
 
 ### Constant BEGE
 
@@ -268,16 +268,8 @@ $$
 
 ## Random Search
 
-BEGE estimation uses 50 independent seed jobs for each volatility
-specification. Within each seed job, each mean process uses 40 saved random
-draws, and each draw runs 25 optimizer starts. Therefore each BEGE
-specification and mean-process pair uses
-
-$$
-50 \times 40 \times 25 = 50{,}000
-$$
-
-optimizer starts.
+For each BEGE specification and mean process, I randomly sample 10,000
+starting points and run the optimizer from each of them.
 
 For volatility parameters, starting values are sampled inside the documented
 bounds. Shape intercept starts $p_0,n_0$ are sampled from the positive part of
@@ -306,9 +298,8 @@ saddlepoint approximation when the closed form becomes numerically fragile.
 For each BEGE specification, the reported best-model page contains only the
 likelihood-best admissible estimate across mean processes. The by-mean best
 rows remain available in the CSV outputs linked from each report. Selection
-requires successful optimizer convergence, mean-process stationarity,
-documented parameter and stability constraints, and EWMA implied-variance
-bounds.
+requires successful optimizer convergence, mean-process stationarity, and the
+documented parameter and stability constraints.
 
 
 Each report also gives empirical 5%, median, and 95% quantiles for $p_t$,
@@ -357,5 +348,5 @@ stability restrictions $\beta_p<1$, $\beta_n<1$. See
 `EGARCH_BEGE/SPECIFICATION.md` for the full specification, parameter bounds,
 and the mapping to the equivalent EGARCH recursion on the component
 volatilities $\sigma_p\sqrt{p_t}$ and $\sigma_n\sqrt{n_t}$. All shared BEGE
-settings (mean menu, density evaluator, EWMA variance bounds, random-search
-protocol, selection rules) are inherited unchanged.
+settings (mean menu, density evaluator, random-search protocol, selection
+rules) are inherited unchanged.

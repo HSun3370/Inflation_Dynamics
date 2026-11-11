@@ -7,6 +7,7 @@
 #show text: set text(fill: rgb("#808080"))
 ```
 
+
 # Model Selection Report
 
 Effective sample: **1969-02--2026-09** (**692 observations**, `Aggregate_CPI_inflation_Monthly.pkl`, data vintage 2026-10-20).
@@ -15,7 +16,7 @@ Effective sample: **1969-02--2026-09** (**692 observations**, `Aggregate_CPI_inf
 
 All models are estimated with `arch` 7.0.0, which maximizes the likelihood by SLSQP subject to the bounds and linear constraints in the second column of the table below. `arch` imposes no bounds on mean-process coefficients or on the EGARCH coefficients $\alpha_i$ and $\gamma_j$. If a supplied starting vector violates any bound or constraint, `arch` silently replaces the whole vector with its own default start. Each model combination uses 5000 starts. Start 1 is the `arch` default (Gaussian mixture: the Student's $t$ estimates plus $(p_1,\mu_1,\sigma_1^2)=(0.3,0.1,1)$ when that vector is feasible, otherwise the `arch` default); starts 2--5000 are random draws from the third column. Every random draw lies inside `arch`'s feasible set and inside the stationary region (volatility persistence and AR roots below $1-10^{-6}$ in modulus), so `arch` uses every random start as drawn.
 
-$\bar v$ denotes the mean squared residual at `arch`'s mean starting values (OLS residuals for ARX means, $\pi_t-SPF_t$ for the Constant mean): Constant 0.0779, ARX(1,1) 0.0590, ARX(2,1) 0.0589, ARX(2,2) 0.0588.
+$\bar v$ denotes the mean squared residual at `arch`'s mean starting values (OLS residuals for ARX means, $\pi_t-SPF_t$ for the Constant mean): Constant 0.0779, ARX(1,0) 0.0646, ARX(1,1) 0.0590, ARX(2,0) 0.0642, ARX(2,1) 0.0589, ARX(2,2) 0.0588.
 
 | Parameter | `arch` bound / constraint | Random-start draw |
 |---|---|---|
@@ -48,8 +49,8 @@ Notes:
 - *Uniform on a region* means a uniform draw over the whole region: Dirichlet(1,…,1) weights for the volatility simplices, rejection sampling for the AR triangle and for `arch`'s caps. *Log-uniform* draws are uniform in the logarithm of the parameter.
 - Compared with the stationarity conditions in the README, `arch`'s feasible set is the same for GARCH. For GJR-GARCH, `arch` also caps $\alpha_i\le1$, although stationarity alone allows $\alpha_i<2$ when $\gamma_i$ is small. For EGARCH, `arch` requires $\beta_k\ge0$, under which $\sum\beta_k<1$ is the stationarity condition; $\omega$ is also bounded. The mixture bounds come from this repository's `MixNormal` class. $\alpha_i$ and $\gamma_j$ in EGARCH are unbounded in `arch`; the reported EGARCH estimates have $\max|\alpha_i|=0.6378$ and $\max|\gamma_j|=0.2049$, well inside the draw range $[-2,2]$.
 - Selection: for each combination the reported estimate has the highest log likelihood among *admissible* starts, which must pass five checks. (1) SLSQP reports success and `arch` returns convergence flag 0. (2) The first-order (KKT) conditions hold: the numerical gradient of the log likelihood, net of non-negative multipliers on the active bounds and constraints, is at most 0.005$\cdot T$ in absolute value. When a start that would become the best fails this check, SLSQP is restarted from its own solution up to 5 times, because SLSQP sometimes stops just short of a genuine maximum. Points on extremely steep ridges, where SLSQP reports success with gradients of $10^1$--$10^6$, do not move and stay rejected. (3) Volatility is stationary. (4) The AR roots lie inside the unit circle. (5) For the Gaussian mixture, the component variances satisfy $\min(\sigma_1^2,\sigma_2^2)/\max(\sigma_1^2,\sigma_2^2)\ge0.01$. This Hathaway-type restriction keeps the mixture likelihood bounded; without it the best fits place a component with variance $10^{-6}$ on one or two observations. If no start passes, the best converged start that satisfies the first-order conditions is reported and flagged in the CSV `selection_status` column. `best_loglik_hits` in the summary CSV counts the admissible starts that came within 0.01 of the reported log likelihood, and `params_at_arch_bound` lists parameters of the reported estimate that sit on an `arch` bound.
-- In 1 of 144 combinations, a converged fit that satisfies the first-order conditions but fails stationarity or the mixture rule has a higher log likelihood than the reported estimate (largest difference 2.5353). For these combinations the likelihood peaks on the stationarity boundary or at a degenerate mixture, and the reported estimate is the best admissible local maximum. The CSV column `best_inadmissible_loglikelihood` records the higher value.
-- In this run, 44 of 144 reported estimates have at least one parameter on an `arch` bound; parameters on a bound, with counts: beta (37), alpha (7). Standard errors of estimates on a bound or an active constraint (for example $\beta_k=0$, or a GJR $\gamma_i=0$) are not asymptotically normal and should be read with caution.
+- In 2 of 216 combinations, a converged fit that satisfies the first-order conditions but fails stationarity or the mixture rule has a higher log likelihood than the reported estimate (largest difference 2.5353). For these combinations the likelihood peaks on the stationarity boundary or at a degenerate mixture, and the reported estimate is the best admissible local maximum. The CSV column `best_inadmissible_loglikelihood` records the higher value.
+- In this run, 64 of 216 reported estimates have at least one parameter on an `arch` bound; parameters on a bound, with counts: beta (51), alpha (13). Standard errors of estimates on a bound or an active constraint (for example $\beta_k=0$, or a GJR $\gamma_i=0$) are not asymptotically normal and should be read with caution.
 
 ## Model Selection
 
@@ -89,6 +90,18 @@ For each model combination, the reported row uses the highest log-likelihood est
 | Normal | Constant | EGARCH(1,2) | 17.2697 | -24.5394 | -1.8415 |
 | Normal | Constant | EGARCH(2,1) | 23.7179 | -35.4359 | -8.1983 |
 | Normal | Constant | EGARCH(2,2) | 23.7179 | -33.4359 | -1.6588 |
+| Normal | ARX(1,0) | GARCH(1,1) | 38.1432 | -66.2865 | -43.5885 |
+| Normal | ARX(1,0) | GARCH(1,2) | 38.1668 | -64.3336 | -37.0961 |
+| Normal | ARX(1,0) | GARCH(2,1) | 38.1432 | -64.2865 | -37.0489 |
+| Normal | ARX(1,0) | GARCH(2,2) | 38.5666 | -63.1332 | -31.3561 |
+| Normal | ARX(1,0) | GJR-GARCH(1,1) | 39.8135 | -67.6269 | -40.3894 |
+| Normal | ARX(1,0) | GJR-GARCH(1,2) | 39.8149 | -65.6298 | -33.8527 |
+| Normal | ARX(1,0) | GJR-GARCH(2,1) | 42.0697 | -68.1393 | -31.8227 |
+| Normal | ARX(1,0) | GJR-GARCH(2,2) | 42.4833 | -66.9665 | -26.1103 |
+| Normal | ARX(1,0) | EGARCH(1,1) | 33.6339 | -55.2677 | -28.0302 |
+| Normal | ARX(1,0) | EGARCH(1,2) | 33.6796 | -53.3593 | -21.5822 |
+| Normal | ARX(1,0) | EGARCH(2,1) | 38.7599 | -61.5199 | -25.2032 |
+| Normal | ARX(1,0) | EGARCH(2,2) | 38.7599 | -59.5199 | -18.6636 |
 | Normal | ARX(1,1) | GARCH(1,1) | 72.5910 | -133.1821 | -105.9446 |
 | Normal | ARX(1,1) | GARCH(1,2) | 72.5910 | -131.1821 | -99.4050 |
 | Normal | ARX(1,1) | GARCH(2,1) | 72.7163 | -131.4326 | -99.6555 |
@@ -101,6 +114,18 @@ For each model combination, the reported row uses the highest log-likelihood est
 | Normal | ARX(1,1) | EGARCH(1,2) | 67.1494 | -118.2988 | -81.9821 |
 | Normal | ARX(1,1) | EGARCH(2,1) | 73.8485 | -129.6969 | -88.8407 |
 | Normal | ARX(1,1) | EGARCH(2,2) | 73.8485 | -127.6969 | -82.3011 |
+| Normal | ARX(2,0) | GARCH(1,1) | 40.0210 | -68.0419 | -40.8044 |
+| Normal | ARX(2,0) | GARCH(1,2) | 40.0314 | -66.0629 | -34.2858 |
+| Normal | ARX(2,0) | GARCH(2,1) | 40.0210 | -66.0419 | -34.2648 |
+| Normal | ARX(2,0) | GARCH(2,2) | 40.4451 | -64.8902 | -28.5735 |
+| Normal | ARX(2,0) | GJR-GARCH(1,1) | 41.1519 | -68.3038 | -36.5267 |
+| Normal | ARX(2,0) | GJR-GARCH(1,2) | 41.1527 | -66.3054 | -29.9887 |
+| Normal | ARX(2,0) | GJR-GARCH(2,1) | 43.3291 | -68.6582 | -27.8019 |
+| Normal | ARX(2,0) | GJR-GARCH(2,2) | 43.5202 | -67.0405 | -21.6446 |
+| Normal | ARX(2,0) | EGARCH(1,1) | 35.2128 | -56.4255 | -24.6484 |
+| Normal | ARX(2,0) | EGARCH(1,2) | 35.2454 | -54.4908 | -18.1742 |
+| Normal | ARX(2,0) | EGARCH(2,1) | 39.5562 | -61.1124 | -20.2562 |
+| Normal | ARX(2,0) | EGARCH(2,2) | 39.5562 | -59.1124 | -13.7166 |
 | Normal | ARX(2,1) | GARCH(1,1) | 73.0070 | -132.0140 | -100.2369 |
 | Normal | ARX(2,1) | GARCH(1,2) | 73.0070 | -130.0140 | -93.6973 |
 | Normal | ARX(2,1) | GARCH(2,1) | 73.1873 | -130.3745 | -94.0578 |
@@ -137,6 +162,18 @@ For each model combination, the reported row uses the highest log-likelihood est
 | Student's $t$ | Constant | EGARCH(1,2) | 37.1046 | -62.2091 | -34.9716 |
 | Student's $t$ | Constant | EGARCH(2,1) | 41.4660 | -68.9320 | -37.1549 |
 | Student's $t$ | Constant | EGARCH(2,2) | 41.4660 | -66.9320 | -30.6153 |
+| Student's $t$ | ARX(1,0) | GARCH(1,1) | 61.1154 | -110.2309 | -82.9933 |
+| Student's $t$ | ARX(1,0) | GARCH(1,2) | 61.1456 | -108.2911 | -76.5140 |
+| Student's $t$ | ARX(1,0) | GARCH(2,1) | 61.1154 | -108.2309 | -76.4538 |
+| Student's $t$ | ARX(1,0) | GARCH(2,2) | 61.4602 | -106.9205 | -70.6038 |
+| Student's $t$ | ARX(1,0) | GJR-GARCH(1,1) | 64.0988 | -114.1975 | -82.4204 |
+| Student's $t$ | ARX(1,0) | GJR-GARCH(1,2) | 64.1014 | -112.2027 | -75.8861 |
+| Student's $t$ | ARX(1,0) | GJR-GARCH(2,1) | 64.3622 | -110.7244 | -69.8682 |
+| Student's $t$ | ARX(1,0) | GJR-GARCH(2,2) | 64.8382 | -109.6763 | -64.2805 |
+| Student's $t$ | ARX(1,0) | EGARCH(1,1) | 60.0210 | -106.0420 | -74.2649 |
+| Student's $t$ | ARX(1,0) | EGARCH(1,2) | 60.0445 | -104.0890 | -67.7723 |
+| Student's $t$ | ARX(1,0) | EGARCH(2,1) | 61.1600 | -104.3199 | -63.4636 |
+| Student's $t$ | ARX(1,0) | EGARCH(2,2) | 62.8130 | -105.6261 | -60.2302 |
 | Student's $t$ | ARX(1,1) | GARCH(1,1) | 97.7611 | -181.5223 | -149.7452 |
 | Student's $t$ | ARX(1,1) | GARCH(1,2) | 97.7611 | -179.5223 | -143.2056 |
 | Student's $t$ | ARX(1,1) | GARCH(2,1) | 97.8253 | -179.6507 | -143.3340 |
@@ -149,6 +186,18 @@ For each model combination, the reported row uses the highest log-likelihood est
 | Student's $t$ | ARX(1,1) | EGARCH(1,2) | 96.3432 | -174.6863 | -133.8300 |
 | Student's $t$ | ARX(1,1) | EGARCH(2,1) | 97.7896 | -175.5792 | -130.1833 |
 | Student's $t$ | ARX(1,1) | EGARCH(2,2) | 98.8160 | -175.6321 | -125.6966 |
+| Student's $t$ | ARX(2,0) | GARCH(1,1) | 63.7151 | -113.4301 | -81.6530 |
+| Student's $t$ | ARX(2,0) | GARCH(1,2) | 63.7164 | -111.4328 | -75.1161 |
+| Student's $t$ | ARX(2,0) | GARCH(2,1) | 63.7151 | -111.4301 | -75.1134 |
+| Student's $t$ | ARX(2,0) | GARCH(2,2) | 63.9064 | -109.8128 | -68.9565 |
+| Student's $t$ | ARX(2,0) | GJR-GARCH(1,1) | 65.5332 | -115.0663 | -78.7496 |
+| Student's $t$ | ARX(2,0) | GJR-GARCH(1,2) | 65.5340 | -113.0681 | -72.2118 |
+| Student's $t$ | ARX(2,0) | GJR-GARCH(2,1) | 65.7262 | -111.4524 | -66.0565 |
+| Student's $t$ | ARX(2,0) | GJR-GARCH(2,2) | 65.9993 | -109.9985 | -60.0631 |
+| Student's $t$ | ARX(2,0) | EGARCH(1,1) | 61.2110 | -106.4220 | -70.1053 |
+| Student's $t$ | ARX(2,0) | EGARCH(1,2) | 61.2386 | -104.4772 | -63.6209 |
+| Student's $t$ | ARX(2,0) | EGARCH(2,1) | 62.0960 | -104.1920 | -58.7962 |
+| Student's $t$ | ARX(2,0) | EGARCH(2,2) | 63.7914 | -105.5827 | -55.6473 |
 | Student's $t$ | ARX(2,1) | GARCH(1,1) | 97.9755 | -179.9510 | -143.6343 |
 | Student's $t$ | ARX(2,1) | GARCH(1,2) | 97.9755 | -177.9510 | -137.0947 |
 | Student's $t$ | ARX(2,1) | GARCH(2,1) | 98.0343 | -178.0687 | -137.2124 |
@@ -185,6 +234,18 @@ For each model combination, the reported row uses the highest log-likelihood est
 | Gaussian mixture | Constant | EGARCH(1,2) | 41.8257 | -67.6514 | -31.3347 |
 | Gaussian mixture | Constant | EGARCH(2,1) | 44.0248 | -70.0495 | -29.1933 |
 | Gaussian mixture | Constant | EGARCH(2,2) | 44.0248 | -68.0495 | -22.6537 |
+| Gaussian mixture | ARX(1,0) | GARCH(1,1) | 62.3967 | -108.7934 | -72.4767 |
+| Gaussian mixture | ARX(1,0) | GARCH(1,2) | 62.4921 | -106.9843 | -66.1280 |
+| Gaussian mixture | ARX(1,0) | GARCH(2,1) | 62.3967 | -106.7934 | -65.9372 |
+| Gaussian mixture | ARX(1,0) | GARCH(2,2) | 62.8621 | -105.7242 | -60.3283 |
+| Gaussian mixture | ARX(1,0) | GJR-GARCH(1,1) | 65.5185 | -113.0369 | -72.1807 |
+| Gaussian mixture | ARX(1,0) | GJR-GARCH(1,2) | 65.5185 | -111.0369 | -65.6411 |
+| Gaussian mixture | ARX(1,0) | GJR-GARCH(2,1) | 65.8710 | -109.7421 | -59.8066 |
+| Gaussian mixture | ARX(1,0) | GJR-GARCH(2,2) | 66.4016 | -108.8032 | -54.3282 |
+| Gaussian mixture | ARX(1,0) | EGARCH(1,1) | 61.8165 | -105.6331 | -64.7768 |
+| Gaussian mixture | ARX(1,0) | EGARCH(1,2) | 61.8165 | -103.6331 | -58.2372 |
+| Gaussian mixture | ARX(1,0) | EGARCH(2,1) | 63.0514 | -104.1029 | -54.1674 |
+| Gaussian mixture | ARX(1,0) | EGARCH(2,2) | 64.2339 | -104.4677 | -49.9927 |
 | Gaussian mixture | ARX(1,1) | GARCH(1,1) | 99.6274 | -181.2549 | -140.3986 |
 | Gaussian mixture | ARX(1,1) | GARCH(1,2) | 99.6274 | -179.2549 | -133.8590 |
 | Gaussian mixture | ARX(1,1) | GARCH(2,1) | 99.6583 | -179.3166 | -133.9208 |
@@ -197,6 +258,18 @@ For each model combination, the reported row uses the highest log-likelihood est
 | Gaussian mixture | ARX(1,1) | EGARCH(1,2) | 99.3683 | -176.7365 | -126.8011 |
 | Gaussian mixture | ARX(1,1) | EGARCH(2,1) | 100.5121 | -177.0242 | -122.5492 |
 | Gaussian mixture | ARX(1,1) | EGARCH(2,2) | 101.0997 | -176.1993 | -117.1847 |
+| Gaussian mixture | ARX(2,0) | GARCH(1,1) | 65.3123 | -112.6247 | -71.7684 |
+| Gaussian mixture | ARX(2,0) | GARCH(1,2) | 65.3263 | -110.6525 | -65.2567 |
+| Gaussian mixture | ARX(2,0) | GARCH(2,1) | 65.3123 | -110.6247 | -65.2288 |
+| Gaussian mixture | ARX(2,0) | GARCH(2,2) | 65.5856 | -109.1712 | -59.2358 |
+| Gaussian mixture | ARX(2,0) | GJR-GARCH(1,1) | 66.6826 | -113.3653 | -67.9694 |
+| Gaussian mixture | ARX(2,0) | GJR-GARCH(1,2) | 66.6891 | -111.3782 | -61.4427 |
+| Gaussian mixture | ARX(2,0) | GJR-GARCH(2,1) | 66.9840 | -109.9680 | -55.4929 |
+| Gaussian mixture | ARX(2,0) | GJR-GARCH(2,2) | 67.4107 | -108.8215 | -49.8069 |
+| Gaussian mixture | ARX(2,0) | EGARCH(1,1) | 62.7156 | -105.4312 | -60.0353 |
+| Gaussian mixture | ARX(2,0) | EGARCH(1,2) | 62.7218 | -103.4435 | -53.5081 |
+| Gaussian mixture | ARX(2,0) | EGARCH(2,1) | 63.9110 | -103.8220 | -49.3470 |
+| Gaussian mixture | ARX(2,0) | EGARCH(2,2) | 65.2566 | -104.5131 | -45.4985 |
 | Gaussian mixture | ARX(2,1) | GARCH(1,1) | 99.9402 | -179.8804 | -134.4845 |
 | Gaussian mixture | ARX(2,1) | GARCH(1,2) | 99.9402 | -177.8804 | -127.9449 |
 | Gaussian mixture | ARX(2,1) | GARCH(2,1) | 99.9697 | -177.9393 | -128.0039 |
@@ -225,7 +298,7 @@ For each model combination, the reported row uses the highest log-likelihood est
 ## Best Models by Criterion and Volatility Family
 
 For each criterion and each volatility family, the selected model is the best across mean-process choices, orders, and distributions using stable & successful fits.
-The main result tables contain 144 reported model combinations.
+The main result tables contain 216 reported model combinations.
 
 ### AIC
 

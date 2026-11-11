@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -15,11 +14,14 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from BEGE_GARCH.BEGE_GARCH import BG_GARCH
+from BEGE_GARCH.bege_batch import data_frequency, effective_sample_path, expected_effective_nobs
 
 
 MEAN_PARAM_NAMES = {
     "constant": [],
+    "ARX(1,0)": ["c", "rho_1"],
     "ARX(1,1)": ["c", "rho_1", "phi_1"],
+    "ARX(2,0)": ["c", "rho_1", "rho_2"],
     "ARX(2,1)": ["c", "rho_1", "rho_2", "phi_1"],
     "ARX(2,2)": ["c", "rho_1", "rho_2", "phi_1", "phi_2"],
 }
@@ -38,7 +40,7 @@ def _resolve_column(df: pd.DataFrame, preferred: str, aliases: tuple[str, ...]) 
 
 
 def load_effective_sample(project_root: Path) -> pd.DataFrame:
-    data_path = project_root / "DataSummary" / "Aggregate_CPI_inflation_Quarterly.pkl"
+    data_path = effective_sample_path(project_root)
     if not data_path.exists():
         raise FileNotFoundError(f"Missing effective-sample file: {data_path}")
 
@@ -105,9 +107,22 @@ def build_model_specs(
             "X": None,
         },
         {
+            "mean_type": "ARX(1,0)",
+            "Y": df["Inflation"].to_numpy(dtype=float),
+            "X": {"Inflation_lag_1": df["Inflation_lag_1"].to_numpy(dtype=float)},
+        },
+        {
             "mean_type": "ARX(1,1)",
             "Y": df["Inflation"].to_numpy(dtype=float),
             "X": x_arx11,
+        },
+        {
+            "mean_type": "ARX(2,0)",
+            "Y": df["Inflation"].to_numpy(dtype=float),
+            "X": {
+                "Inflation_lag_1": df["Inflation_lag_1"].to_numpy(dtype=float),
+                "Inflation_lag_2": df["Inflation_lag_2"].to_numpy(dtype=float),
+            },
         },
         {
             "mean_type": "ARX(2,1)",
@@ -235,7 +250,8 @@ def run_seed(
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_effective_sample(PROJECT_ROOT)
-    expected_nobs = json.loads((PROJECT_ROOT / "DataSummary" / "data_vintage.json").read_text())["quarterly"]["nobs"]
+    print(f"Data: {effective_sample_path(PROJECT_ROOT)} ({data_frequency()}, {len(df)} observations).")
+    expected_nobs = expected_effective_nobs(PROJECT_ROOT)
     if len(df) != expected_nobs:
         print(f"[WARN] Effective sample length is {len(df)} (expected {expected_nobs}).")
 
@@ -336,7 +352,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-arx22",
         action="store_true",
-        help="Skip ARX(2,2). By default all four mean processes are estimated.",
+        help="Skip ARX(2,2). By default all six mean processes are estimated.",
     )
     parser.add_argument(
         "--print-summary",
@@ -356,7 +372,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mean-type",
-        choices=["all", "constant", "ARX(1,1)", "ARX(2,1)", "ARX(2,2)"],
+        choices=["all", "constant", "ARX(1,0)", "ARX(1,1)", "ARX(2,0)", "ARX(2,1)", "ARX(2,2)"],
         default="all",
         help="Estimate one mean specification. Default estimates all enabled mean processes.",
     )

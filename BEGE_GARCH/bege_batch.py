@@ -11,10 +11,12 @@ import numpy as np
 import pandas as pd
 
 
-MEAN_TYPES = ["constant", "ARX(1,1)", "ARX(2,1)", "ARX(2,2)"]
+MEAN_TYPES = ["constant", "ARX(1,0)", "ARX(1,1)", "ARX(2,0)", "ARX(2,1)", "ARX(2,2)"]
 MEAN_PARAM_NAMES = {
     "constant": [],
+    "ARX(1,0)": ["c", "rho_1"],
     "ARX(1,1)": ["c", "rho_1", "phi_1"],
+    "ARX(2,0)": ["c", "rho_1", "rho_2"],
     "ARX(2,1)": ["c", "rho_1", "rho_2", "phi_1"],
     "ARX(2,2)": ["c", "rho_1", "rho_2", "phi_1", "phi_2"],
 }
@@ -35,11 +37,21 @@ PATH_QUANTILE_PREFIXES = (
 )
 MEAN_FILE_STEMS = {
     "constant": "constant",
+    "ARX(1,0)": "ARX_1_0",
     "ARX(1,1)": "ARX_1_1",
+    "ARX(2,0)": "ARX_2_0",
     "ARX(2,1)": "ARX_2_1",
     "ARX(2,2)": "ARX_2_2",
 }
 REPO_ROOT = Path(__file__).resolve().parents[1]
+# Monthly reports are de-emphasized in the PDF, as for the GARCH and regime-switching results.
+MONTHLY_TYPST_STYLE = [
+    "```{raw:typst}",
+    '#set text(fill: rgb("#808080"))',
+    '#show text: set text(fill: rgb("#808080"))',
+    "```",
+    "",
+]
 GITHUB_BLOB_BASE = os.environ.get(
     "BEGE_GITHUB_BLOB_BASE",
     "https://github.com/HSun3370/Inflation_Dynamics/blob/main",
@@ -126,13 +138,30 @@ def _resolve_column(df: pd.DataFrame, preferred: str, aliases: tuple[str, ...]) 
     raise KeyError(f"Missing required column. Tried: {candidates}")
 
 
+def data_frequency() -> str:
+    """Sampling frequency of the BEGE run, from BEGE_FREQUENCY (quarterly by default).
+
+    Runners and collectors of one run must see the same value; the submit scripts
+    export it into every seed and collector job.
+    """
+    frequency = os.environ.get("BEGE_FREQUENCY", "quarterly").strip().lower()
+    if frequency not in ("quarterly", "monthly"):
+        raise ValueError(f"BEGE_FREQUENCY must be 'quarterly' or 'monthly', not {frequency!r}.")
+    return frequency
+
+
+def effective_sample_path(project_root: Path) -> Path:
+    return project_root / "DataSummary" / f"Aggregate_CPI_inflation_{data_frequency().capitalize()}.pkl"
+
+
 def expected_effective_nobs(project_root: Path) -> int:
-    """Quarterly effective-sample size of the current data vintage."""
-    return json.loads((project_root / "DataSummary" / "data_vintage.json").read_text())["quarterly"]["nobs"]
+    """Effective-sample size of the current data vintage at the run's frequency."""
+    vintage = json.loads((project_root / "DataSummary" / "data_vintage.json").read_text())
+    return vintage[data_frequency()]["nobs"]
 
 
 def load_effective_sample(project_root: Path) -> pd.DataFrame:
-    data_path = project_root / "DataSummary" / "Aggregate_CPI_inflation_Quarterly.pkl"
+    data_path = effective_sample_path(project_root)
     if not data_path.exists():
         raise FileNotFoundError(f"Missing effective-sample file: {data_path}")
 
@@ -188,9 +217,19 @@ def build_model_specs(df: pd.DataFrame, include_arx22: bool) -> list[dict]:
     else:
         x_arx21 = df["SPF"].to_numpy(dtype=float)
 
+    # Pure AR means need the precomputed inflation lags of the effective sample.
+    require_columns(df, ["Inflation_lag_1", "Inflation_lag_2"], "ARX(1,0)/ARX(2,0) mean processes")
+    x_arx10 = {"Inflation_lag_1": df["Inflation_lag_1"].to_numpy(dtype=float)}
+    x_arx20 = {
+        "Inflation_lag_1": df["Inflation_lag_1"].to_numpy(dtype=float),
+        "Inflation_lag_2": df["Inflation_lag_2"].to_numpy(dtype=float),
+    }
+
     specs = [
         {"mean_type": "constant", "Y": df["SPF_shock"].to_numpy(dtype=float), "X": None},
+        {"mean_type": "ARX(1,0)", "Y": df["Inflation"].to_numpy(dtype=float), "X": x_arx10},
         {"mean_type": "ARX(1,1)", "Y": df["Inflation"].to_numpy(dtype=float), "X": x_arx11},
+        {"mean_type": "ARX(2,0)", "Y": df["Inflation"].to_numpy(dtype=float), "X": x_arx20},
         {"mean_type": "ARX(2,1)", "Y": df["Inflation"].to_numpy(dtype=float), "X": x_arx21},
     ]
 
@@ -289,6 +328,7 @@ def run_seed_estimation(
     specs = build_model_specs(df, include_arx22=include_arx22)
 
     total_starts = len(specs) * n_draws * n_starts
+    print(f"Data: {effective_sample_path(project_root)} ({data_frequency()}, {len(df)} observations).")
     print(
         f"Seed {seed}: estimating {model_label} for {len(specs)} mean process(es), "
         f"{n_draws} draws each, {n_starts} starts per draw "
@@ -426,7 +466,7 @@ def readme_markdown_from_best_model(markdown: str) -> str:
                 out.append(line)
                 in_csv_outputs = False
                 continue
-            if "/results/by_mean/" in line:
+            if re.search(r"/results(?:_monthly)?/by_mean/", line):
                 match = re.match(r"- \[([^\]]+)\]\(([^)]+)\)", line)
                 if match:
                     csv_links.append((match.group(1), match.group(2)))
@@ -551,7 +591,7 @@ def _selection_metrics_for_row(
     specs_by_mean: dict[str, dict],
 ) -> dict[str, float]:
     from BEGE_GARCH.BEGE_GARCH import gjr_recursion
-    from BEGE_GARCH.BEGE_GARCH import bege_variance_bounds_ok
+    from BEGE_GARCH.BEGE_GARCH import bege_implied_variance
     from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
 
     residuals = _mean_residuals_from_row(row, specs_by_mean)
@@ -666,17 +706,7 @@ def _selection_metrics_for_row(
     else:
         raise ValueError(f"Unknown model_family {model_family!r}.")
 
-    variance_details = bege_variance_bounds_ok(
-        residuals,
-        pseries,
-        nseries,
-        sigma_p,
-        sigma_n,
-        return_details=True,
-    )
-    cond_var = variance_details["cond_var"]
-    lower = variance_details["lower"]
-    upper = variance_details["upper"]
+    cond_var = bege_implied_variance(pseries, nseries, sigma_p, sigma_n)
     cond_skewness = 2.0 * (sigma_p**3 * pseries - sigma_n**3 * nseries)
     cond_excess_kurtosis = 6.0 * (sigma_p**4 * pseries + sigma_n**4 * nseries)
     ll_vec = BEGE_log_density(residuals, pseries, nseries, sigma_p, sigma_n)
@@ -709,11 +739,6 @@ def _selection_metrics_for_row(
         "selection_cond_var_min": float(np.min(cond_var)),
         "selection_cond_var_median": float(np.median(cond_var)),
         "selection_cond_var_max": float(np.max(cond_var)),
-        "selection_implied_variance_bounds_ok": bool(variance_details["ok"]),
-        "selection_cond_var_lower_min": float(np.min(lower)),
-        "selection_cond_var_lower_max": float(np.max(lower)),
-        "selection_cond_var_upper_min": float(np.min(upper)),
-        "selection_cond_var_upper_max": float(np.max(upper)),
     }
     metrics.update(_path_quantile_metrics("selection_p_t", pseries))
     metrics.update(_path_quantile_metrics("selection_n_t", nseries))
@@ -743,8 +768,12 @@ def _bounds_for_row(spec: dict, mean_type: str, model_family: str) -> list[tuple
 
     if mean_type == "constant":
         bounds_mean: list[tuple[float | None, float | None]] = []
+    elif mean_type == "ARX(1,0)":
+        bounds_mean = [(ymin, ymax), (-1.0, 1.0)]
     elif mean_type == "ARX(1,1)":
         bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10.0, 10.0)]
+    elif mean_type == "ARX(2,0)":
+        bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)]
     elif mean_type == "ARX(2,1)":
         bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10.0, 10.0)]
     elif mean_type == "ARX(2,2)":
@@ -1026,11 +1055,11 @@ def _mean_stationarity_ok(theta: np.ndarray, mean_type: str) -> bool:
     theta = np.asarray(theta, dtype=float)
     if mean_type == "constant":
         return True
-    if mean_type == "ARX(1,1)":
+    if mean_type in {"ARX(1,0)", "ARX(1,1)"}:
         if theta.size < 2 or not np.isfinite(theta[1]):
             return False
         return bool(abs(theta[1]) < 1.0)
-    if mean_type in {"ARX(2,1)", "ARX(2,2)"}:
+    if mean_type in {"ARX(2,0)", "ARX(2,1)", "ARX(2,2)"}:
         if theta.size < 3 or not np.all(np.isfinite(theta[1:3])):
             return False
         rho_1, rho_2 = theta[1], theta[2]
@@ -1049,7 +1078,7 @@ def _row_likelihood_functions(
     big_penalty: float = 1e12,
     big_vec_penalty: float = 1e6,
 ):
-    from BEGE_GARCH.BEGE_GARCH import _make_residual_function, bege_variance_bounds_ok
+    from BEGE_GARCH.BEGE_GARCH import _make_residual_function
     from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
 
     residual_function = _make_residual_function(spec["Y"], spec["X"], mean_type)
@@ -1075,8 +1104,6 @@ def _row_likelihood_functions(
             or np.any(pseries <= 0.0)
             or np.any(nseries <= 0.0)
         ):
-            return np.full(n_obs, float(big_vec_penalty), dtype=float)
-        if not bege_variance_bounds_ok(residuals, pseries, nseries, sigma_p, sigma_n):
             return np.full(n_obs, float(big_vec_penalty), dtype=float)
 
         values = -BEGE_log_density(residuals, pseries, nseries, sigma_p, sigma_n)
@@ -1316,6 +1343,9 @@ def add_selection_diagnostics(
     }
 
     converged = strict_success_mask(out)
+    # The plausibility flag is calibrated to quarterly log likelihoods; it is
+    # diagnostic only and left blank for monthly runs.
+    loglik_threshold = IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD if data_frequency() == "quarterly" else np.nan
 
     for idx, row in out.iterrows():
         diag = {
@@ -1328,12 +1358,11 @@ def add_selection_diagnostics(
             "corrected_loglik_delta": np.nan,
             "selection_shape_reference": float(shape_reference),
             "selection_high_shape_density": False,
-            "selection_loglik_upper_threshold": float(IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD),
-            "selection_loglik_plausible": False,
+            "selection_loglik_upper_threshold": float(loglik_threshold),
+            "selection_loglik_plausible": False if np.isfinite(loglik_threshold) else np.nan,
             "selection_bounds_ok": False,
             "selection_constraints_ok": False,
             "selection_mean_stationary": False,
-            "selection_implied_variance_bounds_ok": False,
             "selection_recursion_init_p": np.nan,
             "selection_recursion_init_n": np.nan,
             "selection_eligible": False,
@@ -1347,10 +1376,6 @@ def add_selection_diagnostics(
             "selection_cond_var_min": np.nan,
             "selection_cond_var_median": np.nan,
             "selection_cond_var_max": np.nan,
-            "selection_cond_var_lower_min": np.nan,
-            "selection_cond_var_lower_max": np.nan,
-            "selection_cond_var_upper_min": np.nan,
-            "selection_cond_var_upper_max": np.nan,
         }
         diag.update(_empty_path_quantile_metrics())
 
@@ -1372,18 +1397,14 @@ def add_selection_diagnostics(
             )
             if not corrected_finite:
                 reasons.append("nonfinite corrected information criterion")
-            else:
-                diag["selection_loglik_plausible"] = bool(
-                    diag["corrected_loglik"] <= IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD
-                )
+            elif np.isfinite(loglik_threshold):
+                diag["selection_loglik_plausible"] = bool(diag["corrected_loglik"] <= loglik_threshold)
             if not np.isfinite(diag["selection_shape_max"]):
                 reasons.append("nonfinite shape path")
             elif diag["selection_shape_max"] >= shape_reference:
                 diag["selection_high_shape_density"] = True
             if not np.isfinite(diag["selection_cond_var_min"]) or diag["selection_cond_var_min"] <= 0.0:
                 reasons.append("nonpositive conditional variance path")
-            if not bool(diag.get("selection_implied_variance_bounds_ok", False)):
-                reasons.append("implied variance outside EWMA bounds")
 
             names, theta = _parameter_vector_from_row(row, model_family)
             bounds = _bounds_for_row(specs_by_mean[row["mean_type"]], row["mean_type"], model_family)
@@ -1526,6 +1547,18 @@ def _mean_equation(row: dict) -> list[str]:
             "$$",
             "",
             "No estimated mean-process coefficients.",
+        ]
+    if mean_type == "ARX(1,0)":
+        return [
+            "$$",
+            rf"\pi_{{t+1}} = {_math_param(row, 'c')} + {_math_param(row, 'rho_1')}\,\pi_t + u_{{t+1}}",
+            "$$",
+        ]
+    if mean_type == "ARX(2,0)":
+        return [
+            "$$",
+            rf"\pi_{{t+1}} = {_math_param(row, 'c')} + {_math_param(row, 'rho_1')}\,\pi_t + {_math_param(row, 'rho_2')}\,\pi_{{t-1}} + u_{{t+1}}",
+            "$$",
         ]
     if mean_type == "ARX(1,1)":
         return [
@@ -1768,6 +1801,7 @@ def write_markdown_summary(
         "#set page(margin: auto)",
         "```",
         "",
+        *(MONTHLY_TYPST_STYLE if data_frequency() == "monthly" else []),
         f"# {title}",
         "",
         f"Generated: `{datetime.now().isoformat(timespec='seconds')}`",
@@ -1841,7 +1875,6 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_bounds_ok",
         "selection_constraints_ok",
         "selection_mean_stationary",
-        "selection_implied_variance_bounds_ok",
         "selection_recursion_init_p",
         "selection_recursion_init_n",
         "selection_shape_max",
@@ -1854,10 +1887,6 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_cond_var_median",
         "selection_cond_var_max",
         *_path_quantile_columns(),
-        "selection_cond_var_lower_min",
-        "selection_cond_var_lower_max",
-        "selection_cond_var_upper_min",
-        "selection_cond_var_upper_max",
     ]
     return df[[col for col in dict.fromkeys(cols) if col in df.columns]]
 
@@ -1925,10 +1954,16 @@ def collect_results(
     model_param_names: list[str],
     model_family: str,
 ) -> None:
+    frequency = data_frequency()
+    default_results_dir = script_dir / ("results" if frequency == "quarterly" else "results_monthly")
+    readme_path = script_dir / ("README.md" if frequency == "quarterly" else "README_monthly.md")
+    if frequency == "monthly":
+        title = f"{title} (Monthly)"
     output_root = Path(os.environ.get("BEGE_COLLECT_OUTPUT_DIR", script_dir / "output"))
-    results_dir = Path(os.environ.get("BEGE_COLLECT_RESULTS_DIR", script_dir / "results"))
+    results_dir = Path(os.environ.get("BEGE_COLLECT_RESULTS_DIR", default_results_dir))
     raw_dir = output_root / "raw"
     results_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Data: {effective_sample_path(script_dir.parents[1])} ({frequency}); raw: {raw_dir}; results: {results_dir}")
 
     start_seed, end_seed = seed_range_from_env()
     csv_files = filter_csv_files(sorted(raw_dir.glob("draw_*.csv")), start_seed, end_seed)
@@ -1999,8 +2034,7 @@ def collect_results(
         best_loglik_row=best_loglik_rows[0] if best_loglik_rows else None,
         model_family=model_family,
     )
-    readme_path = script_dir / "README.md"
-    if results_dir.resolve() == (script_dir / "results").resolve():
+    if results_dir.resolve() == default_results_dir.resolve():
         readme_path.write_text(
             readme_markdown_from_best_model(summary_path.read_text(encoding="utf-8")),
             encoding="utf-8",
@@ -2018,5 +2052,5 @@ def collect_results(
     print(f"Wrote {path_quantile_path}")
     print(f"Wrote {best_se_path}")
     print(f"Wrote {summary_path}")
-    if results_dir.resolve() == (script_dir / "results").resolve():
+    if results_dir.resolve() == default_results_dir.resolve():
         print(f"Wrote {readme_path}")

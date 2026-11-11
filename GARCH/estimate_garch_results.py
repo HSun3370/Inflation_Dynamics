@@ -2,7 +2,7 @@
 """Estimate GARCH-family models under multiple mean processes and distributions.
 
 Estimated combinations
-- Mean processes: Constant anchor, ARX(1,1), ARX(2,1), ARX(2,2)
+- Mean processes: Constant anchor, ARX(1,0), ARX(1,1), ARX(2,0), ARX(2,1), ARX(2,2)
 - Volatility families: GARCH, GJR-GARCH, EGARCH
 - Orders: (1,1), (1,2), (2,1), (2,2)
 - Distributions: normal, studentst, mix_normal
@@ -131,7 +131,9 @@ DISTRIBUTION_ORDER = ["normal", "studentst", "mix_normal"]
 
 MEAN_LABEL = {
     "Constant_anchor": "Constant",
+    "ARX_1_0": "ARX(1,0)",
     "ARX_1_1": "ARX(1,1)",
+    "ARX_2_0": "ARX(2,0)",
     "ARX_2_1": "ARX(2,1)",
     "ARX_2_2": "ARX(2,2)",
 }
@@ -345,12 +347,28 @@ def build_mean_specs() -> list[MeanSpec]:
             x_cols=[],
         ),
         MeanSpec(
+            name="ARX_1_0",
+            y_col="Inflation",
+            y_transform="identity",
+            mean="LS",
+            lags=0,
+            x_cols=["Inflation_lag_1"],
+        ),
+        MeanSpec(
             name="ARX_1_1",
             y_col="Inflation",
             y_transform="identity",
             mean="LS",
             lags=0,
             x_cols=["Inflation_lag_1", "SPF"],
+        ),
+        MeanSpec(
+            name="ARX_2_0",
+            y_col="Inflation",
+            y_transform="identity",
+            mean="LS",
+            lags=0,
+            x_cols=["Inflation_lag_1", "Inflation_lag_2"],
         ),
         MeanSpec(
             name="ARX_2_1",
@@ -1439,6 +1457,13 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     i1, _ = _param_lookup(psub, "Inflation_lag_1")
     spf, _ = _param_lookup(psub, "SPF")
 
+    if m == "ARX_1_0":
+        return (
+            "$$\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t + \\mu_{{t+1}}\n"
+            "$$"
+        )
+
     if m == "ARX_1_1":
         return (
             "$$\n"
@@ -1447,6 +1472,13 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
         )
 
     i2, _ = _param_lookup(psub, "Inflation_lag_2")
+    if m == "ARX_2_0":
+        return (
+            "$$\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} + \\mu_{{t+1}}\n"
+            "$$"
+        )
+
     if m == "ARX_2_1":
         return (
             "$$\n"
@@ -1841,14 +1873,24 @@ class ModelEntry:
     vol_spec: VolSpec
 
 
+# Means in the order they joined the menu. Model ids and RNG seeds follow this order,
+# so adding means never renumbers or reseeds the combinations estimated earlier.
+MEAN_ADDITION_ROUNDS = [
+    ["Constant_anchor", "ARX_1_1", "ARX_2_1", "ARX_2_2"],
+    ["ARX_1_0", "ARX_2_0"],
+]
+
+
 def enumerate_models() -> list[ModelEntry]:
     """All combinations in a fixed order; the index seeds each model's RNG."""
+    mean_specs = {spec.name: spec for spec in build_mean_specs()}
     entries: list[ModelEntry] = []
-    for dist in DISTRIBUTIONS:
-        for mean_spec in build_mean_specs():
-            for vol_spec in build_vol_specs():
-                k = len(entries) + 1
-                entries.append(ModelEntry(k, f"M{k:03d}", dist, mean_spec, vol_spec))
+    for means in MEAN_ADDITION_ROUNDS:
+        for dist in DISTRIBUTIONS:
+            for mean_name in means:
+                for vol_spec in build_vol_specs():
+                    k = len(entries) + 1
+                    entries.append(ModelEntry(k, f"M{k:03d}", dist, mean_specs[mean_name], vol_spec))
     return entries
 
 
@@ -2147,7 +2189,7 @@ def collect_model_jobs(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Estimate GARCH/GJR-GARCH/EGARCH with four mean processes and "
+            "Estimate GARCH/GJR-GARCH/EGARCH with six mean processes and "
             "normal, studentst, and mix_normal distributions."
         )
     )

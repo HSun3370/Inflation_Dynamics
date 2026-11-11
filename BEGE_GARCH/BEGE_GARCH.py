@@ -73,6 +73,22 @@ def mean_const(Y, X, params):
     return y
 
 
+def mean_ARX10(Y, X, params):
+    c, rho_1 = params
+    y, data = _coerce_mean_inputs(Y, X)
+    if "Inflation_lag_1" not in data:
+        raise ValueError("ARX(1,0) requires Inflation_lag_1 in X.")
+    return y - (c + rho_1 * data["Inflation_lag_1"])
+
+
+def mean_ARX20(Y, X, params):
+    c, rho_1, rho_2 = params
+    y, data = _coerce_mean_inputs(Y, X)
+    if not {"Inflation_lag_1", "Inflation_lag_2"}.issubset(data):
+        raise ValueError("ARX(2,0) requires Inflation_lag_1 and Inflation_lag_2 in X.")
+    return y - (c + rho_1 * data["Inflation_lag_1"] + rho_2 * data["Inflation_lag_2"])
+
+
 def mean_ARX11(Y, X, params):
     c, rho_1, phi_1 = params
     y, data = _coerce_mean_inputs(Y, X)
@@ -163,6 +179,33 @@ def _slice_mean_x(X, n):
     return np.asarray(X, dtype=float)[:n]
 
 
+_OLS_START_REGRESSORS = {
+    'ARX(1,0)': ['Inflation_lag_1'],
+    'ARX(1,1)': ['Inflation_lag_1', 'SPF'],
+    'ARX(2,0)': ['Inflation_lag_1', 'Inflation_lag_2'],
+    'ARX(2,1)': ['Inflation_lag_1', 'Inflation_lag_2', 'SPF'],
+    'ARX(2,2)': ['Inflation_lag_1', 'Inflation_lag_2', 'SPF', 'SPF_lag_1'],
+}
+
+
+def _ols_mean_param_ranges(Y, X, mean_type, hac_lags=12):
+    """
+    Uniform start ranges theta_hat +/- 2*SE(theta_hat) for the mean parameters
+    (c, rho_1[, rho_2][, phi_1[, phi_2]]), from OLS of the mean equation on the
+    estimation sample with HAC(12) standard errors as in MeanProcess/.
+    """
+    from statsmodels.regression.linear_model import OLS
+
+    y, data = _coerce_mean_inputs(Y, X)
+    cols = _OLS_START_REGRESSORS[mean_type]
+    missing = [c for c in cols if c not in data]
+    if missing:
+        raise ValueError(f"{mean_type} start ranges require regressors {missing} in X.")
+    design = np.column_stack([np.ones_like(y)] + [data[c] for c in cols])
+    fit = OLS(y, design).fit(cov_type='HAC', cov_kwds={'maxlags': hac_lags})
+    return [(b - 2.0 * s, b + 2.0 * s) for b, s in zip(fit.params, fit.bse)]
+
+
 def _align_mean_sample(Y, X):
     y = np.asarray(Y, dtype=float)
     x_len = _mean_x_len(X)
@@ -181,6 +224,23 @@ def _make_residual_function(Y, X, mean_type):
 
     if mean_type == 'constant':
         return lambda params: y
+
+    if mean_type == 'ARX(1,0)' and "Inflation_lag_1" in data:
+        inflation_lag_1 = data["Inflation_lag_1"]
+
+        def _resids(params):
+            c, rho_1 = params
+            return y - (c + rho_1 * inflation_lag_1)
+        return _resids
+
+    if mean_type == 'ARX(2,0)' and {"Inflation_lag_1", "Inflation_lag_2"}.issubset(data):
+        inflation_lag_1 = data["Inflation_lag_1"]
+        inflation_lag_2 = data["Inflation_lag_2"]
+
+        def _resids(params):
+            c, rho_1, rho_2 = params
+            return y - (c + rho_1 * inflation_lag_1 + rho_2 * inflation_lag_2)
+        return _resids
 
     if mean_type == 'ARX(1,1)':
         if {"Inflation_lag_1", "SPF"}.issubset(data):
@@ -850,7 +910,7 @@ def BEGE_Constant_DE(Y, X=None, mean_type='constant',
 def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
                       n_starts=20, maxiter=1500, tol=1e-8, random_state=None,
                       compute_se=False, density_hyperu_method='scipy_approx',
-                      enforce_variance_bounds=True, start_n_jobs=None):
+                      enforce_variance_bounds=False, start_n_jobs=None):
     """
     BEGE GARCH MLE with random initialization.
     Mean params drawn from manually set ranges (last estimation results).
@@ -871,37 +931,31 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
         bounds_mean, names_mean = [], []
         # No mean params, skip range
         mean_param_ranges = []
+    elif mean_type == 'ARX(1,0)':
+        mean_model, num_m = mean_ARX10, 2
+        bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0)]
+        names_mean = ['c', 'rho_1']
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
     elif mean_type == 'ARX(1,1)':
         mean_model, num_m = mean_ARX11, 3
         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (-10, 10)]
         names_mean = ['c', 'rho_1', 'phi_1']
-        # OLS +/- 2*SE from MeanProcess/README.md and MeanProcess/OLS_Results.md
-        mean_param_ranges = [
-            (0.0824 - 2*0.086, 0.0824 + 2*0.086),   # c
-            (0.3005 - 2*0.112, 0.3005 + 2*0.112),   # rho_1
-            (0.7337 - 2*0.167, 0.7337 + 2*0.167)    # phi_1
-        ]
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+    elif mean_type == 'ARX(2,0)':
+        mean_model, num_m = mean_ARX20, 3
+        bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0)]
+        names_mean = ['c', 'rho_1', 'rho_2']
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
     elif mean_type == 'ARX(2,1)':
         mean_model, num_m = mean_ARX21, 4
         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
         names_mean = ['c', 'rho_1', 'rho_2', 'phi_1']
-        mean_param_ranges = [
-            (0.0897 - 2*0.086, 0.0897 + 2*0.086),   # c
-            (0.2892 - 2*0.098, 0.2892 + 2*0.098),   # rho_1
-            (0.0834 - 2*0.126, 0.0834 + 2*0.126),   # rho_2
-            (0.6385 - 2*0.251, 0.6385 + 2*0.251)    # phi_1
-        ]
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
     elif mean_type == 'ARX(2,2)':
         mean_model, num_m = mean_ARX22, 5
         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
         names_mean = ['c', 'rho_1', 'rho_2', 'phi_1', 'phi_2']
-        mean_param_ranges = [
-            (0.0856 - 2*0.086, 0.0856 + 2*0.086),   # c
-            (0.2992 - 2*0.106, 0.2992 + 2*0.106),   # rho_1
-            (0.0914 - 2*0.125, 0.0914 + 2*0.125),   # rho_2
-            (0.4084 - 2*0.433, 0.4084 + 2*0.433),   # phi_1
-            (0.2136 - 2*0.297, 0.2136 + 2*0.297)    # phi_2
-        ]
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
     else:
         raise ValueError("Invalid mean_type")
 
@@ -1034,7 +1088,7 @@ def BEGE_Constant_MLE(Y, X=None, mean_type='ARX(2,2)',
 def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
                        n_starts=20, maxiter=500, tol=1e-8, random_state=None,
                        compute_se=False, density_hyperu_method='scipy_approx',
-                       enforce_variance_bounds=True, start_n_jobs=None):
+                       enforce_variance_bounds=False, start_n_jobs=None):
     """
     Symmetric-volatility BEGE MLE (multi-start, no explicit constraints).
     - One shared GJR shape process s_t for BOTH p_t and n_t (symmetry).
@@ -1058,36 +1112,31 @@ def BEGE_Symmetric_MLE(Y, X=None, mean_type='ARX(2,2)',
         mean_model, num_m = mean_const, 0
         bounds_mean, names_mean = [], []
         mean_param_ranges = []
+    elif mean_type == 'ARX(1,0)':
+        mean_model, num_m = mean_ARX10, 2
+        bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0)]
+        names_mean = ['const', 'Infl(1)']
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
     elif mean_type == 'ARX(1,1)':
         mean_model, num_m = mean_ARX11, 3
         bounds_mean = [(min(Y), max(Y)), (-1.0, 1.0), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'SPF']
-        mean_param_ranges = [
-            (0.0824 - 2*0.086, 0.0824 + 2*0.086),
-            (0.3005 - 2*0.112, 0.3005 + 2*0.112),
-            (0.7337 - 2*0.167, 0.7337 + 2*0.167),
-        ]
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+    elif mean_type == 'ARX(2,0)':
+        mean_model, num_m = mean_ARX20, 3
+        bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0)]
+        names_mean = ['const', 'Infl(1)', 'Infl(2)']
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
     elif mean_type == 'ARX(2,1)':
         mean_model, num_m = mean_ARX21, 4
         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-        mean_param_ranges = [
-            (0.0897 - 2*0.086, 0.0897 + 2*0.086),
-            (0.2892 - 2*0.098, 0.2892 + 2*0.098),
-            (0.0834 - 2*0.126, 0.0834 + 2*0.126),
-            (0.6385 - 2*0.251, 0.6385 + 2*0.251),
-        ]
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
     elif mean_type == 'ARX(2,2)':
         mean_model, num_m = mean_ARX22, 5
         bounds_mean = [(min(Y), max(Y)), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
         names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-        mean_param_ranges = [
-            (0.0856 - 2*0.086, 0.0856 + 2*0.086),
-            (0.2992 - 2*0.106, 0.2992 + 2*0.106),
-            (0.0914 - 2*0.125, 0.0914 + 2*0.125),
-            (0.4084 - 2*0.433, 0.4084 + 2*0.433),
-            (0.2136 - 2*0.297, 0.2136 + 2*0.297),
-        ]
+        mean_param_ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
     else:
         raise ValueError("Invalid mean_type")
 
@@ -1265,7 +1314,7 @@ def BEGE_AsymSharedGJR_MLE(
     big_vec_penalty=1e6,
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    enforce_variance_bounds=True,
+    enforce_variance_bounds=False,
     start_n_jobs=None,
 ):
     """
@@ -1294,36 +1343,31 @@ def BEGE_AsymSharedGJR_MLE(
         if mean_type == 'constant':
             mean_model, num_m = mean_const, 0
             bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,0)':
+            mean_model, num_m = mean_ARX10, 2
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
-            ranges = [
-                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
-                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
-                (0.7337 - 2*0.167, 0.7337 + 2*0.167)
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+        elif mean_type == 'ARX(2,0)':
+            mean_model, num_m = mean_ARX20, 3
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-            ranges = [
-                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
-                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
-                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
-                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-            ranges = [
-                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
-                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
-                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
-                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
-                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
         else:
             raise ValueError("Invalid mean_type")
         return mean_model, num_m, bounds_mean, names_mean, ranges
@@ -1709,7 +1753,7 @@ def ID_GARCH(
     density_hyperu_method='scipy_approx',
     big_penalty=1e12,
     big_vec_penalty=1e6,
-    enforce_variance_bounds=True,
+    enforce_variance_bounds=False,
     start_n_jobs=None,
 ):
     """
@@ -1737,17 +1781,29 @@ def ID_GARCH(
         ymin, ymax = float(np.min(y)), float(np.max(y))
         if model == 'constant':
             return mean_const, 0, [], [], []
+        if model == 'ARX(1,0)':
+            return (
+                mean_ARX10,
+                2,
+                [(ymin, ymax), (-1.0, 1.0)],
+                ['c', 'rho_1'],
+                _ols_mean_param_ranges(y, X, 'ARX(1,0)'),
+            )
         if model == 'ARX(1,1)':
             return (
                 mean_ARX11,
                 3,
                 [(ymin, ymax), (-1.0, 1.0), (-10, 10)],
                 ['c', 'rho_1', 'phi_1'],
-                [
-                    (0.0824 - 2 * 0.086, 0.0824 + 2 * 0.086),
-                    (0.3005 - 2 * 0.112, 0.3005 + 2 * 0.112),
-                    (0.7337 - 2 * 0.167, 0.7337 + 2 * 0.167),
-                ],
+                _ols_mean_param_ranges(y, X, 'ARX(1,1)'),
+            )
+        if model == 'ARX(2,0)':
+            return (
+                mean_ARX20,
+                3,
+                [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)],
+                ['c', 'rho_1', 'rho_2'],
+                _ols_mean_param_ranges(y, X, 'ARX(2,0)'),
             )
         if model == 'ARX(2,1)':
             return (
@@ -1755,12 +1811,7 @@ def ID_GARCH(
                 4,
                 [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)],
                 ['c', 'rho_1', 'rho_2', 'phi_1'],
-                [
-                    (0.0897 - 2 * 0.086, 0.0897 + 2 * 0.086),
-                    (0.2892 - 2 * 0.098, 0.2892 + 2 * 0.098),
-                    (0.0834 - 2 * 0.126, 0.0834 + 2 * 0.126),
-                    (0.6385 - 2 * 0.251, 0.6385 + 2 * 0.251),
-                ],
+                _ols_mean_param_ranges(y, X, 'ARX(2,1)'),
             )
         if model == 'ARX(2,2)':
             return (
@@ -1768,13 +1819,7 @@ def ID_GARCH(
                 5,
                 [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)],
                 ['c', 'rho_1', 'rho_2', 'phi_1', 'phi_2'],
-                [
-                    (0.0856 - 2 * 0.086, 0.0856 + 2 * 0.086),
-                    (0.2992 - 2 * 0.106, 0.2992 + 2 * 0.106),
-                    (0.0914 - 2 * 0.125, 0.0914 + 2 * 0.125),
-                    (0.4084 - 2 * 0.433, 0.4084 + 2 * 0.433),
-                    (0.2136 - 2 * 0.297, 0.2136 + 2 * 0.297),
-                ],
+                _ols_mean_param_ranges(y, X, 'ARX(2,2)'),
             )
         raise ValueError("Invalid mean_type")
 
@@ -2134,7 +2179,7 @@ def BEGE_FullGJR_MLE(
     big_vec_penalty=1e6,        # per-observation penalty (vector version)
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    enforce_variance_bounds=True,
+    enforce_variance_bounds=False,
     start_n_jobs=None,
 ):
     """
@@ -2166,36 +2211,31 @@ def BEGE_FullGJR_MLE(
         if mean_type == 'constant':
             mean_model, num_m = mean_const, 0
             bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,0)':
+            mean_model, num_m = mean_ARX10, 2
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
-            ranges = [
-                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
-                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
-                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+        elif mean_type == 'ARX(2,0)':
+            mean_model, num_m = mean_ARX20, 3
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-            ranges = [
-                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
-                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
-                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
-                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-            ranges = [
-                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
-                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
-                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
-                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
-                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
         else:
             raise ValueError("Invalid mean_type")
         return mean_model, num_m, bounds_mean, names_mean, ranges
@@ -2652,7 +2692,7 @@ def _BEGE_OneConstantFullGJR_MLE(
     big_vec_penalty=1e6,
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    enforce_variance_bounds=True,
+    enforce_variance_bounds=False,
     start_n_jobs=None,
     constant_shape='p',
 ):
@@ -2682,36 +2722,31 @@ def _BEGE_OneConstantFullGJR_MLE(
         if mean_type == 'constant':
             mean_model, num_m = mean_const, 0
             bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,0)':
+            mean_model, num_m = mean_ARX10, 2
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
-            ranges = [
-                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
-                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
-                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+        elif mean_type == 'ARX(2,0)':
+            mean_model, num_m = mean_ARX20, 3
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-            ranges = [
-                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
-                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
-                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
-                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-            ranges = [
-                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
-                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
-                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
-                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
-                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
         else:
             raise ValueError("Invalid mean_type")
         return mean_model, num_m, bounds_mean, names_mean, ranges
@@ -3076,7 +3111,7 @@ def BG_GARCH(
     big_vec_penalty=1e6,
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    enforce_variance_bounds=True,
+    enforce_variance_bounds=False,
     start_n_jobs=None,
     shape_initial_values=None,
 ):
@@ -3107,36 +3142,31 @@ def BG_GARCH(
         if mean_type == 'constant':
             mean_model, num_m = mean_const, 0
             bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,0)':
+            mean_model, num_m = mean_ARX10, 2
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
-            ranges = [
-                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
-                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
-                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+        elif mean_type == 'ARX(2,0)':
+            mean_model, num_m = mean_ARX20, 3
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-            ranges = [
-                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
-                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
-                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
-                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-            ranges = [
-                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
-                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
-                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
-                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
-                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
         else:
             raise ValueError("Invalid mean_type")
         return mean_model, num_m, bounds_mean, names_mean, ranges
@@ -3520,36 +3550,31 @@ def _ID_GARCH_legacy(
         if mean_type == 'constant':
             mean_model, num_m = mean_const, 0
             bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,0)':
+            mean_model, num_m = mean_ARX10, 2
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
-            ranges = [
-                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
-                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
-                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+        elif mean_type == 'ARX(2,0)':
+            mean_model, num_m = mean_ARX20, 3
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-            ranges = [
-                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
-                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
-                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
-                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-            ranges = [
-                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
-                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
-                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
-                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
-                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
         else:
             raise ValueError("Invalid mean_type")
         return mean_model, num_m, bounds_mean, names_mean, ranges
@@ -3805,8 +3830,7 @@ def _ID_GARCH_legacy(
 # ============================================================
 EGARCH_BEGE_ABS_CENTER = np.sqrt(2.0 / np.pi)
 _EGARCH_BEGE_LOG_FLOOR = np.log(1e-4)   # same 1e-4 shape floor as gjr_recursion
-_EGARCH_BEGE_LOG_CAP = 50.0             # overflow guard; EWMA variance bounds
-                                        # reject such paths before the density
+_EGARCH_BEGE_LOG_CAP = 50.0             # overflow guard on the log shapes
 
 
 @njit(cache=True, fastmath=True, nogil=True)
@@ -3906,7 +3930,7 @@ def BEGE_FullEGARCH_MLE(
     big_vec_penalty=1e6,        # per-observation penalty (vector version)
     compute_se=False,
     density_hyperu_method='scipy_approx',
-    enforce_variance_bounds=True,
+    enforce_variance_bounds=False,
     start_n_jobs=None,
 ):
     """
@@ -3944,36 +3968,31 @@ def BEGE_FullEGARCH_MLE(
         if mean_type == 'constant':
             mean_model, num_m = mean_const, 0
             bounds_mean, names_mean, ranges = [], [], []
+        elif mean_type == 'ARX(1,0)':
+            mean_model, num_m = mean_ARX10, 2
+            bounds_mean = [(ymin, ymax), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,0)')
         elif mean_type == 'ARX(1,1)':
             mean_model, num_m = mean_ARX11, 3
             bounds_mean = [(ymin, ymax), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'SPF']
-            ranges = [
-                (0.0824 - 2*0.086, 0.0824 + 2*0.086),
-                (0.3005 - 2*0.112, 0.3005 + 2*0.112),
-                (0.7337 - 2*0.167, 0.7337 + 2*0.167),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(1,1)')
+        elif mean_type == 'ARX(2,0)':
+            mean_model, num_m = mean_ARX20, 3
+            bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0)]
+            names_mean = ['const', 'Infl(1)', 'Infl(2)']
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,0)')
         elif mean_type == 'ARX(2,1)':
             mean_model, num_m = mean_ARX21, 4
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF']
-            ranges = [
-                (0.0897 - 2*0.086, 0.0897 + 2*0.086),
-                (0.2892 - 2*0.098, 0.2892 + 2*0.098),
-                (0.0834 - 2*0.126, 0.0834 + 2*0.126),
-                (0.6385 - 2*0.251, 0.6385 + 2*0.251),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,1)')
         elif mean_type == 'ARX(2,2)':
             mean_model, num_m = mean_ARX22, 5
             bounds_mean = [(ymin, ymax), (-2.0, 2.0), (-1.0, 1.0), (-10, 10), (-10, 10)]
             names_mean = ['const', 'Infl(1)', 'Infl(2)', 'SPF', 'SPF.lag(1)']
-            ranges = [
-                (0.0856 - 2*0.086, 0.0856 + 2*0.086),
-                (0.2992 - 2*0.106, 0.2992 + 2*0.106),
-                (0.0914 - 2*0.125, 0.0914 + 2*0.125),
-                (0.4084 - 2*0.433, 0.4084 + 2*0.433),
-                (0.2136 - 2*0.297, 0.2136 + 2*0.297),
-            ]
+            ranges = _ols_mean_param_ranges(Y, X, 'ARX(2,2)')
         else:
             raise ValueError("Invalid mean_type")
         return mean_model, num_m, bounds_mean, names_mean, ranges

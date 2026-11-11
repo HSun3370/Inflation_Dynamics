@@ -4,10 +4,10 @@
 
 # Constant-p Full BEGE Best Model Summary
 
-Generated: `2026-06-18T10:11:11`
-Total estimations: `8000`
-Converged estimations: `8000`
-Eligible estimations for best-model selection: `8000`
+Generated: `2026-11-10T20:38:35`
+Total estimations: `2400`
+Converged estimations: `2400`
+Eligible estimations for best-model selection: `2400`
 
 This report shows only the single likelihood-best admissible estimate. Standard errors are computed at the reporting stage and reported in the parameter table.
 
@@ -18,7 +18,9 @@ CSV outputs:
 - [selection diagnostics](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/selection_diagnostics.csv)
 - [path quantiles](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/path_quantile_diagnostics.csv)
 - [constant cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/constant.csv)
+- [ARX(1,0) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_1_0.csv)
 - [ARX(1,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_1_1.csv)
+- [ARX(2,0) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_2_0.csv)
 - [ARX(2,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_2_1.csv)
 - [ARX(2,2) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/ConstantP_BEGE/results/by_mean/ARX_2_2.csv)
 
@@ -28,37 +30,37 @@ Best admissible estimate ranked by corrected log likelihood.
 
 | Mean | Seed | Draw | LogLik | AIC | BIC |
 |---|---:|---:|---:|---:|---:|
-| ARX(2,2) | 28 | 25 | -166.7909 | 357.5819 | 398.0296 |
+| ARX(2,2) | 1 | 29 | -172.9488 | 369.8975 | 411.1545 |
 
 Empirical path quantiles:
 
 | Series | 5% | Median | 95% |
 |---|---:|---:|---:|
-| $p_t$ | 0.4727 | 0.4727 | 0.4727 |
-| $n_t$ | 0.4590 | 0.9268 | 7.3165 |
-| $\sigma_t^2$ | 0.1990 | 0.2674 | 1.2023 |
-| $s_t^2$ | -0.6797 | 0.0355 | 0.0878 |
-| $k_t^2$ | 0.2795 | 0.3396 | 1.1602 |
+| $p_t$ | 2.6949 | 2.6949 | 2.6949 |
+| $n_t$ | 0.0594 | 0.3695 | 4.5392 |
+| $\sigma_t^2$ | 0.1586 | 0.2172 | 1.0060 |
+| $s_t^2$ | -0.6780 | 0.0081 | 0.0591 |
+| $k_t^2$ | 0.0611 | 0.1277 | 1.0230 |
 
 Mean process:
 
 $$
-\pi_{t+1} = 0.1831 + 0.1660\,\pi_t + 0.0787\,\pi_{t-1} + 0.2999\,SPF_t + 0.3076\,SPF_{t-1} + u_{t+1}
+\pi_{t+1} = 0.1379 + 0.1596\,\pi_t + 0.0970\,\pi_{t-1} + 0.6421\,SPF_t + 0.0452\,SPF_{t-1} + u_{t+1}
 $$
 
 BEGE volatility process:
 
 $$
 \begin{aligned}
-u_t &= 0.5281\,\omega_{p,t} - 0.3825\,\omega_{n,t},\\
+u_t &= 0.2338\,\omega_{p,t} - 0.4349\,\omega_{n,t},\\
 \omega_{p,t} &\sim \tilde{\Gamma}(p_t,1),\qquad \omega_{n,t}\sim \tilde{\Gamma}(n_t,1).
 \end{aligned}
 $$
 
 $$
 \begin{aligned}
-p_t &= 0.4727,\\
-n_t &= 0.2113 + 0.4747\,n_{t-1} + \frac{0.7577}{2(0.3825)^2}\,(u_{t-1}^+)^2 + \frac{0.2362}{2(0.3825)^2}\,(u_{t-1}^-)^2
+p_t &= 2.6949,\\
+n_t &= 0.0166 + 0.4089\,n_{t-1} + \frac{0.9859}{2(0.4349)^2}\,(u_{t-1}^+)^2 + \frac{0.1810}{2(0.4349)^2}\,(u_{t-1}^-)^2
 \end{aligned}
 $$
 
@@ -66,15 +68,15 @@ Parameter table:
 
 | Parameter | Estimate | Std. Error |
 |---|---:|---:|
-| $c$ | 0.1831 | 0.0290 |
-| $\rho_1$ | 0.1660 | 0.0376 |
-| $\rho_2$ | 0.0787 | 0.0273 |
-| $\phi_1$ | 0.2999 | 0.1631 |
-| $\phi_2$ | 0.3076 | 0.1028 |
-| $p_0$ | 0.4727 | 0.1424 |
-| $n_0$ | 0.2113 | 0.0517 |
-| $\rho_n$ | 0.4747 | 0.0291 |
-| $\phi_n^+$ | 0.7577 | 0.0098 |
-| $\phi_n^-$ | 0.2362 | 0.0348 |
-| $\sigma_p$ | 0.5281 | 0.1365 |
-| $\sigma_n$ | 0.3825 | 0.0364 |
+| $c$ | 0.1379 | 0.0632 |
+| $\rho_1$ | 0.1596 | 0.0951 |
+| $\rho_2$ | 0.0970 | 0.0866 |
+| $\phi_1$ | 0.6421 | 0.3139 |
+| $\phi_2$ | 0.0452 | 0.2588 |
+| $p_0$ | 2.6949 | 0.4869 |
+| $n_0$ | 0.0166 | 0.0707 |
+| $\rho_n$ | 0.4089 | 0.1355 |
+| $\phi_n^+$ | 0.9859 | 0.2241 |
+| $\phi_n^-$ | 0.1810 | 0.1760 |
+| $\sigma_p$ | 0.2338 | 0.0279 |
+| $\sigma_n$ | 0.4349 | 0.1437 |

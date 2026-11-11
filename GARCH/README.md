@@ -168,7 +168,7 @@ $$
 
 ## Monthly Estimation
 
-The same estimation menu (three volatility families, four mean processes, three residual distributions, 5,000 starts per combination) is run on the monthly effective sample of the newest data vintage (see the Data Summary). `submit_garch_grid.sh` runs both frequencies by default; the sequential equivalent is:
+The same estimation menu (three volatility families, six mean processes, three residual distributions, 5,000 starts per combination) is run on the monthly effective sample of the newest data vintage (see the Data Summary). `submit_garch_grid.sh` runs both frequencies by default; the sequential equivalent is:
 
 ```
 python estimate_garch_results.py \

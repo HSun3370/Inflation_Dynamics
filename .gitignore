@@ -9,8 +9,9 @@ BEGE_GARCH/Full_BEGE/output/
 BEGE_GARCH/ConstantP_BEGE/output/
 BEGE_GARCH/ConstantN_BEGE/output/
 
-# GARCH restart audit (every optimizer start; too large for git)
+# GARCH and regime-switching restart audits (every optimizer start; too large for git)
 GARCH/results_*/garch_family_restart_attempts.csv.gz
+RegimeSwitching/results*/regime_switching_attempts.csv.gz
 
 # Archived estimation result/output snapshots
 BEGE_GARCH/*_BEGE/archive/pre_systematic_noinit_stable_density_*/
