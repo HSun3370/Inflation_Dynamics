@@ -7,7 +7,7 @@ source "${SCRIPT_DIR}/../cbs_grid.sh"
 FREQUENCY="${FREQUENCY:-quarterly}"
 RESULTS_DIR=$(bege_results_dir "${SCRIPT_DIR}" "${FREQUENCY}")
 OUTPUT_DIR="${OUTPUT_DIR:-${SCRATCH_ROOT}/BEGE_GARCH/$(basename "${SCRIPT_DIR}")/output_${FREQUENCY}_$(bege_data_vintage "${PROJECT_ROOT}")}"
-ACTION_NAME="EGARCH_BEGE_RandomSearch"
+ACTION_NAME="BEGE_EGARCH_RandomSearch"
 PY_SCRIPT="${SCRIPT_DIR}/BEGE_EGARCH1.py"
 COLLECT_SCRIPT="${SCRIPT_DIR}/collect_egarch_results.py"
 
@@ -73,7 +73,7 @@ estimate_runtime() {
     echo "Starts per seed job: ${starts_per_seed}"
     echo "Starts per mean process: ${starts_per_mean}"
     echo "Total optimizer starts: ${total_starts}"
-    echo "EGARCH BEGE couples the two shape recursions, so it may be slower than Full BEGE."
+    echo "BEGE-EGARCH couples the two shape recursions, so it may be slower than Full BEGE."
 }
 
 elapsed_block() {

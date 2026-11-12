@@ -16,8 +16,8 @@ The quarterly comparison uses the effective sample 1969Q2--2026Q3 ($N=230$) and 
 
 | Rank | Model | Class | $k$ | LogLik | AIC | BIC | BIC rank |
 |---:|---|---|---:|---:|---:|---:|---:|
-| 1 | EGARCH BEGE, ARX(1,1) | BEGE | 13 | -167.3416 | 360.6832 | 405.3783 | 37 |
-| 2 | EGARCH BEGE, ARX(2,1) | BEGE | 14 | -167.6026 | 363.2053 | 411.3384 | 73 |
+| 1 | BEGE-EGARCH, ARX(1,1) | BEGE | 13 | -167.3416 | 360.6832 | 405.3783 | 37 |
+| 2 | BEGE-EGARCH, ARX(2,1) | BEGE | 14 | -167.6026 | 363.2053 | 411.3384 | 73 |
 | 3 | ARX(1,1), K=3, switching AR and variance | Regime switching | 16 | -167.3355 | 366.6710 | 421.6803 | 153 |
 | 4 | GJR-GARCH(2,1), ARX(2,1), Student's $t$ | GARCH family | 11 | -172.3922 | 366.7843 | 404.6032 | 31 |
 | 5 | GJR-GARCH(2,1), ARX(1,1), Student's $t$ | GARCH family | 10 | -173.4834 | 366.9668 | 401.3476 | 16 |
@@ -42,7 +42,7 @@ The quarterly comparison uses the effective sample 1969Q2--2026Q3 ($N=230$) and 
 |  | BIC | GARCH(2,1), Constant, Student's $t$ | 396.0444 | 1 of 271 |
 | Regime switching | AIC | ARX(1,1), K=3, switching AR and variance | 366.6710 | 3 of 271 |
 |  | BIC | ARX(1,1), K=2, switching variance | 403.8779 | 30 of 271 |
-| BEGE | AIC | EGARCH BEGE, ARX(1,1) | 360.6832 | 1 of 271 |
+| BEGE | AIC | BEGE-EGARCH, ARX(1,1) | 360.6832 | 1 of 271 |
 |  | BIC | Constant-p Full BEGE, Constant | 399.0462 | 9 of 271 |
 
 Starts that reached the listed regime-switching optimum, with a log likelihood within $10^{-3}$ of it: ARX(1,1), K=3, switching AR and variance: 2,502 of 4,977 valid starts. For reference, the listed GARCH-family optima were reached by 2,861 to 4,340 of 5,000 starts.

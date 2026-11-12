@@ -27,8 +27,8 @@ GREY = '```{raw:typst}\n#set text(fill: rgb("#808080"))\n#show text: set text(fi
 APPENDIX_DIR = ROOT / 'OnlineAppendix'
 DENSITY_SOURCE = 'BEGE_GARCH/BEGE_Density/BEGE_Density.md'
 DENSITY_APPENDIX = 'BEGE_Density_Evaluation.md'
-# The EGARCH BEGE specification is merged into the EGARCH subsection of the BEGE section.
-EGARCH_SPEC = 'BEGE_GARCH/EGARCH_BEGE/SPECIFICATION.md'
+# The BEGE-EGARCH specification is merged into the EGARCH subsection of the BEGE section.
+EGARCH_SPEC = 'BEGE_GARCH/BEGE_EGARCH/SPECIFICATION.md'
 # Typst layout for the report: sections run on without page breaks, paragraphs are
 # compact, and tables may continue on the next page.
 LAYOUT = (
@@ -80,9 +80,9 @@ def remove_code_examples(text):
 
 
 def egarch_specification():
-    """EGARCH BEGE specification as the body of the BEGE section's EGARCH subsection."""
+    """BEGE-EGARCH specification as the body of the BEGE section's EGARCH subsection."""
     text = PREAMBLE_RE.sub('', (ROOT / EGARCH_SPEC).read_text())
-    text = replace_section(text, '# EGARCH BEGE Specification', 'The inflation residual is',
+    text = replace_section(text, '# BEGE-EGARCH Specification', 'The inflation residual is',
         'This extension of Full BEGE replaces the GJR-type shape recursions with coupled '
         'EGARCH-type recursions on the log shapes. ')
     text = replace_section(text, '## Estimation Scripts', None)
@@ -187,8 +187,8 @@ def report_text(name, text):
         text = text.replace('The by-mean best\nrows remain available in the CSV outputs linked from each report. ', '')
         text = text.replace('using the four-point\ncentered finite-difference method implemented by\n`statsmodels.tools.numdiff.approx_hess`.', 'using four-point centered finite differences.')
         text = text.replace('the collector uses an', 'inference uses an')
-        text = replace_section(text, '### EGARCH BEGE (extension)\n', '## Random Search',
-                               '### EGARCH BEGE (extension)\n\n' + egarch_specification())
+        text = replace_section(text, '### BEGE-EGARCH (extension)\n', '## Random Search',
+                               '### BEGE-EGARCH (extension)\n\n' + egarch_specification())
     if 'garch_family_best_models.md' in name:
         text = re.sub(r', data vintage \d{4}-\d{2}-\d{2}\)', ')', text)
         # The table of every model combination is linked on GitHub instead of printed.
@@ -226,7 +226,6 @@ def report_text(name, text):
             raise ValueError(f'{name}: expected two GJR delta-method notes, found {n}')
         text = text.replace('For GJR-GARCH, `arch` estimates', 'For GJR-GARCH, the estimation uses')
         text = text.replace("`arch` estimates", 'The estimation uses')
-        text = text.replace('earlier code used inconsistent effective sample sizes across model settings due to a sample-trimming error', 'earlier estimates used inconsistent effective samples across specifications')
     if re.fullmatch(r'BEGE_GARCH/[^/]+_BEGE/README(_monthly)?\.md', name):
         text = re.sub(r'^Generated:.*\n', '', text, flags=re.M)
         text = replace_section(text, 'CSV outputs:', '## Selected Best Model')
@@ -360,7 +359,7 @@ def prepare():
     config = (ROOT / 'myst.yml').read_text()
     # The BEGE density evaluation is published as the online appendix instead.
     config = replace_once(config, f'        - file: {DENSITY_SOURCE}\n', '')
-    # The EGARCH BEGE specification appears inside the BEGE section instead.
+    # The BEGE-EGARCH specification appears inside the BEGE section instead.
     config = replace_once(config, f'        - file: {EGARCH_SPEC}\n', '')
     # Export Typst source, which main() lays out before compiling the PDF.
     config = replace_once(config, '    - format: pdf\n', '    - format: typst\n')

@@ -266,9 +266,9 @@ $$
 $$
 
 
-### EGARCH BEGE (extension)
+### BEGE-EGARCH (extension)
 
-Beyond the canonical five specifications above, the `EGARCH_BEGE/` folder
+Beyond the canonical five specifications above, the `BEGE_EGARCH/` folder
 contains an explicitly requested extension of Full BEGE in which the shape
 processes follow coupled EGARCH-type recursions on the log shapes,
 
@@ -279,7 +279,7 @@ $$
 
 with $z_{t-1} = u_{t-1}/\sigma_{t-1}$ (and analogously for $\ln n_t$), and
 stability restrictions $\beta_p<1$, $\beta_n<1$. See
-`EGARCH_BEGE/SPECIFICATION.md` for the full specification, parameter bounds,
+`BEGE_EGARCH/SPECIFICATION.md` for the full specification, parameter bounds,
 and the mapping to the equivalent EGARCH recursion on the component
 volatilities $\sigma_p\sqrt{p_t}$ and $\sigma_n\sqrt{n_t}$. All shared BEGE
 settings (mean menu, density evaluator, random-search protocol, selection

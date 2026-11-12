@@ -696,7 +696,7 @@ def _selection_metrics_for_row(
         persistence_n = persistence_p
 
     elif model_family == "full_egarch":
-        from BEGE_GARCH.BEGE_GARCH import egarch_bege_recursion
+        from BEGE_GARCH.BEGE_GARCH import bege_egarch_recursion
 
         omega_p = _row_float(row, "param_omega_p")
         omega_n = _row_float(row, "param_omega_n")
@@ -708,7 +708,7 @@ def _selection_metrics_for_row(
         gamma_n = _row_float(row, "param_gamma_n")
         sigma_p = _row_float(row, "param_sigma_p")
         sigma_n = _row_float(row, "param_sigma_n")
-        pseries, nseries = egarch_bege_recursion(
+        pseries, nseries = bege_egarch_recursion(
             residuals,
             (omega_p, beta_p, alpha_p, gamma_p),
             (omega_n, beta_n, alpha_n, gamma_n),
@@ -962,7 +962,7 @@ def _vol_paths_from_theta(
         persistence_n = persistence_p
 
     elif model_family == "full_egarch":
-        from BEGE_GARCH.BEGE_GARCH import egarch_bege_recursion
+        from BEGE_GARCH.BEGE_GARCH import bege_egarch_recursion
 
         (
             omega_p,
@@ -976,7 +976,7 @@ def _vol_paths_from_theta(
             sigma_p,
             sigma_n,
         ) = vol
-        pseries, nseries = egarch_bege_recursion(
+        pseries, nseries = bege_egarch_recursion(
             residuals,
             (omega_p, beta_p, alpha_p, gamma_p),
             (omega_n, beta_n, alpha_n, gamma_n),

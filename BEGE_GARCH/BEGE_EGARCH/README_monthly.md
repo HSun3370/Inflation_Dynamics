@@ -7,9 +7,9 @@
 #show text: set text(fill: rgb("#808080"))
 ```
 
-# EGARCH BEGE Best Model Summary (Monthly)
+# BEGE-EGARCH Best Model Summary (Monthly)
 
-Generated: `2026-11-11T21:33:26`
+Generated: `2026-11-12T14:28:45`
 Total estimations: `2400`
 Converged estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -19,12 +19,12 @@ This report shows only the single likelihood-best admissible estimate. Standard 
 CSV outputs:
 
 ```{raw:typst}
-- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results_monthly/by_mean/constant.csv")[constant cleaned rows]
-- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results_monthly/by_mean/ARX_1_0.csv")[ARX(1,0) cleaned rows]
-- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results_monthly/by_mean/ARX_1_1.csv")[ARX(1,1) cleaned rows]
-- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results_monthly/by_mean/ARX_2_0.csv")[ARX(2,0) cleaned rows]
-- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results_monthly/by_mean/ARX_2_1.csv")[ARX(2,1) cleaned rows]
-- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results_monthly/by_mean/ARX_2_2.csv")[ARX(2,2) cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results_monthly/by_mean/constant.csv")[constant cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results_monthly/by_mean/ARX_1_0.csv")[ARX(1,0) cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results_monthly/by_mean/ARX_1_1.csv")[ARX(1,1) cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results_monthly/by_mean/ARX_2_0.csv")[ARX(2,0) cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results_monthly/by_mean/ARX_2_1.csv")[ARX(2,1) cleaned rows]
+- #link("https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results_monthly/by_mean/ARX_2_2.csv")[ARX(2,2) cleaned rows]
 ```
 
 ## Selected Best Model

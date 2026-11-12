@@ -13,7 +13,7 @@ set -euo pipefail
 BEGE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 # Specification folder -> its submit script. The canonical five (AGENTS.md) plus the
-# Constant-p and Constant-n restrictions reported alongside them; EGARCH BEGE is an
+# Constant-p and Constant-n restrictions reported alongside them; BEGE-EGARCH is an
 # extension run only on request.
 declare -A SUBMIT_SCRIPT=(
     [Constant_BEGE]=SimulationConstant.sh
@@ -23,7 +23,7 @@ declare -A SUBMIT_SCRIPT=(
     [Full_BEGE]=SimulationGJR.sh
     [ConstantP_BEGE]=SimulationConstantP.sh
     [ConstantN_BEGE]=SimulationConstantN.sh
-    [EGARCH_BEGE]=SimulationEGARCH.sh
+    [BEGE_EGARCH]=SimulationEGARCH.sh
 )
 SPECS="${SPECS:-Constant_BEGE Symmetric_BEGE BadGood_BEGE InflationDeflation_BEGE Full_BEGE ConstantP_BEGE ConstantN_BEGE}"
 FREQUENCIES="${FREQUENCIES:-quarterly monthly}"

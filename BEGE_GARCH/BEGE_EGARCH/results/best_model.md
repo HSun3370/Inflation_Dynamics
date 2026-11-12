@@ -2,9 +2,9 @@
 #set page(margin: auto)
 ```
 
-# EGARCH BEGE Best Model Summary
+# BEGE-EGARCH Best Model Summary
 
-Generated: `2026-11-11T21:33:29`
+Generated: `2026-11-12T14:28:19`
 Total estimations: `2400`
 Converged estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -13,16 +13,16 @@ This report shows only the single likelihood-best admissible estimate. Standard 
 
 CSV outputs:
 
-- [all estimations](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/all_estimations.csv)
-- [best model with SE](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/best_loglik_with_se.csv)
-- [selection diagnostics](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/selection_diagnostics.csv)
-- [path quantiles](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/path_quantile_diagnostics.csv)
-- [constant cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/by_mean/constant.csv)
-- [ARX(1,0) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/by_mean/ARX_1_0.csv)
-- [ARX(1,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/by_mean/ARX_1_1.csv)
-- [ARX(2,0) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/by_mean/ARX_2_0.csv)
-- [ARX(2,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/by_mean/ARX_2_1.csv)
-- [ARX(2,2) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/EGARCH_BEGE/results/by_mean/ARX_2_2.csv)
+- [all estimations](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/all_estimations.csv)
+- [best model with SE](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/best_loglik_with_se.csv)
+- [selection diagnostics](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/selection_diagnostics.csv)
+- [path quantiles](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/path_quantile_diagnostics.csv)
+- [constant cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/by_mean/constant.csv)
+- [ARX(1,0) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/by_mean/ARX_1_0.csv)
+- [ARX(1,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/by_mean/ARX_1_1.csv)
+- [ARX(2,0) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/by_mean/ARX_2_0.csv)
+- [ARX(2,1) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/by_mean/ARX_2_1.csv)
+- [ARX(2,2) cleaned rows](https://github.com/HSun3370/Inflation_Dynamics/blob/main/BEGE_GARCH/BEGE_EGARCH/results/by_mean/ARX_2_2.csv)
 
 ## Selected Best Model
 

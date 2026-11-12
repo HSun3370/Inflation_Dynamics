@@ -28,7 +28,7 @@ EGARCH_PARAM_NAMES = [
 def main() -> None:
     collect_results(
         script_dir=SCRIPT_DIR,
-        title="EGARCH BEGE Best Model Summary",
+        title="BEGE-EGARCH Best Model Summary",
         model_param_names=EGARCH_PARAM_NAMES,
         model_family="full_egarch",
     )

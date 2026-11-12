@@ -10,9 +10,11 @@ Collects the reported estimates of every model class on the current effective sa
 * BEGE: for each of the eight specifications and each mean process, the best estimate that
   converged and passed the collection checks (`selection_eligible`).
 
-Writes `model_comparison.md` (report section with the top models by AIC and by BIC and the
-best estimate of each class) and `model_ranking_<frequency>.csv` (all admissible estimates)
-next to this script. Run: python ModelComparison/compare_models.py
+Writes `model_comparison.md` (ranking summary with the top models by AIC and by BIC and the
+best estimate of each class; not part of the PDF report) and `model_ranking_<frequency>.csv`
+(all admissible estimates) next to this script. The abstract in `README.md` states the quarterly
+AIC and BIC winners; recheck it with this script whenever collected results change.
+Run: python ModelComparison/compare_models.py
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ BEGE_SPECS = {
     "ConstantP_BEGE": "Constant-p Full BEGE",
     "ConstantN_BEGE": "Constant-n Full BEGE",
     "Full_BEGE": "Full BEGE",
-    "EGARCH_BEGE": "EGARCH BEGE",
+    "BEGE_EGARCH": "BEGE-EGARCH",
 }
 CLASS_ORDER = ["OLS", "GARCH family", "Regime switching", "BEGE"]
 

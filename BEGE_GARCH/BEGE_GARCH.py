@@ -3825,16 +3825,16 @@ def _ID_GARCH_legacy(
 
 
 # ============================================================
-# EGARCH BEGE (extension of Full BEGE with EGARCH-type shape
-# recursions; see BEGE_GARCH/EGARCH_BEGE/README.md)
+# BEGE-EGARCH (extension of Full BEGE with EGARCH-type shape
+# recursions; see BEGE_GARCH/BEGE_EGARCH/README.md)
 # ============================================================
-EGARCH_BEGE_ABS_CENTER = np.sqrt(2.0 / np.pi)
-_EGARCH_BEGE_LOG_FLOOR = np.log(1e-4)   # same 1e-4 shape floor as gjr_recursion
-_EGARCH_BEGE_LOG_CAP = 50.0             # overflow guard on the log shapes
+BEGE_EGARCH_ABS_CENTER = np.sqrt(2.0 / np.pi)
+_BEGE_EGARCH_LOG_FLOOR = np.log(1e-4)   # same 1e-4 shape floor as gjr_recursion
+_BEGE_EGARCH_LOG_CAP = 50.0             # overflow guard on the log shapes
 
 
 @njit(cache=True, fastmath=True, nogil=True)
-def _egarch_bege_recursion_core(r, omega_p, beta_p, alpha_p, gamma_p,
+def _bege_egarch_recursion_core(r, omega_p, beta_p, alpha_p, gamma_p,
                                 omega_n, beta_n, alpha_n, gamma_n,
                                 sigma_p, sigma_n):
     """
@@ -3898,9 +3898,9 @@ def _egarch_bege_recursion_core(r, omega_p, beta_p, alpha_p, gamma_p,
     return p, n
 
 
-def egarch_bege_recursion(resids, params_p, params_n, sigma_p, sigma_n):
+def bege_egarch_recursion(resids, params_p, params_n, sigma_p, sigma_n):
     """
-    Compute the joint EGARCH-BEGE shape paths (p_t, n_t).
+    Compute the joint BEGE-EGARCH shape paths (p_t, n_t).
 
     params_p = (omega_p, beta_p, alpha_p, gamma_p)
     params_n = (omega_n, beta_n, alpha_n, gamma_n)
@@ -3908,7 +3908,7 @@ def egarch_bege_recursion(resids, params_p, params_n, sigma_p, sigma_n):
     omega_p, beta_p, alpha_p, gamma_p = params_p
     omega_n, beta_n, alpha_n, gamma_n = params_n
     r = np.ascontiguousarray(resids, dtype=np.float64)
-    return _egarch_bege_recursion_core(
+    return _bege_egarch_recursion_core(
         r,
         float(omega_p), float(beta_p), float(alpha_p), float(gamma_p),
         float(omega_n), float(beta_n), float(alpha_n), float(gamma_n),
@@ -4069,7 +4069,7 @@ def BEGE_FullEGARCH_MLE(
         (omega_p, omega_n, beta_p, beta_n, alpha_p, alpha_n,
          gamma_p, gamma_n, sigp, sign) = theta[num_m:]
         res = residual_function(pm)
-        pseries, nseries = egarch_bege_recursion(
+        pseries, nseries = bege_egarch_recursion(
             res,
             (float(omega_p), float(beta_p), float(alpha_p), float(gamma_p)),
             (float(omega_n), float(beta_n), float(alpha_n), float(gamma_n)),
@@ -4174,7 +4174,7 @@ def BEGE_FullEGARCH_MLE(
 
     def _sample_vol():
         """
-        Stability-aware sampling for EGARCH BEGE.
+        Stability-aware sampling for BEGE-EGARCH.
 
         For each shape process:
           beta ~ U[max(be_lo, 0.2), min(be_hi, 0.98)]  (persistence)

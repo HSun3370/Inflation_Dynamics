@@ -50,15 +50,13 @@ Notes:
 
 For each model combination, the reported row uses the highest log-likelihood estimate that passes all admissibility checks (convergence, first-order conditions, volatility and mean stationarity, and the mixture variance ratio) across 5000 starts. If no start passes all checks, the reported row uses the best converged start that satisfies the first-order conditions and is flagged in the CSV `selection_status` column.
 
-**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**[^garch-aic-sample-note]
+**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**
 
 | Distribution | GARCH Mean | GARCH Vol | GARCH AIC | GJR Mean | GJR Vol | GJR AIC | EGARCH Mean | EGARCH Vol | EGARCH AIC |
 |---|---|---|---:|---|---|---:|---|---|---:|
 | Normal | Constant | (2,1) | 398.6487 | ARX(1,1) | (2,1) | 383.4043 | ARX(1,1) | (2,1) | 387.0269 |
 | Student's $t$ | ARX(2,1) | (2,1) | 372.7757 | ARX(2,1) | (2,1) | <span style="color:red">366.7843</span> | ARX(1,1) | (2,1) | 368.2259 |
 | Gaussian mixture | ARX(2,1) | (2,1) | 374.8428 | ARX(2,1) | (2,1) | 367.8431 | ARX(1,1) | (2,1) | 367.3223 |
-
-[^garch-aic-sample-note]: These numbers differ from earlier GARCH tables because earlier code used inconsistent effective sample sizes across model settings due to a sample-trimming error. The correction is discussed in the [Data Summary effective-sample section](../../DataSummary/README.md#effective-sample). The current estimates use a common effective sample with **230 observations**.
 
 **Table 3: Model selection by BIC: GARCH vs GJR vs EGARCH**
 

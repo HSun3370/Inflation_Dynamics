@@ -2,7 +2,7 @@
 #set page(margin: auto)
 ```
 
-# EGARCH BEGE Specification
+# BEGE-EGARCH Specification
   
 The inflation residual is
 
@@ -29,7 +29,7 @@ z_t = \frac{u_t}{\sigma_t},
 \sigma_t^n = \sigma_n \sqrt{n_t}.
 $$
 
-The EGARCH BEGE model applies an EGARCH(1,1)-type update to each component
+The BEGE-EGARCH model applies an EGARCH(1,1)-type update to each component
 volatility, using the project-wide fixed $\sqrt{2/\pi}$ centering convention
 for the magnitude term:
 
@@ -120,7 +120,7 @@ models.
 - `BEGE_EGARCH1.py` — seed-level random-search job (same CLI as the Full BEGE
   job script `Full_BEGE/BEGE_GJR1.py`).
 - `collect_egarch_results.py` — merges the raw `draw_*.csv` files (written to
-  `/scratch/<UNI>/Inflation_Dynamics/BEGE_GARCH/EGARCH_BEGE/output/raw/` on the
+  `/scratch/<UNI>/Inflation_Dynamics/BEGE_GARCH/BEGE_EGARCH/output/raw/` on the
   CBS Research Grid), applies the admissibility checks, computes standard
   errors for the best model, and writes `results/best_model.md` plus this
   folder's `README.md`.

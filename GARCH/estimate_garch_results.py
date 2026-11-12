@@ -1257,7 +1257,7 @@ def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
     global_min = min(values) if values else np.nan
 
     if criterion == "aic":
-        title = "**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**[^garch-aic-sample-note]"
+        title = "**Table 2: Model selection by AIC: GARCH vs GJR vs EGARCH**"
         c_g = "GARCH AIC"
         c_gjr = "GJR AIC"
         c_eg = "EGARCH AIC"
@@ -1301,21 +1301,6 @@ def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
             + f"{DISTRIBUTION_LABEL[dist]} | {gar_mean} | {gar_vol} | {crit_fmt(gar)} | "
             + f"{gjr_mean} | {gjr_vol} | {crit_fmt(gjr)} | "
             + f"{ega_mean} | {ega_vol} | {crit_fmt(ega)} |"
-        )
-    if criterion == "aic":
-        nobs_values = pd.unique(summary_df["nobs"].dropna()) if "nobs" in summary_df else []
-        nobs_text = (
-            f"**{int(nobs_values[0])} observations**"
-            if len(nobs_values) == 1
-            else "a common number of observations"
-        )
-        lines.append("")
-        lines.append(
-            "[^garch-aic-sample-note]: These numbers differ from earlier GARCH tables because "
-            "earlier code used inconsistent effective sample sizes across model settings due "
-            "to a sample-trimming error. The correction is discussed in the "
-            "[Data Summary effective-sample section](../../DataSummary/README.md#effective-sample). "
-            f"The current estimates use a common effective sample with {nobs_text}."
         )
     return "\n".join(lines)
 

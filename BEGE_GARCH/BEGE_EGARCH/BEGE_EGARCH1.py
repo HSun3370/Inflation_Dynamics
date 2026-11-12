@@ -41,7 +41,7 @@ def run_seed(
 ) -> None:
     run_seed_estimation(
         estimator=BEGE_FullEGARCH_MLE,
-        model_label="EGARCH BEGE",
+        model_label="BEGE-EGARCH",
         script_dir=SCRIPT_DIR,
         project_root=PROJECT_ROOT,
         model_param_names=EGARCH_PARAM_NAMES,
@@ -59,7 +59,7 @@ def run_seed(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="EGARCH BEGE random-search estimation")
+    parser = argparse.ArgumentParser(description="BEGE-EGARCH random-search estimation")
     parser.add_argument("--id", type=int, default=1, help="Seed id for job-array style runs")
     parser.add_argument("--n-draws", type=int, default=40, help="Number of random draws per mean specification")
     parser.add_argument("--n-starts", type=int, default=25, help="MLE restarts per draw")
@@ -90,7 +90,7 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=None,
-        help="Directory for raw output. Default is EGARCH_BEGE/output.",
+        help="Directory for raw output. Default is BEGE_EGARCH/output.",
     )
     return parser.parse_args()
 

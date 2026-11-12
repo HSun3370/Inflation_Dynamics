@@ -1,8 +1,8 @@
 +++ {"part": "abstract"}
-This computational notebook documents the data construction, model specifications, estimation workflows, and best-model reporting used to study U.S. quarterly inflation dynamics.
+This computational notebook documents the data construction, model specifications, estimation workflows, and best-model reporting used to study U.S. quarterly inflation dynamics. On the quarterly sample, the BEGE-EGARCH model with an ARX(1,1) mean has the lowest AIC among all estimated models; BIC, which penalizes additional parameters more heavily, favors a GARCH(2,1) model with Student's $t$ innovations and a constant mean.
 +++
  
-This notebook is organized around six pieces.
+This notebook is organized around five pieces.
 
 1. **Data summary.** The data section constructs the effective inflation sample  **1969Q2--2026Q3** (quarterly, **230 observations**) and **1969M2--2026M9** (monthly, **692 months**; the unpublished October 2025 CPI is interpolated, see the data decision in the Data Summary) and give statistical summary.  
 
@@ -12,9 +12,7 @@ This notebook is organized around six pieces.
 
 4. **Regime-switching models.** The regime-switching section studies state-dependent mean dynamics with normal residuals.
 
-5. **BEGE-GARCH models.** The BEGE section estimates Constant, Symmetric, InflationDeflation, BadGood, Constant-p Full BEGE, Constant-n Full BEGE, Full BEGE, and EGARCH BEGE models.
-
-6. **Model comparison.** The comparison section ranks the admissible estimates of all model classes at each frequency by AIC and BIC.
+5. **BEGE-GARCH models.** The BEGE section estimates Constant, Symmetric, InflationDeflation, BadGood, Constant-p Full BEGE, Constant-n Full BEGE, Full BEGE, and BEGE-EGARCH models.
 
 The following notation is used throughout:
 - $\pi_t$: realized inflation.
