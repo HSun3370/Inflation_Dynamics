@@ -160,6 +160,21 @@ def expected_effective_nobs(project_root: Path) -> int:
     return vintage[data_frequency()]["nobs"]
 
 
+def effective_sample_period(project_root: Path | None = None) -> tuple[int, str]:
+    """Size and first--last period (e.g. `1969Q2--2026Q3`, `1969M2--2026M9`) of the effective sample."""
+    root = Path(__file__).resolve().parents[1] if project_root is None else project_root
+    index = pd.read_pickle(effective_sample_path(root)).index
+    expected = expected_effective_nobs(root)
+    if len(index) != expected:
+        raise ValueError(f"Effective sample has {len(index)} observations; data_vintage.json records {expected}.")
+
+    def label(period) -> str:
+        period = pd.Period(period)
+        return f"{period.year}Q{period.quarter}" if data_frequency() == "quarterly" else f"{period.year}M{period.month}"
+
+    return len(index), f"{label(index[0])}--{label(index[-1])}"
+
+
 def load_effective_sample(project_root: Path) -> pd.DataFrame:
     data_path = effective_sample_path(project_root)
     if not data_path.exists():
@@ -739,6 +754,7 @@ def _selection_metrics_for_row(
         "selection_cond_var_min": float(np.min(cond_var)),
         "selection_cond_var_median": float(np.median(cond_var)),
         "selection_cond_var_max": float(np.max(cond_var)),
+        "selection_cond_var_mean": float(np.mean(cond_var)),
     }
     metrics.update(_path_quantile_metrics("selection_p_t", pseries))
     metrics.update(_path_quantile_metrics("selection_n_t", nseries))
@@ -1376,6 +1392,7 @@ def add_selection_diagnostics(
             "selection_cond_var_min": np.nan,
             "selection_cond_var_median": np.nan,
             "selection_cond_var_max": np.nan,
+            "selection_cond_var_mean": np.nan,
         }
         diag.update(_empty_path_quantile_metrics())
 
@@ -1536,6 +1553,11 @@ def _math_param(row: dict, name: str) -> str:
 def _math_scalar(row: dict, name: str) -> str:
     estimate = row.get(name, np.nan)
     return format_value(estimate)
+
+
+def _signed_terms(lines: list[str]) -> list[str]:
+    """Write a negative coefficient after "+" as a subtraction (`+ -0.1` becomes `- 0.1`)."""
+    return [line.replace("+ -", "- ") for line in lines]
 
 
 def _mean_equation(row: dict) -> list[str]:
@@ -1709,9 +1731,9 @@ def _append_top20_section(
                 "",
             ]
         )
-        lines.extend(_mean_equation(row))
+        lines.extend(_signed_terms(_mean_equation(row)))
         lines.extend(["", "BEGE volatility process:", ""])
-        lines.extend(_volatility_equation(row, model_family))
+        lines.extend(_signed_terms(_volatility_equation(row, model_family)))
         lines.extend(["", "Parameter table:", ""])
         _append_parameter_table(lines, row, names)
 
@@ -1762,22 +1784,24 @@ def _append_best_model_section(
         return
 
     mean_type = row["mean_type"]
+    nobs, period = effective_sample_period()
     lines.extend(
         [
             "Best admissible estimate ranked by corrected log likelihood.",
             "",
-            "| Mean | Seed | Draw | LogLik | AIC | BIC |",
-            "|---|---:|---:|---:|---:|---:|",
+            "| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |",
+            "|---|---:|---:|---:|---:|---:|---:|---|",
             f"| {mean_type} | {format_int(row.get('seed'))} | {format_int(row.get('draw'))} | "
-            f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} |",
+            f"{format_value(row.get('loglik'))} | {format_value(row.get('AIC'))} | {format_value(row.get('BIC'))} | "
+            f"{nobs} | {period} |",
             "",
         ]
     )
     _append_path_quantile_table(lines, row)
     lines.extend(["Mean process:", ""])
-    lines.extend(_mean_equation(row))
+    lines.extend(_signed_terms(_mean_equation(row)))
     lines.extend(["", "BEGE volatility process:", ""])
-    lines.extend(_volatility_equation(row, model_family))
+    lines.extend(_signed_terms(_volatility_equation(row, model_family)))
     lines.extend(["", "Parameter table:", ""])
     _append_parameter_table(lines, row, MEAN_PARAM_NAMES[mean_type] + model_param_names)
 
@@ -1886,6 +1910,7 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_cond_var_min",
         "selection_cond_var_median",
         "selection_cond_var_max",
+        "selection_cond_var_mean",
         *_path_quantile_columns(),
     ]
     return df[[col for col in dict.fromkeys(cols) if col in df.columns]]

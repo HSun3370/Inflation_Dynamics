@@ -4,7 +4,7 @@
 
 # Constant BEGE Best Model Summary
 
-Generated: `2026-11-10T18:23:00`
+Generated: `2026-11-11T21:30:30`
 Total estimations: `2400`
 Successful estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -26,9 +26,9 @@ CSV outputs:
 
 Best admissible estimate ranked by log likelihood across mean processes.
 
-| Mean | Seed | Draw | LogLik | AIC | BIC |
-|---|---:|---:|---:|---:|---:|
-| ARX(2,2) | 1 | 27 | -188.2489 | 394.4978 | 425.4405 |
+| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |
+|---|---:|---:|---:|---:|---:|---:|---|
+| ARX(2,2) | 1 | 27 | -188.2489 | 394.4978 | 425.4405 | 230 | 1969Q2--2026Q3 |
 
 Empirical path quantiles:
 
@@ -66,7 +66,7 @@ Parameter table:
 | $\rho_2$ | 0.1961 | 0.0873 |
 | $\phi_1$ | 0.5339 | 0.2845 |
 | $\phi_2$ | 0.1173 | 0.3180 |
-| $\bar{p}$ | 2.9686 | 0.9744 |
+| $\bar{p}$ | 2.9686 | 0.9745 |
 | $\bar{n}$ | 0.2219 | 0.1434 |
 | $\sigma_p$ | 0.2532 | 0.0580 |
 | $\sigma_n$ | 0.9393 | 0.4453 |

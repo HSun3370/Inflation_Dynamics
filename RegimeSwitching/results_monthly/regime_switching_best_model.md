@@ -11,11 +11,9 @@
 
 # Best Regime-Switching Model
 
-The initial search used the former transition and variance cutoffs. The expanded admissible set requires a fresh 5,000-start search.
-
 Selected by AIC among the eligible estimates. Regimes are labeled by increasing innovation variance.
 
-Final-solution stability: not_checked.
+Final-solution stability: verified.
 
 ## Model Summary
 | Mean process | Regime-switching parts | Non-switching parts | LogLik | AIC | BIC |
@@ -39,7 +37,7 @@ $$
 | --- | --- | --- | --- | --- |
 | $c$ | Y | 0.2172 | -0.0137 | 0.0499 |
 | $\rho_1$ | Y | 0.0512 | 0.5057 | 0.5434 |
-| $\rho_2$ | Y | -0.3544 | 0.1678 | -0.0587 |
+| $\rho_2$ | Y | -0.3544 | 0.1677 | -0.0587 |
 | $\phi_1$ | N | 0.4744 | 0.4744 | 0.4744 |
 
 ## Distribution Parameters
@@ -52,7 +50,7 @@ $$
 | --- | --- | --- | --- | --- |
 | Regime 0 | 0.9114 | 0.0493 | 0.0393 | 1.0000 |
 | Regime 1 | 0.0376 | 0.9091 | 0.0533 | 1.0000 |
-| Regime 2 | 0.0632 | 0.0777 | 0.8592 | 1.0000 |
+| Regime 2 | 0.0631 | 0.0777 | 0.8592 | 1.0000 |
 
 ## Regime Classification Plot
 ![Inflation with Smoothed Predicted Regimes](best_model_regime_classification.png)

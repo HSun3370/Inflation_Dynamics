@@ -20,6 +20,7 @@ from BEGE_GARCH.bege_batch import (
     MONTHLY_TYPST_STYLE,
     TOP_MODELS_PER_MEAN,
     _append_path_quantile_table,
+    _signed_terms,
     _central_diff_scores,
     _empty_path_quantile_metrics,
     _path_quantile_columns,
@@ -30,6 +31,7 @@ from BEGE_GARCH.bege_batch import (
     build_model_specs,
     data_frequency,
     effective_sample_path,
+    effective_sample_period,
     eligible_result_rows,
     load_effective_sample,
     optimizer_success_mask,
@@ -328,6 +330,7 @@ def add_selection_diagnostics(df: pd.DataFrame, project_root: Path) -> pd.DataFr
             "selection_cond_var_min": np.nan,
             "selection_cond_var_median": np.nan,
             "selection_cond_var_max": np.nan,
+            "selection_cond_var_mean": np.nan,
         }
         diag.update(_empty_path_quantile_metrics())
         reasons = []
@@ -370,6 +373,7 @@ def add_selection_diagnostics(df: pd.DataFrame, project_root: Path) -> pd.DataFr
                     "selection_cond_var_min": float(np.min(cond_var)),
                     "selection_cond_var_median": float(np.median(cond_var)),
                     "selection_cond_var_max": float(np.max(cond_var)),
+                    "selection_cond_var_mean": float(np.mean(cond_var)),
                 }
             )
             diag.update(_path_quantile_metrics("selection_p_t", pseries))
@@ -525,9 +529,9 @@ def _append_top20_section(lines: list[str], mean_type: str, rows: list[dict]) ->
                 "",
             ]
         )
-        lines.extend(_mean_equation(row))
+        lines.extend(_signed_terms(_mean_equation(row)))
         lines.extend(["", "BEGE volatility process:", ""])
-        lines.extend(_constant_volatility_equation(row))
+        lines.extend(_signed_terms(_constant_volatility_equation(row)))
         lines.extend(["", "Parameter table:", ""])
         _append_parameter_table(lines, row, PARAMETER_NAMES[mean_type])
 
@@ -607,24 +611,25 @@ def _append_best_by_mean_section(
         else -np.inf,
     )
     mean_type = overall_best.get("mean_type")
+    nobs, period = effective_sample_period()
 
     lines.extend(
         [
             "Best admissible estimate ranked by log likelihood across mean processes.",
             "",
-            "| Mean | Seed | Draw | LogLik | AIC | BIC |",
-            "|---|---:|---:|---:|---:|---:|",
+            "| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |",
+            "|---|---:|---:|---:|---:|---:|---:|---|",
             f"| {mean_type} | {format_int(overall_best.get('seed'))} | {format_int(overall_best.get('draw'))} | "
             f"{format_value(overall_best.get('loglik'))} | {format_value(overall_best.get('AIC'))} | "
-            f"{format_value(overall_best.get('BIC'))} |",
+            f"{format_value(overall_best.get('BIC'))} | {nobs} | {period} |",
             "",
         ]
     )
     _append_path_quantile_table(lines, overall_best)
     lines.extend(["Mean process:", ""])
-    lines.extend(_mean_equation(overall_best))
+    lines.extend(_signed_terms(_mean_equation(overall_best)))
     lines.extend(["", "BEGE volatility process:", ""])
-    lines.extend(_constant_volatility_equation(overall_best))
+    lines.extend(_signed_terms(_constant_volatility_equation(overall_best)))
     lines.extend(["", "Parameter table:", ""])
     _append_parameter_table(lines, overall_best, PARAMETER_NAMES[mean_type])
 
@@ -707,6 +712,7 @@ def selection_diagnostics_view(df: pd.DataFrame) -> pd.DataFrame:
         "selection_cond_var_min",
         "selection_cond_var_median",
         "selection_cond_var_max",
+        "selection_cond_var_mean",
         *_path_quantile_columns(),
     ]
     return df[[col for col in dict.fromkeys(cols) if col in df.columns]]

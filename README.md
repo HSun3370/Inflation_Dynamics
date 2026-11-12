@@ -2,7 +2,7 @@
 This computational notebook documents the data construction, model specifications, estimation workflows, and best-model reporting used to study U.S. quarterly inflation dynamics.
 +++
  
-This notebook is organized around five pieces.
+This notebook is organized around six pieces.
 
 1. **Data summary.** The data section constructs the effective inflation sample  **1969Q2--2026Q3** (quarterly, **230 observations**) and **1969M2--2026M9** (monthly, **692 months**; the unpublished October 2025 CPI is interpolated, see the data decision in the Data Summary) and give statistical summary.  
 
@@ -12,7 +12,9 @@ This notebook is organized around five pieces.
 
 4. **Regime-switching models.** The regime-switching section studies state-dependent mean dynamics with normal residuals.
 
-5. **BEGE-GARCH models.** The BEGE section estimates   Constant, Symmetric, InflationDeflation, BadGood, Constant-p Full BEGE, Constant-n Full BEGE, and Full BEGE models.
+5. **BEGE-GARCH models.** The BEGE section estimates Constant, Symmetric, InflationDeflation, BadGood, Constant-p Full BEGE, Constant-n Full BEGE, Full BEGE, and EGARCH BEGE models.
+
+6. **Model comparison.** The comparison section ranks the admissible estimates of all model classes at each frequency by AIC and BIC.
 
 The following notation is used throughout:
 - $\pi_t$: realized inflation.

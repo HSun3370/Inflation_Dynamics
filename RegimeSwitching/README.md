@@ -162,7 +162,10 @@ The $10^{-6}$ value above applies only to starting vectors. It is not a
 lower bound on fitted variances. Initial transition probabilities remain
 $1/K$; the optimizer estimates them freely.
 
-Up to 50 EM iterations improve each starting vector, after which BFGS
+Up to 1,000 EM iterations improve each starting vector (raised from 50 on
+2026-11-11 at the user's request; in a 40-start test on the leading quarterly
+specification, more EM iterations brought more starts to the best optimum
+without longer run times), after which BFGS
 (even-numbered starts) or L-BFGS (odd-numbered starts) maximizes the exact
 Hamilton-filter likelihood for up to 1,500 iterations. EM is used only for
 initialization: the final optimization estimates all free parameters jointly.
@@ -205,6 +208,20 @@ Following the user's decision on 2026-11-10 to use the paper's stated
 procedure, I impose neither the former $10^{-4}$ transition-probability
 cutoff nor the former variance floor
 $\max\{10^{-6},10^{-3}\widehat{\operatorname{Var}}(y)\}$.
+
+Without a variance floor, the Gaussian likelihood is unbounded: when a
+regime's variance approaches zero, that regime can fit a few observations
+exactly. The 2026-11-11 search found such degenerate optima in several
+switching-AR specifications, with a regime variance between $10^{-31}$ and
+$10^{-4}$. The user decided on 2026-11-12 to keep the floor removed and to
+rely on the final-solution verification to reject degenerate optima. They
+fail it because the perturbation refits do not return to them. If the saved
+parameters of an optimum do not reproduce its saved likelihood to $10^{-6}$,
+it is recorded as not reproducible and is not verified. Only the selected
+optimum of each specification is stored, so a specification whose selected
+optimum fails verification is reported as having no verified estimate, with
+its likelihood, smallest regime variance $\min_k\sigma_k^2$, and the reason.
+It is not replaced by a lower optimum.
 
 For the inflation ARX specifications, collection also retains the project's
 mean-process stationarity condition, checked separately in every regime.

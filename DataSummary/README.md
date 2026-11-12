@@ -81,7 +81,7 @@ The script refuses to run outside the pinned `pandas`/`numpy` versions, because 
 
 ### Comparability of Committed Results
 
-Likelihoods are comparable only within one data vintage. The GARCH-family results (quarterly and monthly) were re-estimated on the current vintage (2026-10-20). The other quarterly estimation results (regime-switching, BEGE, OLS mean processes) were committed before the 2026-07-14 update and were estimated on the 2023-vintage sample **1969Q2--2022Q4** (**215 observations**). The other monthly results (OLS, regime-switching) were estimated on the 2026-07-14 vintage, **1969M2--2026M5** (**688 months**). Those results are not likelihood-comparable with the current vintage until the models are re-estimated.
+Likelihoods are comparable only within one data vintage. All committed estimation results (OLS mean processes, GARCH family, regime switching, and BEGE, at both frequencies) are estimated on the current vintage (2026-10-20): quarterly **1969Q2--2026Q3** (**230 observations**) and monthly **1969M2--2026M9** (**692 months**). The exception is the BEGE density-evaluator accuracy check (`BEGE_GARCH/BEGE_Density/`), which still uses ARX(1,1) residuals from the 2023-vintage sample **1969Q2--2022Q4** (**215 observations**).
 
 ```{figure} cpi_inflation_quarterly.png
 :name: fig:cpi_inflation_quarterly

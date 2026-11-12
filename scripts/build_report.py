@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
-"""Build the economics PDF from report-only copies of the canonical documents.
+"""Build the economics PDF and its online appendix from the canonical documents.
 
 Run: python3 scripts/build_report.py
 Requires the MyST and Typst CLIs on PATH. Estimation is never run.
-Source documentation and generated estimation reports remain unchanged.
+
+The PDF holds the data, specifications, methods and estimation results. The BEGE
+density evaluation is the online appendix, OnlineAppendix/BEGE_Density_Evaluation.md
+(GitHub-flavoured Markdown), which the PDF links to on GitHub. Source documentation
+and generated estimation reports remain unchanged.
 """
 from pathlib import Path
 from datetime import date
+import json
 import os
 import re
 import shutil
@@ -15,7 +20,21 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 STAGE = ROOT / '_build' / 'report-source'
 PREAMBLE = '```{raw:typst}\n#set page(margin: auto)\n```\n\n'
+PREAMBLE_RE = re.compile(r'```\{raw:typst\}\n#set page\(margin: auto\)\n```\n*')
+GITHUB = re.search(r'^\s*github:\s*(\S+)', (ROOT / 'myst.yml').read_text(), re.M).group(1).rstrip('/')
+GITHUB_BLOB = GITHUB + '/blob/main/'
 GREY = '```{raw:typst}\n#set text(fill: rgb("#808080"))\n#show text: set text(fill: rgb("#808080"))\n```\n\n'
+APPENDIX_DIR = ROOT / 'OnlineAppendix'
+DENSITY_SOURCE = 'BEGE_GARCH/BEGE_Density/BEGE_Density.md'
+DENSITY_APPENDIX = 'BEGE_Density_Evaluation.md'
+# The EGARCH BEGE specification is merged into the EGARCH subsection of the BEGE section.
+EGARCH_SPEC = 'BEGE_GARCH/EGARCH_BEGE/SPECIFICATION.md'
+# Typst layout for the report: sections run on without page breaks, paragraphs are
+# compact, and tables may continue on the next page.
+LAYOUT = (
+    '#show par: set par(spacing: 1em)\n'
+    '#show figure: set block(breakable: true)\n'
+)
 
 
 def replace_section(text, start, end, replacement=''):
@@ -23,6 +42,20 @@ def replace_section(text, start, end, replacement=''):
     a = text.index(start)
     b = text.index(end, a) if end else len(text)
     return text[:a] + replacement + text[b:]
+
+
+def replace_once(text, old, new):
+    """Replace a passage that must exist; fail if its source has drifted."""
+    if old not in text:
+        raise ValueError(f'Report source passage not found: {old[:60]!r}')
+    return text.replace(old, new)
+
+
+def data_date():
+    """Date the data run up to, from the record written by the data update routine."""
+    vintage = json.loads((ROOT / 'DataSummary' / 'data_vintage.json').read_text())['vintage']
+    d = date.fromisoformat(vintage)
+    return f'{d:%B} {d.day}, {d.year}'
 
 
 def remove_code_examples(text):
@@ -46,6 +79,22 @@ def remove_code_examples(text):
     return ''.join(result)
 
 
+def egarch_specification():
+    """EGARCH BEGE specification as the body of the BEGE section's EGARCH subsection."""
+    text = PREAMBLE_RE.sub('', (ROOT / EGARCH_SPEC).read_text())
+    text = replace_section(text, '# EGARCH BEGE Specification', 'The inflation residual is',
+        'This extension of Full BEGE replaces the GJR-type shape recursions with coupled '
+        'EGARCH-type recursions on the log shapes. ')
+    text = replace_section(text, '## Estimation Scripts', None)
+    text = replace_once(text, 'Parameter order in estimation output:', 'The parameter vector is:')
+    text = replace_once(text, ' (see `BEGE_GARCH/README.md`)', '')
+    text = replace_once(text, 'the same numerical floor used by\n  `gjr_recursion`',
+                        'the same numerical floor used by the GJR-type BEGE recursions')
+    # Subsections of the EGARCH subsection (level 3) are level-4 run-in headings.
+    text = re.sub(r'^## ', '#### ', text, flags=re.M)
+    return text.strip() + '\n\n'
+
+
 def report_text(name, text):
     text = re.sub(r'<!--.*?-->', '', text, flags=re.S)
     if name == 'README.md':
@@ -55,22 +104,27 @@ def report_text(name, text):
         text = text.replace('This notebook is organized', 'This report is organized')
     elif name == 'DataSummary/README.md':
         text = replace_section(text, '## Routine Data Update', '### Current Vintage')
-        text = text.replace('### Current Vintage', '## Current Vintage')
-        text = text.replace('### Comparability of Committed Results', '## Comparability of Estimates')
-        text = replace_section(text, 'These rules were reverse-engineered', '```{raw:typst}',
-            'The construction matches the 2023 reference data over the original reference period. The interpolation convention affects only the subsequently unpublished month.\n\n')
+        # The report states the data date once, in the Data Coverage list; vintage
+        # history, reference-workbook checks and cross-vintage notes are omitted.
+        text = text.replace('### Current Vintage', '## Data Coverage')
+        text = re.sub(r'^- \*\*Data vintage\*\*: .*$', f'- **Data**: up to {data_date()}.', text, count=1, flags=re.M)
+        text = re.sub(r'^- \*\*Reference check\*\*.*\n', '', text, flags=re.M)
+        text = replace_section(text, '### Comparability of Committed Results', '```{figure} cpi_inflation_quarterly.png')
+        text = replace_once(text, 'the value used in the current vintage is listed under [Current Vintage](#current-vintage).',
+            'its value is listed under [Data Coverage](#data-coverage).')
+        text = replace_once(text, 'its end date and size for the current vintage are listed under [Current Vintage](#current-vintage).',
+            'its end date and size are listed under [Data Coverage](#data-coverage).')
+        text = replace_section(text, ' all estimates reported on the 2023 vintage use', '\n',
+            ' every specification at a given frequency uses the same effective sample.')
+        text = replace_section(text, 'These rules were reverse-engineered', '```{raw:typst}')
         text = replace_section(text, '*Scope:*', '\n```',
             '*Scope:* only the monthly series changes. The quarterly series is unaffected because the quarterly price index uses the last month of each quarter (December for 2025Q4). The interpolation convention is log-linear interpolation between the nearest published months.\n')
-        text = re.sub(r'\(`Aggregate_CPI_inflation_20261020.xlsx`; source files as downloaded in .*?\)\.', '.', text)
-        text = text.replace(' (the advisor\'s 2023 snapshot, kept unchanged in this folder)', '')
-        text = re.sub(r'\(`Aggregate_CPI_inflation_20230513.xls`\)', '(2023 data vintage)', text)
         text = text.replace('Summary statistics for the trimmed effective sample are reported below (generated by `data_summary.py`).', 'Summary statistics for the effective sample are reported below.')
         text = text.replace('Summary statistics for the trimmed monthly effective sample (generated by `data_summary.py`):', 'Summary statistics for the monthly effective sample:')
         text = replace_section(text, 'The monthly counterpart to the quarterly estimation dataset', '\n\nThe monthly effective sample',
             'The monthly sample starts at the first month where both $SPF_t$ and $SPF_{t-1}$ are available. Monthly SPF begins in **1969M1**, so the effective sample begins in **1969M2** and ends in **2026M9** (**692 observations**). The quarterly professional forecast is geometrically de-compounded into a monthly rate and is constant within each quarter.')
         text = text.replace('Earlier versions of the estimation code contained a sample-trimming mistake and therefore used different numbers of observations across model settings.', 'Earlier estimates used inconsistent effective samples across specifications.')
         text = text.replace('This coding error has been corrected:', 'The reported estimates correct this inconsistency:')
-        text = text.replace('were committed before the 2026-07-14 update and were estimated', 'were estimated')
     elif name == 'MeanProcess/README.md':
         text = text.replace('The OLS results below are generated by `mean_process_ols.py`.\n\n', '')
     elif name == 'GARCH/README.md':
@@ -83,35 +137,70 @@ def report_text(name, text):
             'results.\n\n',
         )
         text = replace_section(text, '### Running the search on the CBS Grid', '## Log-Likelihood Specifications')
+        # The delta-method standard error of the GJR negative-shock coefficient is standard.
+        text = replace_section(text, ' For GJR-GARCH, `arch` estimates the indicator form', '## Log-Likelihood Specifications', '\n\n')
         text = replace_section(text, 'The GARCH-family estimation is executed', 'The reported estimate for a combination',
             'Parameters are estimated by constrained maximum likelihood using SLSQP and **5,000 starting points per model combination**. Initial values are drawn within the parameter bounds and stationary region; volatility persistence and inflation-lag AR roots are restricted below $1-10^{-6}$ in modulus.\n\n')
         text = replace_section(text, 'The second check is needed', 'Standard errors are robust',
             'First-order checks screen out steep likelihood ridges that can otherwise be mistaken for maxima. Up to five local restarts are used before rejecting a candidate. The mixture variance-ratio restriction prevents near-degenerate components from generating spurious likelihood improvements. If no estimate passes all checks, the best converged first-order-valid estimate is reported with a qualification. Conditional-variance recursion uses the default initialization of the estimation method.\n\n')
         text = replace_section(text, 'The same estimation menu', None,
-            'The monthly analysis uses the same three volatility families, six mean processes, three innovation distributions, and 5,000 starting points per combination as the quarterly analysis. The effective sample is the current monthly vintage described in the Data Summary. All model restrictions and selection criteria are identical across frequencies.\n')
+            'The monthly analysis uses the same three volatility families, six mean processes, three innovation distributions, and 5,000 starting points per combination as the quarterly analysis. The effective sample is the monthly effective sample described in the Data Summary. All model restrictions and selection criteria are identical across frequencies.\n')
         text = text.replace('## Estimation Initialization And Collection', '## Estimation and Inference')
     elif name == 'RegimeSwitching/README.md':
         text = replace_section(text, 'Only Normal specifications', '## Data Frequency and Running the Search',
             'The reported results use normal innovations.\n\n')
         text = replace_section(text, '## Data Frequency and Running the Search', None,
             '## Data Frequency\n\n' +
-            'The quarterly estimates reported here use the current data vintage, **1969Q2--2026Q3 (230 observations)**.\n\n' + GREY +
+            'The quarterly estimates reported here use the effective sample **1969Q2--2026Q3 (230 observations)**.\n\n' + GREY +
             'The monthly estimates use **1969M2--2026M9 (692 observations)**. The specification menu, estimation procedure, and admissibility criteria are identical across frequencies.\n')
-        text = text.replace('(../Bekaert2015.md)', '(https://doi.org/10.1016/j.jeconom.2014.06.021)')
+        # The procedure is the authors' own, so the report describes it without a citation.
+        text = replace_section(text, 'The identification and likelihood-maximization procedure follows', '## Model Specification',
+            'I estimate Gaussian regime-switching versions of the inflation mean processes below, with '
+            'unconditional initial regime probabilities, variance-based regime labeling, multiple initial '
+            'parameter vectors, and final-solution perturbation checks.\n\n')
+        text = replace_once(text, 'As in Appendix B of Bekaert et al., the density', 'The density')
+        text = replace_once(text, 'Following the identification convention in Section 4.1.2 of Bekaert et al.,\nI label', 'I label')
+        text = replace_once(text, ' These are the\nmultiple-start and final-solution checks described in Appendix B of\nBekaert et al.', '')
+        text = replace_once(text, 'Bekaert et al. do not specify the optimizer, number or distribution of\nstarts, EM initialization, perturbation size, or numerical return tolerance.\n'
+                            'The following values document this implementation of their procedure.',
+                            'The numerical settings of the implementation are as follows.')
+        text = replace_once(text, "Following the user's decision on 2026-11-10 to use the paper's stated\nprocedure, I impose", 'I impose')
+        text = replace_section(text, 'Without a variance floor, the Gaussian likelihood is unbounded', 'For the inflation ARX specifications',
+            'Without a variance floor, the Gaussian likelihood is unbounded: as a regime variance approaches zero, '
+            'that regime can fit a few observations exactly. Such degenerate optima arise in several switching-AR '
+            'specifications. They fail the final-solution verification because the perturbation refits do not '
+            'return to them, and an optimum whose likelihood is not reproduced by its parameters is not verified. '
+            'Specifications without a verified estimate are listed below the results, with the likelihood and '
+            'smallest regime variance of the rejected optimum.\n\n')
+        text = replace_once(text, "This is an assumption of the inflation application; the paper's benchmark\nreturn equation has no AR coefficients.",
+                            'This is an assumption of the inflation application.')
+        if re.search(r'Bekaert|the paper', text):
+            raise ValueError(f'{name}: citation of the paper remains in the report edition')
         text = text.replace('The CSV files and generated tables use zero-based labels',
                             'The tables use zero-based labels')
     elif name == 'BEGE_GARCH/README.md':
+        text = replace_once(text, ', both from the 2026-10-20 data vintage.', '.')
+        text = replace_once(text, 'twice on\nthe 2026-10-20 data vintage, once with', 'twice,\nonce with')
         text = text.replace('    code uses $0.0001$ instead.', '    the shape is set to $0.0001$.')
-        text = text.replace('documented in the BEGE Density section.', 'documented in the BEGE Density Evaluation section at the end of this report.')
+        text = replace_once(text, 'documented in the BEGE Density section.',
+            f'documented in the [BEGE density evaluation]({GITHUB_BLOB}OnlineAppendix/{DENSITY_APPENDIX}) of the online appendix.')
         text = text.replace('The by-mean best\nrows remain available in the CSV outputs linked from each report. ', '')
         text = text.replace('using the four-point\ncentered finite-difference method implemented by\n`statsmodels.tools.numdiff.approx_hess`.', 'using four-point centered finite differences.')
         text = text.replace('the collector uses an', 'inference uses an')
-        text = text.replace('Beyond the canonical five specifications above, the `EGARCH_BEGE/` folder\ncontains an explicitly requested extension of Full BEGE', 'An extension of Full BEGE is also considered')
-        text = text.replace('`EGARCH_BEGE/SPECIFICATION.md`', 'the EGARCH BEGE specification section')
-    elif name == 'BEGE_GARCH/EGARCH_BEGE/SPECIFICATION.md':
-        text = replace_section(text, '## Estimation Scripts', None)
-        text = text.replace('Parameter order in estimation output:', 'The parameter vector is:')
+        text = replace_section(text, '### EGARCH BEGE (extension)\n', '## Random Search',
+                               '### EGARCH BEGE (extension)\n\n' + egarch_specification())
     if 'garch_family_best_models.md' in name:
+        text = re.sub(r', data vintage \d{4}-\d{2}-\d{2}\)', ')', text)
+        # The table of every model combination is linked on GitHub instead of printed.
+        start, end = '## All Model Results', '## Best Models by Criterion and Volatility Family'
+        section = text[text.index(start):text.index(end)]
+        n_models = sum(1 for line in section.splitlines()
+                       if line.startswith('| ') and not line.startswith('| Distribution |'))
+        if n_models == 0:
+            raise ValueError(f'{name}: no rows in the All Model Results table')
+        text = replace_section(text, start, end,
+            f'{start}\n\nThe best log likelihood, AIC, and BIC of all {n_models} estimated model '
+            f'combinations are listed in the [online results table]({GITHUB_BLOB}{name}#all-model-results).\n\n')
         if 'results_garch_distributions_monthly/' in name:
             equations = (
                 'The mean equations, volatility equations, innovation distributions, and '
@@ -130,16 +219,30 @@ def report_text(name, text):
         text = re.sub(r' and is flagged in the CSV `selection_status` column', ' and is qualified accordingly', text)
         text = text.replace('Reported in README notation. (`arch` estimates the equivalent indicator form.)', 'Reported in the model notation defined above.')
         text = text.replace('of the README specification', 'of the model specification')
+        # The delta-method variance of gamma_i is standard; the report omits it (as in the GARCH section).
+        text, n = re.subn(r'; its standard error uses the delta method on the same robust covariance matrix, \$[^$]+\$\.',
+                          '.', text)
+        if n != 2:
+            raise ValueError(f'{name}: expected two GJR delta-method notes, found {n}')
+        text = text.replace('For GJR-GARCH, `arch` estimates', 'For GJR-GARCH, the estimation uses')
         text = text.replace("`arch` estimates", 'The estimation uses')
         text = text.replace('earlier code used inconsistent effective sample sizes across model settings due to a sample-trimming error', 'earlier estimates used inconsistent effective samples across specifications')
     if re.fullmatch(r'BEGE_GARCH/[^/]+_BEGE/README(_monthly)?\.md', name):
         text = re.sub(r'^Generated:.*\n', '', text, flags=re.M)
         text = replace_section(text, 'CSV outputs:', '## Selected Best Model')
+        # The three count lines would otherwise run together as one paragraph.
+        text, n = re.subn(r'^Total estimations: `(\d+)`\n(Converged|Successful) estimations: `(\d+)`\n'
+                          r'Eligible estimations for best-model selection: `(\d+)`\n',
+                          lambda m: (f'Estimations: {int(m[1]):,} in total, {int(m[3]):,} {m[2].lower()}, '
+                                     f'{int(m[4]):,} eligible for best-model selection.\n'),
+                          text, flags=re.M)
+        if n != 1:
+            raise ValueError(f'{name}: expected one block of estimation counts')
         # Seed and draw only identify the search job that found the estimate.
-        header = '| Mean | Seed | Draw | LogLik | AIC | BIC |\n'
-        if text.count(header) != 1:
+        headers = re.findall(r'^\| Mean \| Seed \| Draw \| LogLik \| AIC \| BIC \|.*\n', text, re.M)
+        if len(headers) != 1:
             raise ValueError(f'{name}: expected one best-model summary table')
-        a = text.index(header)
+        a = text.index(headers[0])
         b = text.find('\n\n', a)
         b = len(text) if b < 0 else b
         rows = [r.split('|') for r in text[a:b].split('\n')]
@@ -158,10 +261,96 @@ def report_text(name, text):
     text = text.replace('BEGE_GARCH/README.md', 'the BEGE methodology section')
     # Inline identifiers such as model IDs are labels, not code examples.
     text = re.sub(r'(?<!`)`([^`\n]+)`(?!`)', r'\1', text)
+    # The page margin is set once for the whole report (see LAYOUT); a per-article
+    # page rule would start every article on a new page.
+    text = PREAMBLE_RE.sub('', text)
     text = re.sub(r'\n{4,}', '\n\n\n', text).lstrip()
-    if not text.startswith('```{raw:typst}'):
-        text = PREAMBLE + text
     return text
+
+
+def to_gfm(text, source):
+    """Convert report Markdown (MyST) to GitHub-flavoured Markdown."""
+    lines = text.splitlines()
+    out = []
+    i = 0
+    while i < len(lines):
+        match = re.match(r'^(`{3,}|~{3,})\{([\w:-]+)\}\s*(.*)$', lines[i])
+        if not match:
+            out.append(lines[i]); i += 1; continue
+        fence, directive, arg = match.groups()
+        end = i + 1
+        while end < len(lines) and lines[end].strip() != fence:
+            end += 1
+        body = [line for line in lines[i + 1:end] if not re.match(r'^:[\w-]+:', line)]
+        i = end + 1
+        if directive.startswith('raw'):
+            continue  # PDF styling only
+        if directive == 'table':
+            out += ([f'**{arg}**', ''] if arg else []) + body
+        elif directive == 'figure':
+            caption = ' '.join(line.strip() for line in body if line.strip())
+            out += [f'![{caption}]({arg})', '', f'*{caption}*']
+        elif directive in ('note', 'important', 'warning', 'tip'):
+            out += [f'> **{arg or directive.title()}**', '>'] + [f'> {line}'.rstrip() for line in body]
+        else:
+            raise ValueError(f'{source}: no GitHub rendering for the {directive} directive')
+    text = '\n'.join(out) + '\n'
+    text = re.sub(r'^%.*\n', '', text, flags=re.M)  # MyST comments
+    # GitHub drops inline colour; the best value in a selection table is shown in bold.
+    text = re.sub(r'<span style="color:\s*red">(.*?)</span>', r'**\1**', text)
+    base = (ROOT / source).parent
+
+    def relink(match):
+        label, target = match.groups()
+        if re.match(r'(https?:|mailto:|#)', target):
+            return match.group(0)
+        path, _, fragment = target.partition('#')
+        rel = os.path.relpath(os.path.normpath(base / path), APPENDIX_DIR)
+        return f'{label}({rel}{"#" + fragment if fragment else ""})'
+
+    text = re.sub(r'(!?\[[^\]]*\])\(([^)\s]+)\)', relink, text)
+    text = re.sub(r'(?<=\w)--(?=\w)', '–', text)  # MyST's en dash, e.g. 1969Q2--2026Q3
+    # GitHub renders $$ display math reliably only as a block of its own.
+    lines, in_math = [], False
+    for line in text.split('\n'):
+        if line.strip() == '$$':
+            if not in_math and lines and lines[-1].strip():
+                lines.append('')
+            lines.append(line)
+            if in_math:
+                lines.append('')
+            in_math = not in_math
+        else:
+            lines.append(line)
+    text = '\n'.join(lines)
+    # Count lines of the BEGE reports would otherwise run together into one paragraph.
+    text = re.sub(r'^((?:Total|Successful|Converged|Eligible) estimations\b.*)$', r'- \1', text, flags=re.M)
+    return re.sub(r'\n{3,}', '\n\n', text).strip() + '\n'
+
+
+def write_appendix():
+    """Write the online appendix: the BEGE density evaluation, as GitHub-flavoured Markdown."""
+    APPENDIX_DIR.mkdir(exist_ok=True)
+    text = to_gfm(report_text(DENSITY_SOURCE, (ROOT / DENSITY_SOURCE).read_text()), DENSITY_SOURCE)
+    text = re.sub(r'^# .*\n', '', text, count=1, flags=re.M)
+    intro = (
+        '<!-- Generated by scripts/build_report.py from BEGE_GARCH/BEGE_Density/BEGE_Density.md; do not edit by hand. -->\n\n'
+        '# Online Appendix: BEGE Density Evaluation\n\n'
+        f'This online appendix to the report [*Inflation Dynamics*]({GITHUB_BLOB}Inflation-Dynamics.pdf) '
+        'documents the evaluation of the BEGE density used in likelihood estimation.\n\n'
+    )
+    (APPENDIX_DIR / DENSITY_APPENDIX).write_text(intro + text)
+    print('Wrote online appendix:', APPENDIX_DIR / DENSITY_APPENDIX, flush=True)
+
+
+def compact_layout(typ):
+    """Lay out MyST's Typst export compactly; only the title page keeps the template's wide margin."""
+    if '\n#pagebreak()\n' not in typ:
+        raise ValueError('MyST Typst export no longer separates articles with page breaks')
+    typ = typ.replace('\n#pagebreak()\n', '\n')
+    typ = replace_once(typ, '#import "myst-imports.typ": *\n', '#import "myst-imports.typ": *\n' + LAYOUT)
+    first = re.search(r'^#include ".+"$', typ, re.M).group(0)
+    return typ.replace(first + '\n', first + '\n\n#set page(margin: auto)\n', 1)
 
 
 def prepare():
@@ -169,6 +358,13 @@ def prepare():
         shutil.rmtree(STAGE)
     STAGE.mkdir(parents=True)
     config = (ROOT / 'myst.yml').read_text()
+    # The BEGE density evaluation is published as the online appendix instead.
+    config = replace_once(config, f'        - file: {DENSITY_SOURCE}\n', '')
+    # The EGARCH BEGE specification appears inside the BEGE section instead.
+    config = replace_once(config, f'        - file: {EGARCH_SPEC}\n', '')
+    # Export Typst source, which main() lays out before compiling the PDF.
+    config = replace_once(config, '    - format: pdf\n', '    - format: typst\n')
+    config = replace_once(config, '      output: Inflation-Dynamics.pdf\n', '      output: exports/Inflation-Dynamics.typ\n')
     config = config.replace('Inflation Dynamics - Computational Notebook', 'Inflation Dynamics')
     config = config.replace('kind: "Computation Notebook"', 'kind: "Econometric Report"')
     config = config.replace('This repository contains computational notebooks and resources related to the study of inflation dynamics in economics.', 'An econometric analysis of U.S. inflation dynamics.')
@@ -200,11 +396,31 @@ def prepare():
     print('Omitted implementation examples and operational instructions.', flush=True)
 
 
+def fix_links(typ):
+    """Repair link targets in MyST's Typst export.
+
+    MyST escapes Markdown characters such as `_` and `#` inside link URLs, and
+    Typst keeps those backslashes in the PDF link, which breaks GitHub links.
+    MyST also auto-links abbreviations that look like domain names (`Sw.AR`).
+    """
+    typ = re.sub(r'#link\("http://([^"/\s]+)"\)\[\1\]', r'\1', typ)
+    typ = re.sub(r'(#link\(")([^"]*)("\))',
+                 lambda m: m[1] + re.sub(r'\\([_#*$@~`<>\[\]])', r'\1', m[2]) + m[3], typ)
+    if re.search(r'#link\("[^"]*\\', typ):
+        raise ValueError('A link target in the Typst export still contains a backslash')
+    return typ
+
+
 def main():
+    write_appendix()
     prepare()
-    subprocess.run(['myst', 'build', '--pdf'], cwd=STAGE, check=True)
+    subprocess.run(['myst', 'build', '--typst'], cwd=STAGE, check=True)
+    for part in (STAGE / 'exports').glob('*.typ'):
+        part.write_text(fix_links(part.read_text()))
+    typ = STAGE / 'exports' / 'Inflation-Dynamics.typ'
+    typ.write_text(compact_layout(typ.read_text()))
     pdf = STAGE / 'Inflation-Dynamics.pdf'
-    # MyST can return zero even when its PDF compiler failed.
+    subprocess.run(['typst', 'compile', str(typ), str(pdf)], cwd=STAGE, check=True)
     if not pdf.is_file() or pdf.stat().st_size == 0:
         raise RuntimeError('PDF compilation failed; the previous report was preserved.')
     shutil.copy2(pdf, ROOT / pdf.name)

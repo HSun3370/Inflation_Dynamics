@@ -4,7 +4,7 @@
 
 # Inflation/Deflation BEGE-GJR Best Model Summary
 
-Generated: `2026-11-10T23:27:28`
+Generated: `2026-11-11T21:35:04`
 Total estimations: `2400`
 Converged estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -26,9 +26,9 @@ CSV outputs:
 
 Best admissible estimate ranked by corrected log likelihood.
 
-| Mean | Seed | Draw | LogLik | AIC | BIC |
-|---|---:|---:|---:|---:|---:|
-| ARX(2,2) | 2 | 40 | -173.8289 | 373.6579 | 418.3529 |
+| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |
+|---|---:|---:|---:|---:|---:|---:|---|
+| ARX(2,2) | 2 | 40 | -173.8289 | 373.6579 | 418.3529 | 230 | 1969Q2--2026Q3 |
 
 Empirical path quantiles:
 

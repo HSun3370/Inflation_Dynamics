@@ -9,7 +9,7 @@
 
 # Constant BEGE Best Model Summary (Monthly)
 
-Generated: `2026-11-10T22:48:26`
+Generated: `2026-11-11T21:30:34`
 Total estimations: `2400`
 Successful estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -31,9 +31,9 @@ CSV outputs:
 
 Best admissible estimate ranked by log likelihood across mean processes.
 
-| Mean | Seed | Draw | LogLik | AIC | BIC |
-|---|---:|---:|---:|---:|---:|
-| ARX(2,2) | 4 | 24 | 60.9996 | -103.9991 | -63.1428 |
+| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |
+|---|---:|---:|---:|---:|---:|---:|---|
+| ARX(2,2) | 4 | 24 | 60.9996 | -103.9991 | -63.1428 | 692 | 1969M2--2026M9 |
 
 Empirical path quantiles:
 
@@ -48,7 +48,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\pi_{t+1} = 0.0376 + 0.4707\,\pi_t + -0.0266\,\pi_{t-1} + 0.2932\,SPF_t + 0.2327\,SPF_{t-1} + u_{t+1}
+\pi_{t+1} = 0.0376 + 0.4707\,\pi_t - 0.0266\,\pi_{t-1} + 0.2932\,SPF_t + 0.2327\,SPF_{t-1} + u_{t+1}
 $$
 
 BEGE volatility process:
@@ -69,9 +69,9 @@ Parameter table:
 | $c$ | 0.0376 | 0.0148 |
 | $\rho_1$ | 0.4707 | 0.0365 |
 | $\rho_2$ | -0.0266 | 0.0453 |
-| $\phi_1$ | 0.2932 | 0.3958 |
-| $\phi_2$ | 0.2327 | 0.3836 |
-| $\bar{p}$ | 3.0494 | 1.2340 |
+| $\phi_1$ | 0.2932 | 0.3957 |
+| $\phi_2$ | 0.2327 | 0.3835 |
+| $\bar{p}$ | 3.0494 | 1.2318 |
 | $\bar{n}$ | 0.2669 | 0.0748 |
 | $\sigma_p$ | 0.1055 | 0.0243 |
 | $\sigma_n$ | 0.2988 | 0.0561 |

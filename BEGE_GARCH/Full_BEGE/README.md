@@ -4,7 +4,7 @@
 
 # Full BEGE Best Model Summary
 
-Generated: `2026-11-10T23:01:03`
+Generated: `2026-11-11T21:34:06`
 Total estimations: `2400`
 Converged estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -26,9 +26,9 @@ CSV outputs:
 
 Best admissible estimate ranked by corrected log likelihood.
 
-| Mean | Seed | Draw | LogLik | AIC | BIC |
-|---|---:|---:|---:|---:|---:|
-| ARX(2,2) | 10 | 27 | -168.9699 | 367.9398 | 419.5110 |
+| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |
+|---|---:|---:|---:|---:|---:|---:|---|
+| ARX(2,2) | 10 | 27 | -168.9699 | 367.9398 | 419.5110 | 230 | 1969Q2--2026Q3 |
 
 Empirical path quantiles:
 

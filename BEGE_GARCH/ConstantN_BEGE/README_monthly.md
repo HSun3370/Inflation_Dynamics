@@ -9,7 +9,7 @@
 
 # Constant-n Full BEGE Best Model Summary (Monthly)
 
-Generated: `2026-11-11T03:17:14`
+Generated: `2026-11-11T21:33:08`
 Total estimations: `2400`
 Converged estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -31,9 +31,9 @@ CSV outputs:
 
 Best admissible estimate ranked by corrected log likelihood.
 
-| Mean | Seed | Draw | LogLik | AIC | BIC |
-|---|---:|---:|---:|---:|---:|
-| ARX(2,2) | 10 | 4 | 94.7731 | -165.5461 | -111.0711 |
+| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |
+|---|---:|---:|---:|---:|---:|---:|---|
+| ARX(2,2) | 10 | 4 | 94.7731 | -165.5461 | -111.0711 | 692 | 1969M2--2026M9 |
 
 Empirical path quantiles:
 
@@ -48,7 +48,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\pi_{t+1} = 0.0237 + 0.4602\,\pi_t + -0.0576\,\pi_{t-1} + 0.3447\,SPF_t + 0.2442\,SPF_{t-1} + u_{t+1}
+\pi_{t+1} = 0.0237 + 0.4602\,\pi_t - 0.0576\,\pi_{t-1} + 0.3447\,SPF_t + 0.2442\,SPF_{t-1} + u_{t+1}
 $$
 
 BEGE volatility process:

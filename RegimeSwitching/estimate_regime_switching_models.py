@@ -76,7 +76,9 @@ def style_monthly_report(markdown: str, data_path: Path | None) -> str:
 
 
 N_STARTS = 5000
-EM_ITER = 50
+# Raised from 50 at the user's request (2026-11-11): in a 40-start test on the leading quarterly
+# specification, more EM iterations brought more starts to the best optimum without longer run times.
+EM_ITER = 1000
 MLE_MAXITER = 1500
 STATIONARITY_MARGIN = 1e-6
 # Bekaert et al. specify the perturb-and-refit check, but not these tuning values.
@@ -84,7 +86,8 @@ STABILITY_REPS = 20
 STABILITY_SCALE = 0.05
 STABILITY_LLF_TOL = 1e-4
 STABILITY_MAX_ROUNDS = 3
-METHODOLOGY_VERSION = "bekaert-identification-stability-v1"
+# v2: EM initialization raised from 50 to 1,000 iterations; blocks from v1 searches are not merged.
+METHODOLOGY_VERSION = "bekaert-identification-stability-v2-em1000"
 REGIME_COLORS = ["#d62728", "#2ca02c", "#1f77b4"]
 
 
@@ -694,6 +697,10 @@ def _candidate(
         "aic": float(result.aic),
         "bic": float(result.bic),
         "hqic": float(result.hqic),
+        # No variance floor is imposed, so a regime variance near zero marks a degenerate optimum.
+        "min_sigma2": float(min(
+            np.real(v) for n, v in zip(result.model.param_names, result.params) if n.startswith("sigma2")
+        )),
         "converged": _is_converged(result),
         "stationary": selected_checks["stationary"],
         "stationarity_reason": selected_checks["stationarity_reason"],
@@ -896,7 +903,46 @@ def build_results_markdown(results_df: pd.DataFrame) -> str:
             "updated collection rules; verification of saved estimates checks their "
             "local stability only."
         )
-    return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view)
+    return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view) + _unverified_markdown(results_df)
+
+
+def _unverified_markdown(results_df: pd.DataFrame) -> str:
+    """List the Normal specifications that have no verified estimate, with the reason."""
+    if "verification_methodology" not in results_df:
+        return ""
+    failed = results_df[
+        ~results_df["checks_passed"].astype(bool) & (results_df["error_distribution"] == "Normal")
+    ]
+    if failed.empty:
+        return ""
+    mean_order = {"Constant": 0, "ARX(1,1)": 1, "ARX(2,1)": 2, "ARX(2,2)": 3}
+    failed = failed.assign(_order=failed["mean_process"].map(mean_order).fillna(999)).sort_values(
+        ["_order", "k_regimes", "switching_ar", "switching_spf"]
+    )
+    reasons = {
+        "not_verified": "Not all perturbation refits returned",
+        "likelihood_not_reproducible": "Likelihood not reproduced by its parameters",
+        "ineligible_before_verification": "Failed the model checks",
+    }
+    rows = []
+    for _, r in failed.iterrows():
+        verified_batch = r["stability_status"] == "not_verified"
+        rows.append({
+            "Mean": r["mean_process"], "K": r["k_regimes"], "Sw.AR": r["switching_ar"],
+            "Sw.SPF": r["switching_spf"], "LogLik": f"{float(r['llf']):.4f}",
+            "Min $\\sigma^2$": f"{float(r['min_sigma2']):.2e}",
+            "Refits returned": (f"{int(r['stability_returns'])}/{int(r['stability_reps'])}"
+                                if verified_batch else "--"),
+            "Reason": reasons.get(r["stability_status"], str(r["stability_status"])),
+        })
+    return (
+        "\n\nThe following specifications have no verified estimate and are excluded from the "
+        "table above and from model selection. LogLik and the smallest regime variance "
+        "$\\min_k\\sigma_k^2$ refer to the rejected estimate. No variance floor is imposed, so the "
+        "Gaussian likelihood is unbounded as a regime variance approaches zero; an estimate with "
+        "$\\min_k\\sigma_k^2$ near zero is such a degenerate optimum.\n\n"
+        + _markdown_table(pd.DataFrame(rows))
+    )
 
 
 def _fmt4(x: Any) -> str:
@@ -1323,8 +1369,15 @@ def _finalize_estimates(
     df: pd.DataFrame, results_df: pd.DataFrame, params_df: pd.DataFrame,
     n_reps: int = STABILITY_REPS, verify: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Identify and verify each model after all its Grid blocks are merged."""
+    """Identify and verify each model after all its Grid blocks are merged.
+
+    A saved likelihood that its saved parameters do not reproduce (to 1e-6) marks a numerically
+    degenerate optimum, such as a regime variance near zero; that specification is recorded as
+    `likelihood_not_reproducible`, keeps its saved likelihood, and is not verified. If no saved
+    likelihood is reproduced, the estimates do not belong to this dataset and collection stops.
+    """
     summaries, parameters, audit = [], [], []
+    n_unreproduced = 0
     for _, saved in results_df.iterrows():
         _check_saved_sample(df, saved)
         spec = _spec_from_row(saved)
@@ -1340,9 +1393,15 @@ def _finalize_estimates(
         row.setdefault("regime_order_from_optimizer", ",".join(str(int(r)) for r in order))
         row.setdefault("search_fit_strategy", str(saved["fit_strategy"]))
         basic_checks = _result_checks(result, spec, mask)
-        if not np.isclose(result.llf, float(saved["llf"]), atol=1e-6, rtol=0):
-            raise ValueError(f"{model_label(spec)}: saved likelihood does not match this dataset.")
-        if verify and basic_checks["checks_passed"]:
+        reproduced = bool(np.isclose(result.llf, float(saved["llf"]), atol=1e-6, rtol=0))
+        if not reproduced:
+            n_unreproduced += 1
+            row.update(stability_verified=False, stability_status="likelihood_not_reproducible")
+            print(
+                f"[VERIFY] {model_label(spec)}: likelihood_not_reproducible, saved llf="
+                f"{float(saved['llf']):.4f}, recomputed llf={float(result.llf):.4f}", flush=True,
+            )
+        elif verify and basic_checks["checks_passed"]:
             result, diagnostics, attempts = _verify_solution(result, spec, mask, n_reps)
             row.update(diagnostics)
             if diagnostics["stability_llf_improvement"] > STABILITY_LLF_TOL:
@@ -1361,10 +1420,13 @@ def _finalize_estimates(
             df, spec, mask, spec.mean_process.name != "Constant",
             (float(result.llf), 0, str(saved["fit_strategy"]), result),
         )
+        keep_saved = {"selection_status", "fit_strategy", "fit_attempts",
+                      "fit_converged_candidates", "fit_valid_candidates",
+                      "regime_order_from_optimizer"}
+        if not reproduced:
+            keep_saved |= {"llf", "aic", "bic", "hqic"}
         for key, value in identified["summary_row"].items():
-            if key not in {"selection_status", "fit_strategy", "fit_attempts",
-                           "fit_converged_candidates", "fit_valid_candidates",
-                           "regime_order_from_optimizer"}:
+            if key not in keep_saved:
                 row[key] = value
         row["regime_order_before_finalization"] = ",".join(str(int(r)) for r in order)
         row.setdefault("search_methodology", "legacy_cutoffs")
@@ -1378,6 +1440,9 @@ def _finalize_estimates(
             row["verification_methodology"] = METHODOLOGY_VERSION
         summaries.append(row)
         parameters.extend(identified["parameter_rows"])
+    if summaries and n_unreproduced == len(summaries):
+        raise ValueError("No saved likelihood is reproduced by its saved parameters; "
+                         "the saved estimates do not belong to this dataset.")
     return pd.DataFrame(summaries), pd.DataFrame(parameters), pd.DataFrame(audit)
 
 

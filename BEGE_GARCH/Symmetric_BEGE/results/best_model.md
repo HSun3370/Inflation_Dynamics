@@ -4,7 +4,7 @@
 
 # Symmetric BEGE Best Model Summary
 
-Generated: `2026-11-10T21:17:07`
+Generated: `2026-11-11T21:35:32`
 Total estimations: `2400`
 Converged estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -28,9 +28,9 @@ CSV outputs:
 
 Best admissible estimate ranked by corrected log likelihood.
 
-| Mean | Seed | Draw | LogLik | AIC | BIC |
-|---|---:|---:|---:|---:|---:|
-| ARX(2,2) | 5 | 9 | -174.0997 | 372.1993 | 413.4563 |
+| Mean | Seed | Draw | LogLik | AIC | BIC | N | Sample |
+|---|---:|---:|---:|---:|---:|---:|---|
+| ARX(2,2) | 5 | 9 | -174.0997 | 372.1993 | 413.4563 | 230 | 1969Q2--2026Q3 |
 
 Empirical path quantiles:
 
@@ -71,12 +71,12 @@ Parameter table:
 | $c$ | 0.1328 | 0.0779 |
 | $\rho_1$ | 0.1869 | 0.0762 |
 | $\rho_2$ | 0.1159 | 0.0769 |
-| $\phi_1$ | 0.5715 | 0.2638 |
-| $\phi_2$ | 0.0572 | 0.2460 |
-| $p_0$ | 1.9789 | 0.5479 |
+| $\phi_1$ | 0.5715 | 0.2639 |
+| $\phi_2$ | 0.0572 | 0.2461 |
+| $p_0$ | 1.9789 | 0.5480 |
 | $n_0$ | 0.0406 | 0.0321 |
 | $\rho$ | 0.4501 | 0.1629 |
-| $\phi^+$ | 0.6014 | 0.2171 |
+| $\phi^+$ | 0.6014 | 0.2172 |
 | $\phi^-$ | 0.1025 | 0.1402 |
 | $\sigma_p$ | 0.1778 | 0.0460 |
 | $\sigma_n$ | 0.7019 | 0.3852 |
