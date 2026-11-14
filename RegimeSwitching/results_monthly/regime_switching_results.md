@@ -21,7 +21,6 @@ Each model is selected from 5,000 starts; only estimates that passed all checks 
 | ARX(2,1) | 2 | N | N | Y | 90.0731 | -164.1462 | -127.8295 |
 | ARX(2,1) | 2 | Y | N | Y | 92.3528 | -162.7057 | -112.7702 |
 | ARX(2,1) | 2 | Y | Y | Y | 92.3793 | -160.7587 | -106.2836 |
-| ARX(2,1) | 3 | Y | N | Y | 116.7792 | -195.5584 | -109.3062 |
 | ARX(2,2) | 2 | N | N | Y | 90.1563 | -162.3127 | -121.4564 |
 | ARX(2,2) | 2 | Y | N | Y | 92.4836 | -160.9672 | -106.4922 |
 | ARX(2,2) | 2 | Y | Y | Y | 93.1905 | -158.3810 | -94.8268 |
@@ -33,5 +32,6 @@ The following specifications have no verified estimate and are excluded from the
 | Constant | 3 | N | N | 38.6851 | 1.32e-02 | 15/20 | Not all perturbation refits returned |
 | ARX(1,1) | 3 | Y | N | 118.1786 | 8.25e-06 | 9/20 | Not all perturbation refits returned |
 | ARX(2,1) | 3 | N | N | 100.6976 | 1.75e-02 | 19/20 | Not all perturbation refits returned |
+| ARX(2,1) | 3 | Y | N | 134.3093 | 3.47e-07 | 0/20 | Not all perturbation refits returned |
 | ARX(2,2) | 3 | N | N | 100.8275 | 1.75e-02 | 18/20 | Not all perturbation refits returned |
-| ARX(2,2) | 3 | Y | N | 119.0774 | 1.61e-08 | 0/20 | Not all perturbation refits returned |
+| ARX(2,2) | 3 | Y | N | 133.3244 | 9.15e-07 | 0/20 | Not all perturbation refits returned |

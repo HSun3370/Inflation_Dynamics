@@ -11,7 +11,18 @@ Final-solution stability: verified.
 ## Model Summary
 | Mean process | Regime-switching parts | Non-switching parts | LogLik | AIC | BIC |
 | --- | --- | --- | --- | --- | --- |
-| ARX(1,1) | AR block, including $c$, $\sigma^2$ | SPF block | -167.3355 | 366.6710 | 421.6803 |
+| ARX(1,1) | AR block, including $c$, $\sigma^2$ | SPF block | -179.8177 | 377.6354 | 408.5781 |
+
+## Empirical Path Quantiles
+Quantiles over the effective sample of $v_{t+1}=\operatorname{Var}(u_{t+1}\mid\mathcal F_t)$, where $u_{t+1}=\pi_{t+1}-\hat\pi_{t+1}$. Using the regime probabilities $Q_t$ before observing inflation and means $m_{i,t}=\mathbb D_iX_t$:
+
+$$
+v_{t+1}=\sum_i Q_{i,t}\sigma_i^2+\sum_i Q_{i,t}(m_{i,t}-\hat\pi_{t+1})^2,\qquad\hat\pi_{t+1}=\sum_i Q_{i,t}m_{i,t}.
+$$
+
+| Series | 5% | Median | 95% |
+| --- | --- | --- | --- |
+| $v_{t+1}$ | 0.1983 | 0.2721 | 0.8430 |
 
 ## Switching Blocks
 | Block | Switching |
@@ -22,27 +33,30 @@ Final-solution stability: verified.
 
 ## Mean Process
 $$
-\pi_{t+1} = c_{s_t} + \rho_{1,s_t}\,\pi_t + \phi_1\,SPF_t + u_{t+1}
+\pi_{t+1} = c_i + \rho_{1,i}\,\pi_t + \phi_1\,SPF_t + \sigma_i W_{t+1},\qquad Z_t=e_i.
 $$
 
+Here $Z_t=e_i$ denotes regime $i$, which generates $\pi_{t+1}$, and $W_{t+1}$ is the standardized innovation with the distribution reported below.
+
 ## Mean Parameter Values
-| Parameter | Switching | Regime 0 | Regime 1 | Regime 2 |
-| --- | --- | --- | --- | --- |
-| $c$ | Y | 0.4496 | -0.0795 | 0.1578 |
-| $\rho_1$ | Y | -0.3794 | 0.5227 | 0.1875 |
-| $\phi_1$ | N | 0.7821 | 0.7821 | 0.7821 |
+| Parameter | Switching | Regime 0 | Regime 1 |
+| --- | --- | --- | --- |
+| $c$ | Y | 0.2258 | 0.0987 |
+| $\rho_1$ | Y | 0.0293 | 0.3597 |
+| $\phi_1$ | N | 0.7415 | 0.7415 |
 
 ## Distribution Parameters
-| Parameter | Switching | Regime 0 | Regime 1 | Regime 2 |
-| --- | --- | --- | --- | --- |
-| $\sigma$ | Y | 0.2067 | 0.3996 | 1.0549 |
+| Parameter | Switching | Regime 0 | Regime 1 |
+| --- | --- | --- | --- |
+| $\sigma$ | Y | 0.3287 | 0.9486 |
 
 ## Transition Probability Matrix
-| From \ To | Regime 0 | Regime 1 | Regime 2 | Row Sum |
-| --- | --- | --- | --- | --- |
-| Regime 0 | 0.8154 | 0.1846 | -0.0000 | 1.0000 |
-| Regime 1 | 0.0415 | 0.8617 | 0.0968 | 1.0000 |
-| Regime 2 | 0.1716 | 0.0495 | 0.7789 | 1.0000 |
+| From \ To | Regime 0 | Regime 1 | Row Sum |
+| --- | --- | --- | --- |
+| Regime 0 | 0.9216 | 0.0784 | 1.0000 |
+| Regime 1 | 0.1633 | 0.8367 | 1.0000 |
 
 ## Regime Classification Plot
-![Inflation with Smoothed Predicted Regimes](best_model_regime_classification.png)
+Shading selects the largest component of $S_t=E(Z_t\mid\mathcal F_T)$ and displays it at the date of $\pi_{t+1}$. It uses the full sample.
+
+![Inflation with Smoothed Regime Classifications](best_model_regime_classification.png)

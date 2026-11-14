@@ -305,6 +305,12 @@ The main result tables contain 216 reported model combinations.
 |---|---|---|---|---:|---:|---:|
 | `M061` | Student's $t$ | ARX(1,1) | GARCH(1,1) | 97.7611 | -181.5223 | -149.7452 |
 
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.0231 | 0.0419 | 0.1696 |
+
 Mean process:
 
 $$
@@ -337,6 +343,12 @@ Distribution parameters:
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
 | `M110` | Gaussian mixture | ARX(1,1) | GJR-GARCH(1,1) | 102.2136 | -184.4273 | -139.0314 |
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.0224 | 0.0412 | 0.1683 |
 
 Mean process:
 
@@ -384,6 +396,12 @@ For GJR-GARCH, `arch` estimates the indicator coefficient $\gamma_i-\alpha_i$ (r
 |---|---|---|---|---:|---:|---:|
 | `M111` | Gaussian mixture | ARX(1,1) | EGARCH(1,1) | 99.3683 | -178.7365 | -133.3407 |
 
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.0213 | 0.0454 | 0.1454 |
+
 Mean process:
 
 $$
@@ -427,6 +445,12 @@ Distribution parameters:
 |---|---|---|---|---:|---:|---:|
 | `M061` | Student's $t$ | ARX(1,1) | GARCH(1,1) | 97.7611 | -181.5223 | -149.7452 |
 
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.0231 | 0.0419 | 0.1696 |
+
 Mean process:
 
 $$
@@ -459,6 +483,12 @@ Distribution parameters:
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
 | `M062` | Student's $t$ | ARX(1,1) | GJR-GARCH(1,1) | 100.1943 | -184.3886 | -148.0719 |
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.0224 | 0.0417 | 0.1667 |
 
 Mean process:
 
@@ -498,6 +528,12 @@ For GJR-GARCH, `arch` estimates the indicator coefficient $\gamma_i-\alpha_i$ (r
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
 | `M063` | Student's $t$ | ARX(1,1) | EGARCH(1,1) | 96.3321 | -176.6642 | -140.3475 |
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.0217 | 0.0457 | 0.1428 |
 
 Mean process:
 

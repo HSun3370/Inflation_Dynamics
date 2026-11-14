@@ -299,6 +299,12 @@ The main result tables contain 216 reported model combinations.
 |---|---|---|---|---:|---:|---:|
 | `M079` | Student's $t$ | ARX(2,1) | GARCH(2,1) | -177.3879 | 372.7757 | 403.7184 |
 
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.1410 | 0.2535 | 1.2003 |
+
 Mean process:
 
 $$
@@ -333,6 +339,12 @@ Distribution parameters:
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
 | `M080` | Student's $t$ | ARX(2,1) | GJR-GARCH(2,1) | -172.3922 | 366.7843 | 404.6032 |
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.1277 | 0.2117 | 1.4535 |
 
 Mean process:
 
@@ -376,6 +388,12 @@ For GJR-GARCH, `arch` estimates the indicator coefficient $\gamma_i-\alpha_i$ (r
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
 | `M117` | Gaussian mixture | ARX(1,1) | EGARCH(2,1) | -171.6612 | 367.3223 | 408.5793 |
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.1161 | 0.2830 | 1.4042 |
 
 Mean process:
 
@@ -422,6 +440,12 @@ Distribution parameters:
 |---|---|---|---|---:|---:|---:|
 | `M055` | Student's $t$ | Constant | GARCH(2,1) | -184.4270 | 378.8540 | 396.0444 |
 
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.1254 | 0.2597 | 1.7600 |
+
 Mean process:
 
 $$
@@ -454,6 +478,12 @@ Distribution parameters:
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
 | `M050` | Student's $t$ | Constant | GJR-GARCH(1,1) | -184.7523 | 379.5047 | 396.6951 |
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.1291 | 0.2498 | 1.9787 |
 
 Mean process:
 
@@ -492,6 +522,12 @@ For GJR-GARCH, `arch` estimates the indicator coefficient $\gamma_i-\alpha_i$ (r
 | Model ID | Distribution | Mean process | Volatility process | Log likelihood | AIC | BIC |
 |---|---|---|---|---:|---:|---:|
 | `M051` | Student's $t$ | Constant | EGARCH(1,1) | -184.4356 | 378.8711 | 396.0615 |
+
+Empirical path quantiles:
+
+| Series | 5% | Median | 95% |
+|---|---:|---:|---:|
+| $\sigma_t^2$ | 0.1041 | 0.2692 | 1.5166 |
 
 Mean process:
 

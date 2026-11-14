@@ -15,13 +15,17 @@ Outputs
 - gzipped CSV of every optimizer start (restart audit; not tracked in git)
 - TXT line-by-line printout (AIC/BIC/LogLik)
 - Markdown report: parameter ranges and random-start draws, then the best
-  model by AIC and by BIC
+  model by AIC and by BIC, each with the empirical quantiles of its
+  conditional variance path
 
 Run modes
 - Sequential (default): estimate every combination, then write the outputs.
 - Grid: ``--model-id Mxxx --raw-dir DIR`` estimates one combination and
   pickles it to DIR; ``--collect --raw-dir DIR`` merges all combinations and
   writes the outputs. ``submit_garch_grid.sh`` drives both on the CBS Grid.
+- Report only: ``--report-only`` rebuilds the conditional-variance quantile
+  columns and the Markdown report from the saved summary and parameter CSVs,
+  without re-estimating.
 """
 
 from __future__ import annotations
@@ -1002,6 +1006,50 @@ def model_phase_rng(seed: int, model_counter: int, phase_id: int) -> np.random.G
     return np.random.default_rng(np.random.SeedSequence([seed, model_counter, phase_id]))
 
 
+VARIANCE_QUANTILE_LEVELS = (("sigma2_q05", 0.05), ("sigma2_median", 0.50), ("sigma2_q95", 0.95))
+
+
+def conditional_variance_path(df: pd.DataFrame, model_id: str, param_df: pd.DataFrame) -> tuple[np.ndarray, float]:
+    """Conditional variance sigma_t^2 = Var_{t-1}(u_t) at the saved estimates.
+
+    The innovation distributions are standardized to unit variance, so sigma_t^2 is
+    the conditional variance of the residual for all three distributions. arch's
+    fix() uses the same backcast as fit(), so the path is the estimated one."""
+    entry = {e.model_id: e for e in enumerate_models()}[model_id]
+    ms, vs = entry.mean_spec, entry.vol_spec
+    y, x = prepare_mean_inputs(df, ms)
+    kwargs = dict(y=y, x=x, mean=ms.mean, lags=ms.lags, vol=vs.vol_keyword, p=vs.p, o=vs.o, q=vs.q,
+                  hold_back=COMMON_HOLD_BACK, rescale=False)
+    if entry.dist == "mix_normal":
+        model = arch_model(**kwargs)
+        model.distribution = MixNormal()
+    else:
+        model = arch_model(dist=entry.dist, **kwargs)
+    coef = param_df[param_df["model_id"] == model_id].set_index("parameter")["coef"]
+    params = np.array([float(coef[n]) for n in model._all_parameter_names()])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fixed = model.fix(params)
+    return np.asarray(fixed.conditional_volatility, dtype=float) ** 2, float(fixed.loglikelihood)
+
+
+def add_variance_quantiles(summary_df: pd.DataFrame, param_df: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
+    """Add empirical quantiles of each reported model's conditional variance path,
+    after checking that the saved parameters reproduce the reported log likelihood."""
+    out = summary_df.copy()
+    for col, _ in VARIANCE_QUANTILE_LEVELS:
+        out[col] = np.nan
+    for i, row in out.iterrows():
+        sigma2, loglik = conditional_variance_path(df, str(row["model_id"]), param_df)
+        if not np.isclose(loglik, float(row["loglikelihood"]), rtol=0.0, atol=1e-6):
+            raise ValueError(f"{row['model_id']}: saved parameters give log likelihood {loglik}, "
+                             f"reported {row['loglikelihood']}")
+        sigma2 = sigma2[np.isfinite(sigma2)]
+        out.loc[i, [c for c, _ in VARIANCE_QUANTILE_LEVELS]] = np.quantile(
+            sigma2, [level for _, level in VARIANCE_QUANTILE_LEVELS])
+    return out
+
+
 # ============================================================
 # 9) Output row builders
 # ============================================================
@@ -1560,6 +1608,14 @@ def _model_detail_markdown(best_row: pd.Series, param_df: pd.DataFrame) -> str:
         + f"{_format_value(float(best_row['aic']))} | {_format_value(float(best_row['bic']))} |"
     )
     lines.append("")
+    if all(c in best_row.index and pd.notna(best_row[c]) for c, _ in VARIANCE_QUANTILE_LEVELS):
+        lines.append("Empirical path quantiles:")
+        lines.append("")
+        lines.append("| Series | 5% | Median | 95% |")
+        lines.append("|---|---:|---:|---:|")
+        lines.append("| $\\sigma_t^2$ | " + " | ".join(
+            _format_value(float(best_row[c])) for c, _ in VARIANCE_QUANTILE_LEVELS) + " |")
+        lines.append("")
     lines.append("Mean process:")
     lines.append("")
     lines.append(_mean_equation_markdown(best_row, psub))
@@ -2039,6 +2095,7 @@ def write_outputs(
     records: list[dict[str, Any]],
     output_dir: Path,
     note: str,
+    df: pd.DataFrame,
 ) -> None:
     settings = {json.dumps(r["settings"], sort_keys=True) for r in records}
     if len(settings) != 1:
@@ -2059,6 +2116,8 @@ def write_outputs(
     else:
         summary_df = summary_df.sort_values(SUMMARY_SORT_COLUMNS)
     param_df = pd.DataFrame(param_rows).sort_values(["model_id", "parameter"]) if param_rows else pd.DataFrame()
+    if not summary_df.empty:
+        summary_df = add_variance_quantiles(summary_df, param_df, df)
     attempt_df = (
         pd.DataFrame(attempt_rows).sort_values(["model_id", "attempt"])
         if attempt_rows
@@ -2122,7 +2181,7 @@ def run_estimation(
         estimate_model(df, entry, n_starts, retry_failed_starts, maxiter, seed)
         for entry in enumerate_models()
     ]
-    write_outputs(records, output_dir, sample_note(df, data_path))
+    write_outputs(records, output_dir, sample_note(df, data_path), df)
 
 
 def run_model_jobs(
@@ -2165,7 +2224,29 @@ def collect_model_jobs(
     if missing:
         print(f"WARNING: collecting without {len(missing)} missing models: {missing}")
     df = load_quarterly_data(data_path)
-    write_outputs(records, output_dir, sample_note(df, data_path))
+    write_outputs(records, output_dir, sample_note(df, data_path), df)
+
+
+def rebuild_report(data_path: Path, output_dir: Path) -> None:
+    """Recompute the conditional-variance quantile columns and rewrite the summary
+    CSV and Markdown report from the saved CSVs, without re-estimating."""
+    df = load_quarterly_data(data_path)
+    summary_csv = output_dir / "garch_family_estimation_summary.csv"
+    summary_df = pd.read_csv(summary_csv)
+    param_df = pd.read_csv(output_dir / "garch_family_estimation_parameters.csv")
+    failed_df = pd.read_csv(output_dir / "garch_family_failed_models.csv")
+    n_starts = summary_df["n_starts_requested"].unique()
+    if len(n_starts) != 1:
+        raise ValueError(f"Saved summary mixes start counts: {n_starts}")
+    summary_df = add_variance_quantiles(summary_df, param_df, df)
+    summary_df.to_csv(summary_csv, index=False)
+    report_md = output_dir / "garch_family_best_models.md"
+    report_md.write_text(
+        build_markdown_report(summary_df, param_df, failed_df, n_starts=int(n_starts[0]),
+                              sample_note=sample_note(df, data_path)) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Rebuilt {summary_csv} and {report_md}")
 
 
 # ============================================================
@@ -2238,6 +2319,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--raw-dir", type=Path, default=None, help="Per-combination pickle directory.")
     parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Rebuild the summary quantile columns and the Markdown report from the saved CSVs in --output-dir.",
+    )
+    parser.add_argument(
         "--allow-missing",
         action="store_true",
         help="With --collect, write outputs even if some combinations are missing.",
@@ -2250,6 +2336,9 @@ def main() -> None:
     if args.list_models:
         for e in enumerate_models():
             print(f"{e.model_id}\t{e.dist}\t{e.mean_spec.name}\t{e.vol_spec.label}")
+        return
+    if args.report_only:
+        rebuild_report(args.data_path, args.output_dir)
         return
     if (args.model_id or args.collect) and args.raw_dir is None:
         raise SystemExit("--model-id and --collect require --raw-dir")

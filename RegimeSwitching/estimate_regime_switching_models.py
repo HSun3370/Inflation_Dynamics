@@ -47,6 +47,7 @@ import statsmodels.api as sm
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, EstimationWarning
 
 import MarkovRegression_t
+from joint_em import JointMeanMarkovRegression
 
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", category=EstimationWarning)
@@ -86,8 +87,9 @@ STABILITY_REPS = 20
 STABILITY_SCALE = 0.05
 STABILITY_LLF_TOL = 1e-4
 STABILITY_MAX_ROUNDS = 3
-# v2: EM initialization raised from 50 to 1,000 iterations; blocks from v1 searches are not merged.
-METHODOLOGY_VERSION = "bekaert-identification-stability-v2-em1000"
+# v3: jointly update shared and switching Gaussian mean coefficients in EM.
+# The likelihood, starting draws, optimization and acceptance rules are unchanged.
+METHODOLOGY_VERSION = "bekaert-identification-stability-v3-joint-em"
 REGIME_COLORS = ["#d62728", "#2ca02c", "#1f77b4"]
 
 
@@ -303,7 +305,7 @@ def build_model(df: pd.DataFrame, spec: ModelSpec) -> tuple[Any, list[bool], boo
     )
 
     if spec.error_distribution == "Normal":
-        model = sm.tsa.MarkovRegression(**kwargs)
+        model = JointMeanMarkovRegression(**kwargs)
     else:
         model = MarkovRegression_t.MarkovRegression_t(
             **kwargs,
@@ -989,17 +991,17 @@ def _coefficient_symbol(col: str, switches: bool) -> str:
         return base
     if "_" in base:
         root, sub = base.split("_", 1)
-        return f"{root}_{{{sub},s_t}}"
-    return f"{base}_{{s_t}}"
+        return f"{root}_{{{sub},i}}"
+    return f"{base}_{{i}}"
 
 
 def _mean_equation_markdown(best_row: pd.Series) -> str:
     if best_row["mean_process"] == "Constant":
-        return "$$\n\\pi_{t+1} = SPF_t + u_{t+1}\n$$"
+        return "$$\n\\pi_{t+1} = SPF_t + \\sigma_i W_{t+1},\\qquad Z_t=e_i.\n$$"
 
     exog_cols = [c for c in str(best_row["exog_cols"]).split(",") if c]
     terms: list[str] = []
-    intercept = "c_{s_t}" if best_row["intercept_switches_by_regime"] == "Y" else "c"
+    intercept = "c_i" if best_row["intercept_switches_by_regime"] == "Y" else "c"
     terms.append(intercept)
     for col in exog_cols:
         switches = (best_row["switching_ar"] == "Y" and is_ar_col(col)) or (
@@ -1008,7 +1010,8 @@ def _mean_equation_markdown(best_row: pd.Series) -> str:
         terms.append(f"{_coefficient_symbol(col, switches)}\\,{_inflation_term(col)}")
 
     rhs = " + ".join(terms)
-    return "$$\n\\pi_{t+1} = " + rhs + " + u_{t+1}\n$$"
+    sigma = "\\sigma_i" if best_row["switching_distribution"] == "Y" else "\\sigma"
+    return "$$\n\\pi_{t+1} = " + rhs + " + " + sigma + " W_{t+1},\\qquad Z_t=e_i.\n$$"
 
 
 def _parallel_mean_parameter_table(best_row: pd.Series, best_params: pd.DataFrame) -> pd.DataFrame:
@@ -1165,6 +1168,30 @@ def _save_regime_plot(df: pd.DataFrame, best_row: pd.Series, best_result: Any, o
     return plot_name
 
 
+def _conditional_variance_path(result: Any) -> np.ndarray:
+    """Var(u_t | information through t-1) for u_t = pi_t - E_{t-1}[pi_t]: the
+    predicted-probability mixture of the regime distributions,
+    sum_k xi_k (sigma_k^2 + m_k^2) - (sum_k xi_k m_k)^2."""
+    model = result.model
+    params = np.asarray(result.params, dtype=float)
+    means = np.asarray(model.predict_conditional(params), dtype=float)[:, 0, :]
+    probs = np.asarray(result.predicted_marginal_probabilities, dtype=float).T
+    variances = np.array([np.atleast_1d(params[model.parameters[k, "variance"]])[0]
+                          for k in range(model.k_regimes)])
+    if means.shape != probs.shape:
+        raise ValueError(f"Regime means {means.shape} and probabilities {probs.shape} do not align")
+    mixture_mean = (probs * means).sum(axis=0)
+    path = (probs * (variances[:, None] + means**2)).sum(axis=0) - mixture_mean**2
+    if not np.all(np.isfinite(path)) or np.any(path <= 0):
+        raise ValueError("Conditional variance path is not finite and positive")
+    return path
+
+
+def _variance_quantile_table(result: Any) -> pd.DataFrame:
+    q05, q50, q95 = np.quantile(_conditional_variance_path(result), [0.05, 0.50, 0.95])
+    return pd.DataFrame([{"Series": "$v_{t+1}$", "5%": _fmt4(q05), "Median": _fmt4(q50), "95%": _fmt4(q95)}])
+
+
 def build_best_model_markdown(
     best_row: pd.Series,
     best_params: pd.DataFrame,
@@ -1204,11 +1231,26 @@ def build_best_model_markdown(
         "## Model Summary",
         _markdown_table(summary_table),
         "",
+        "## Empirical Path Quantiles",
+        "Quantiles over the effective sample of "
+        "$v_{t+1}=\\operatorname{Var}(u_{t+1}\\mid\\mathcal F_t)$, where "
+        "$u_{t+1}=\\pi_{t+1}-\\hat\\pi_{t+1}$. Using the regime probabilities "
+        "$Q_t$ before observing inflation and means $m_{i,t}=\\mathbb D_iX_t$:",
+        "",
+        "$$\nv_{t+1}=\\sum_i Q_{i,t}\\sigma_i^2"
+        "+\\sum_i Q_{i,t}(m_{i,t}-\\hat\\pi_{t+1})^2,"
+        "\\qquad\\hat\\pi_{t+1}=\\sum_i Q_{i,t}m_{i,t}.\n$$",
+        "",
+        _markdown_table(_variance_quantile_table(best_result)),
+        "",
         "## Switching Blocks",
         _markdown_table(switching_table),
         "",
         "## Mean Process",
         _mean_equation_markdown(best_row),
+        "",
+        "Here $Z_t=e_i$ denotes regime $i$, which generates $\\pi_{t+1}$, and "
+        "$W_{t+1}$ is the standardized innovation with the distribution reported below.",
         "",
         "## Mean Parameter Values",
         _markdown_table(mean_regime_table),
@@ -1220,7 +1262,10 @@ def build_best_model_markdown(
         _markdown_table(transition_matrix),
         "",
         "## Regime Classification Plot",
-        f"![Inflation with Smoothed Predicted Regimes]({plot_name})",
+        "Shading selects the largest component of $S_t=E(Z_t\\mid\\mathcal F_T)$ "
+        "and displays it at the date of $\\pi_{t+1}$. It uses the full sample.",
+        "",
+        f"![Inflation with Smoothed Regime Classifications]({plot_name})",
     ]
     if best_row.get("search_methodology", "legacy_cutoffs") == "legacy_cutoffs":
         lines[2:2] = [

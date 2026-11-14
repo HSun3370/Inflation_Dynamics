@@ -1,0 +1,14 @@
+{
+  "reference_commit": "f207800b7927f175839ebb74bc6c9187741afc09",
+  "reference_url": "https://github.com/lphansen/TenuousBeliefs/tree/QuantMFR",
+  "files_sha256": {
+    "DataSummary/Aggregate_CPI_inflation_Quarterly.pkl": "9da770abca85dcab6855e5748ba6896df76ecc200f5d5604905ba367ba24b3fa",
+    "RegimeSwitching/results/regime_switching_results.csv": "2296ac5216cd11fd8786f989ab6038ec238fc4c63bcbba51a73ce9ff65f10379",
+    "RegimeSwitching/results/regime_switching_parameters.csv": "9c9bea3bb920e81ebe7766b8f82c02f5dd5790814d4e89904118737345d18610",
+    "RegimeSwitching/results/regime_switching_stability_attempts.csv": "ba66c57b196522d3f1cc383343e19fef300d4adde36bbceffc76b1a41c179c1a",
+    "DataSummary/Aggregate_CPI_inflation_Monthly.pkl": "de601d04316e50e7bc9a28086c91e23949e6d18cc0c716b5e5657cf1010025f8",
+    "RegimeSwitching/results_monthly/regime_switching_results.csv": "5446c875b8eba8bfe22fd083f7b1773e8dad55127d943c38406511de8847b62b",
+    "RegimeSwitching/results_monthly/regime_switching_parameters.csv": "b25da5f7eeb59b486b21e0e8a54b9e4dbd7fc32816edc23c416b454d8cea400d",
+    "RegimeSwitching/results_monthly/regime_switching_stability_attempts.csv": "029d4e4d1af73df10448f998c7c3b1377749c12016c6478f4b3c230c24ef3d11"
+  }
+}

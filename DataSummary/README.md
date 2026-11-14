@@ -17,7 +17,7 @@ Construction rules:
 - **Quarterly price index**: the CPIAUCSL level in the *last month* of each quarter; quarterly inflation $\pi_t$ is its percent change.
 - **Monthly inflation**: percent change of monthly CPIAUCSL.
 - **SPF expected inflation** for quarter $t$: $(PGDP3/PGDP2 - 1)\times 100$ from the survey taken in quarter $t-1$, i.e. the median one-quarter-ahead deflator forecast over the median nowcast. The first target quarter is 1969Q1 (from the 1968Q4 survey).
-- **Monthly SPF expected inflation**: the quarterly value de-compounded geometrically, $\left((1+q/100)^{1/3}-1\right)\times 100$, held constant within the quarter.
+- **Monthly SPF expected inflation**: the quarterly value de-compounded geometrically, $\left((1+q/100)^{1/3}-1\right)\times 100$, held constant within the quarter. For example, the forecast made in the first quarter (by March) for the second quarter is used for April, May, and June. When a mean process has two SPF terms ($SPF_t$ and $SPF_{t-1}$, as in ARX(2,2)), April uses the forecast made by March and the one made by December. Because $SPF_{t-1}$ is the previous month's value, May and June use the forecast made by March for both terms. This is the method of the original data, `Aggregate_CPI_inflation_20230513.xls`: its monthly SPF series equals the geometric de-compounding of its quarterly SPF in every month from 1969M1 to 2022M12 (largest difference $2\times10^{-14}$), and our monthly SPF matches it exactly over that period.
 - **Inflation shock**: realized inflation minus SPF expected inflation, at both frequencies.
 - **Unpublished CPI months** inside the sample are filled by geometric interpolation between the neighbouring published months. This is a data decision; see the box below.
 

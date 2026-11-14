@@ -99,31 +99,12 @@ The common parameter bounds used in estimation and result collection are:
 These parameter bounds, together with the stability restrictions of each
 specification below, are the only restrictions on the BEGE variance path.
 Under them, the implied variance $\sigma_p^2p_t+\sigma_n^2n_t$ is finite and
-positive in any finite sample, and I impose no further bound on it. An earlier
-version of the estimation also kept the implied variance inside a wide envelope
-around an exponentially weighted moving average (EWMA) of squared residuals,
-between $10^{-6}$ and $10^{6}$ times that average. I experimented with and
-without this bound and removed it, because the likelihood already rules out the
-paths it was meant to exclude. When the implied variance becomes much smaller
-than the squared residual it must explain, that residual becomes an extreme
-tail event; when the variance becomes very large, the density is spread too
-thinly over the observed residuals. In both cases the model fits poorly and the
-log likelihood falls sharply, so maximizing the likelihood itself avoids
-explosive and vanishing variance paths.
+positive in any finite sample, and I impose no further bound on it.[^ewma-bound]
+Variance paths that explode or become extreme, evaluated under the BEGE
+density, have low likelihood, so maximizing the likelihood naturally rules
+them out.
 
-To verify this, I estimated each of the five canonical BEGE specifications with
-the Constant, ARX(1,1), ARX(2,1) and ARX(2,2) mean processes twice on
-the 2026-10-20 data vintage, once with the EWMA bound and once without it, both
-times from the same 50,000 random starting points. Without the bound, every
-converged candidate estimate stayed inside the former envelope. The best
-estimates lie far inside it:
-their implied variance stays at least 80,000 times above the former lower bound
-and at least 6,700 times below the former upper bound.
-In 15 of the 20 combinations of specification and mean process, the best log
-likelihoods of the two runs agree within $10^{-4}$. In the other five they
-differ by at most $0.20$, in both directions. Each of those best estimates lies
-inside the former bound and was therefore attainable in both runs, so the
-differences reflect the random search rather than the bound.
+[^ewma-bound]: An earlier version of the estimation also kept the implied variance inside a wide envelope around an exponentially weighted moving average (EWMA) of squared residuals, between $10^{-6}$ and $10^{6}$ times that average. I removed it because the likelihood already excludes the paths it was meant to rule out: a variance much smaller than the squared residual it must explain turns that residual into an extreme tail event, and a very large variance spreads the density too thinly over the observed residuals. To verify this, I estimated each of the five canonical BEGE specifications with the Constant, ARX(1,1), ARX(2,1) and ARX(2,2) mean processes twice on the 2026-10-20 data vintage, once with the EWMA bound and once without it, both times from the same 50,000 random starting points. Without the bound, every converged candidate estimate stayed inside the former envelope; the best estimates keep their implied variance at least 80,000 times above its lower limit and at least 6,700 times below its upper limit. In 15 of the 20 combinations of specification and mean process, the best log likelihoods of the two runs agree within $10^{-4}$; in the other five they differ by at most $0.20$, in both directions, and each of those best estimates lies inside the former bound, so the differences reflect the random search rather than the bound.
 
 ### Constant BEGE
 

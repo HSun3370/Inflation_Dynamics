@@ -1,0 +1,19 @@
+{
+  "reference_commit": "f207800b7927f175839ebb74bc6c9187741afc09",
+  "reference_url": "https://github.com/lphansen/TenuousBeliefs/tree/QuantMFR",
+  "audited_at_utc": "2026-11-13T13:15:26.758990+00:00",
+  "methodology": "bekaert-identification-stability-v3-joint-em",
+  "files_sha256": {
+    "RegimeSwitching/estimate_regime_switching_models.py": "e3250f76b02d677aec3b66778f6122609903b67ccdc335cad3aa4b0383201933",
+    "RegimeSwitching/joint_em.py": "516a1f26ebeb47e38e71a1990f11ca020036b78c6b42fcad3a98094c8a3a3c5b",
+    "RegimeSwitching/audit_estimation.py": "673350e5a77bef24952579502772ad9a94fb3bc3873c1bcb1ec772a679c49285",
+    "DataSummary/Aggregate_CPI_inflation_Quarterly.pkl": "9da770abca85dcab6855e5748ba6896df76ecc200f5d5604905ba367ba24b3fa",
+    "RegimeSwitching/results/regime_switching_results.csv": "ad02aa400b2f10e1f4c264aa27a8f946d7eec24d760d5fd4b0d34579829353d9",
+    "RegimeSwitching/results/regime_switching_parameters.csv": "d747524658d5395a362ac2b6b0e2f03e201a225a829b0916bee7a0c6de5dca59",
+    "RegimeSwitching/results/regime_switching_stability_attempts.csv": "c0238bdf4ded3a1d960d7d31bf2946324c9ffbe1c0b999cd26ba76b9d4eb11ca",
+    "DataSummary/Aggregate_CPI_inflation_Monthly.pkl": "de601d04316e50e7bc9a28086c91e23949e6d18cc0c716b5e5657cf1010025f8",
+    "RegimeSwitching/results_monthly/regime_switching_results.csv": "f25188984cb8f25f5e1a88053ad0d8ca05e5b3f67ad8e2f227b29a67e913c9e7",
+    "RegimeSwitching/results_monthly/regime_switching_parameters.csv": "766768cea43793e007394dd96b54d723a2e1af0d41e473c3d46f304aebf4a42d",
+    "RegimeSwitching/results_monthly/regime_switching_stability_attempts.csv": "3648b5a29cda7f097d20e60f15eeecf4ec2a1830c826f15364258ef4994c22e0"
+  }
+}
