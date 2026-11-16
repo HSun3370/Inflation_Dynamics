@@ -14,7 +14,7 @@ u_t=\sigma_t z_t,\qquad
 E_{t-1}(z_t)=0,\quad E_{t-1}(z_t^2)=1.
 $$
 
-Here $\hat{\pi}_t$ is expected inflation and $\sigma_t^2$ is the conditional variance. Let $\varepsilon=10^{-6}$ denote the numerical stationarity margin. The scale $\bar v$ is the mean squared residual at the initial mean estimate: OLS residuals for ARX models and $\pi_t-SPF_{t-1}$ in the time indexing used below for the Constant model.
+Here $\hat{\pi}_t$ is expected inflation and $\sigma_t^2$ is the conditional variance; $\hat{\sigma}_t^2$ in the fitted equations denotes its value at the estimated parameters. Let $\delta=10^{-6}$ denote the numerical stationarity margin. The scale $\bar v$ is the mean squared residual at the initial mean estimate: OLS residuals for ARX models and $\pi_t-SPF_{t-1}$ in the time indexing used below for the Constant model.
 
 ### Mean Equations
 
@@ -35,7 +35,7 @@ $$
 **Constraints.**
 
 $$
-c\in\mathbb R,\qquad |\rho_1|<1-\varepsilon.
+c\in\mathbb R,\qquad |\rho_1|<1-\delta.
 $$
 
 **ARX(1,1).**
@@ -47,7 +47,7 @@ $$
 **Constraints.**
 
 $$
-c,\phi_1\in\mathbb R,\qquad |\rho_1|<1-\varepsilon.
+c,\phi_1\in\mathbb R,\qquad |\rho_1|<1-\delta.
 $$
 
 The intercept and SPF loading have no finite parameter bounds. Only the inflation-lag coefficient enters the stationarity restriction.
@@ -74,7 +74,7 @@ $$
 \rho_2>-1.
 $$
 
-For reported estimates, both roots $r$ of $r^2-\rho_1r-\rho_2=0$ must additionally satisfy $|r|<1-\varepsilon$.
+For reported estimates, both roots $r$ of $r^2-\rho_1r-\rho_2=0$ must additionally satisfy $|r|<1-\delta$.
 
 **ARX(2,2).**
 
@@ -106,7 +106,7 @@ $$
 $$
 
 $$
-\sum_{i=1}^{p}\alpha_i+\sum_{k=1}^{q}\beta_k<1-\varepsilon.
+\sum_{i=1}^{p}\alpha_i+\sum_{k=1}^{q}\beta_k<1-\delta.
 $$
 
 The positive intercept and nonnegative coefficients ensure positive conditional variances; the persistence restriction rules out integrated or explosive volatility.
@@ -130,8 +130,8 @@ $$
 
 $$
 -1\leq\gamma_i-\alpha_i\leq2,\qquad
-\frac12\sum_{i=1}^{p}(\alpha_i+\gamma_i)
-+\sum_{k=1}^{q}\beta_k<1-\varepsilon.
+\frac{1}{2}\sum_{i=1}^{p}(\alpha_i+\gamma_i)
++\sum_{k=1}^{q}\beta_k<1-\delta.
 $$
 
 Positive and negative inflation surprises have loadings $\alpha_i$ and $\gamma_i$, respectively. The bound on $\gamma_i-\alpha_i$ is the estimation bound on the equivalent indicator coefficient. The one-half weighting in the reported persistence check corresponds to the symmetric-innovation stationarity condition and is the restriction used across the estimated innovation distributions.
@@ -156,7 +156,7 @@ $$
 $$
 \alpha_i,\gamma_i\in\mathbb R,\qquad
 0\leq\beta_k\leq q,\qquad
-\sum_{k=1}^{q}\beta_k<1-\varepsilon.
+\sum_{k=1}^{q}\beta_k<1-\delta.
 $$
 
 The logarithmic specification ensures positive variance. Magnitude and sign coefficients have no finite estimation bounds. The centering constant remains fixed at $\sqrt{2/\pi}$ for every innovation distribution.

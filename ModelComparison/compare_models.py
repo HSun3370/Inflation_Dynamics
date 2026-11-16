@@ -7,7 +7,7 @@ Collects the reported estimates of every model class on the current effective sa
 * GARCH family: estimates whose `selection_status` is `passed_checks` (fallback estimates
   that failed the admissibility checks are excluded);
 * regime switching: estimates that passed all checks and final-solution verification;
-* BEGE: for each of the eight specifications and each mean process, the best estimate that
+* BEGE: for each available specification and each mean process, the best estimate that
   converged and passed the collection checks (`selection_eligible`).
 
 Writes `model_comparison.md` (ranking summary with the top models by AIC and by BIC and the
@@ -44,6 +44,8 @@ BEGE_SPECS = {
     "ConstantP_BEGE": "Constant-p Full BEGE",
     "ConstantN_BEGE": "Constant-n Full BEGE",
     "Full_BEGE": "Full BEGE",
+    "SymmetricP_BEGE": "Symmetric-p/full-n BEGE",
+    "PositiveOnlyP_BEGE": "Positive-only-p/full-n BEGE",
     "BEGE_EGARCH": "BEGE-EGARCH",
 }
 CLASS_ORDER = ["OLS", "GARCH family", "Regime switching", "BEGE"]
@@ -115,7 +117,11 @@ def regime_switching_rows(suffix: str, nobs: int) -> list[dict]:
 def bege_rows(suffix: str) -> list[dict]:
     rows = []
     for folder, title in BEGE_SPECS.items():
-        d = pd.read_csv(ROOT / f"BEGE_GARCH/{folder}/results{suffix}/selection_diagnostics.csv")
+        path = ROOT / f"BEGE_GARCH/{folder}/results{suffix}/selection_diagnostics.csv"
+        if folder in {"SymmetricP_BEGE", "PositiveOnlyP_BEGE"} and not path.exists():
+            print(f"Pending restricted search; not ranked yet: {path}")
+            continue
+        d = pd.read_csv(path)
         ok = d[_true(d["success"]) & _true(d["selection_eligible"])]
         for mean, grp in ok.groupby("mean_type"):
             r = grp.sort_values("loglik", ascending=False).iloc[0]

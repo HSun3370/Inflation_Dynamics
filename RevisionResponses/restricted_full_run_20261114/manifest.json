@@ -1,0 +1,112 @@
+{
+  "data_vintage": "2026-10-20",
+  "jobs_per_specification_frequency": 10,
+  "draws_per_job_mean": 40,
+  "starts_per_draw": 25,
+  "starts_per_mean": 10000,
+  "mean_processes": [
+    "constant",
+    "ARX(1,0)",
+    "ARX(1,1)",
+    "ARX(2,0)",
+    "ARX(2,1)",
+    "ARX(2,2)"
+  ],
+  "pdf_mean_processes": [
+    "constant",
+    "ARX(1,1)",
+    "ARX(2,1)",
+    "ARX(2,2)"
+  ],
+  "maxiter": 800,
+  "tol": 1e-08,
+  "compute_se_during_search": false,
+  "cpus_per_job": 25,
+  "memory_per_job": "63G",
+  "code_snapshot": "/scratch/hs3370/Inflation_Dynamics/BEGE_GARCH/restricted_full_20261114_source",
+  "sha256": {
+    "BEGE_GARCH/test_full_restrictions.py": "c64075f388dcddf88a3509a33120631eb956c77db525d4f92338f930a95ecb52",
+    "BEGE_GARCH/full_restrictions.py": "255134d9b2710c16e03b25bf4e54eb46c20e578af4140e332be59d89610d7295",
+    "BEGE_GARCH/bege_batch.py": "777477532d855694c693ad74ddc0d85e77fba2b3229e361bfd19249b697cdb49",
+    "BEGE_GARCH/BEGE_GARCH.py": "bf704d97d4c237583a24b7cc9b5d4a65bb1cc75a017f4af3c9cc71863302134b",
+    "BEGE_GARCH/SymmetricP_BEGE/collect_results.py": "ea2cff6889d87bf123e8c26ce0a831178311b35140ae8b9fbfcf06c063620be8",
+    "BEGE_GARCH/SymmetricP_BEGE/estimate.py": "921ac96f934148448c86ba239d24dc6956c146f5c2e26c792a03a5a62a1404e2",
+    "BEGE_GARCH/PositiveOnlyP_BEGE/collect_results.py": "3bd312faede41a09a684a334fbbec28b26b440753013dc60a7e60f3e944c83af",
+    "BEGE_GARCH/PositiveOnlyP_BEGE/estimate.py": "ad378fd53e1f732779bf9b0a4d5506f6624304959ceee337d59ced5b205c60ca",
+    "BEGE_GARCH/BEGE_Density/BEGE_density.py": "2fd84754abadab2ba5bed1e945b51b188c8fe9ca4b097f3a66ff3338ab408f86",
+    "DataSummary/Aggregate_CPI_inflation_Quarterly.pkl": "9da770abca85dcab6855e5748ba6896df76ecc200f5d5604905ba367ba24b3fa",
+    "DataSummary/Aggregate_CPI_inflation_Monthly.pkl": "de601d04316e50e7bc9a28086c91e23949e6d18cc0c716b5e5657cf1010025f8",
+    "DataSummary/data_vintage.json": "430ae881395cc1351b6f77f185a4b01356845bdac126ebcdca25ef5607e8ab5c"
+  },
+  "jobs": {
+    "SymmetricP_BEGE (quarterly)": {
+      "seeds": {
+        "1": "8990937",
+        "2": "8990938",
+        "3": "8990939",
+        "4": "8990940",
+        "5": "8990941",
+        "6": "8990942",
+        "7": "8990943",
+        "8": "8990944",
+        "9": "8990945",
+        "10": "8990946"
+      },
+      "collector": "8990947"
+    },
+    "PositiveOnlyP_BEGE (quarterly)": {
+      "seeds": {
+        "1": "8990948",
+        "2": "8990949",
+        "3": "8990950",
+        "4": "8990951",
+        "5": "8990952",
+        "6": "8990953",
+        "7": "8990954",
+        "8": "8990955",
+        "9": "8990956",
+        "10": "8990957"
+      },
+      "collector": "8990958"
+    },
+    "SymmetricP_BEGE (monthly)": {
+      "seeds": {
+        "1": "8990959",
+        "2": "8990960",
+        "3": "8990961",
+        "4": "8990962",
+        "5": "8990963",
+        "6": "8990964",
+        "7": "8990965",
+        "8": "8990966",
+        "9": "8990967",
+        "10": "8990968"
+      },
+      "collector": "8990969"
+    },
+    "PositiveOnlyP_BEGE (monthly)": {
+      "seeds": {
+        "1": "8990970",
+        "2": "8990971",
+        "3": "8990972",
+        "4": "8990973",
+        "5": "8990974",
+        "6": "8990975",
+        "7": "8990976",
+        "8": "8990977",
+        "9": "8990978",
+        "10": "8990979"
+      },
+      "collector": "8990980"
+    }
+  },
+  "report_refinement_job": "8990988",
+  "report_smoke_job": "8990990",
+  "report_tools": "/scratch/hs3370/Inflation_Dynamics/report-tools",
+  "report_job_logs": "/scratch/hs3370/Inflation_Dynamics/BEGE_GARCH/restricted_full_report_logs",
+  "report_smoke_initial_failure": {
+    "job": "8990987",
+    "reason": "Node WebAssembly virtual-memory reservation exceeded the scheduler limit.",
+    "fix": "NODE_OPTIONS=--disable-wasm-trap-handler --max-old-space-size=2048"
+  }
+}

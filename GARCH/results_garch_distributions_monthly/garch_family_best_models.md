@@ -16,13 +16,13 @@ Effective sample: **1969-02--2026-09** (**692 observations**, `Aggregate_CPI_inf
 
 All models are estimated with `arch` 7.0.0, which maximizes the likelihood by SLSQP subject to the bounds and linear constraints in the second column of the table below. `arch` imposes no bounds on mean-process coefficients or on the EGARCH coefficients $\alpha_i$ and $\gamma_j$. If a supplied starting vector violates any bound or constraint, `arch` silently replaces the whole vector with its own default start. Each model combination uses 5000 starts. Start 1 is the `arch` default (Gaussian mixture: the Student's $t$ estimates plus $(p_1,\mu_1,\sigma_1^2)=(0.3,0.1,1)$ when that vector is feasible, otherwise the `arch` default); starts 2--5000 are random draws from the third column. Every random draw lies inside `arch`'s feasible set and inside the stationary region (volatility persistence and AR roots below $1-10^{-6}$ in modulus), so `arch` uses every random start as drawn.
 
-$\bar v$ denotes the mean squared residual at `arch`'s mean starting values (OLS residuals for ARX means, $\pi_t-SPF_t$ for the Constant mean): Constant 0.0779, ARX(1,0) 0.0646, ARX(1,1) 0.0590, ARX(2,0) 0.0642, ARX(2,1) 0.0589, ARX(2,2) 0.0588.
+$\bar v$ denotes the mean squared residual at `arch`'s mean starting values (OLS residuals for ARX means, $\pi_t-SPF_{t-1}$ for the Constant mean): Constant 0.0779, ARX(1,0) 0.0646, ARX(1,1) 0.0590, ARX(2,0) 0.0642, ARX(2,1) 0.0589, ARX(2,2) 0.0588.
 
 | Parameter | `arch` bound / constraint | Random-start draw |
 |---|---|---|
 | **Mean process** | | |
-| $\rho_1$ in ARX(1,·) | none | $U(-1,1)$ (AR stationarity) |
-| $(\rho_1,\rho_2)$ in ARX(2,·) | none | uniform on the stationarity triangle $\rho_2>-1$, $\lvert\rho_1\rvert<1-\rho_2$ |
+| $\rho_1$ in ARX(1,·) | $\lvert\rho_1\rvert<1-10^{-6}$ | $U(-1,1)$ (AR stationarity) |
+| $(\rho_1,\rho_2)$ in ARX(2,·) | $\rho_2>-1$, $\rho_1+\rho_2<1$, $\rho_2-\rho_1<1$; both roots of $r^2-\rho_1r-\rho_2=0$ satisfy $\lvert r\rvert<1-10^{-6}$ | uniform on the stationarity triangle $\rho_2>-1$, $\lvert\rho_1\rvert<1-\rho_2$ |
 | $c$, $\phi_1$, $\phi_2$ | none | uniform on $\hat b(\rho)\pm 4\,\widehat{SE}(\rho)$, the OLS fit of $\pi_t-\rho_1\pi_{t-1}-\rho_2\pi_{t-2}$ on a constant and the SPF terms given the drawn $\rho$ |
 | **GARCH** | | |
 | $\omega$ | $[10^{-8}\bar v,\ 10\bar v]$ | log-uniform on the bound |
@@ -46,7 +46,7 @@ $\bar v$ denotes the mean squared residual at `arch`'s mean starting values (OLS
 
 Notes:
 
-- *Uniform on a region* means a uniform draw over the whole region: Dirichlet(1,…,1) weights for the volatility simplices, rejection sampling for the AR triangle and for `arch`'s caps. *Log-uniform* draws are uniform in the logarithm of the parameter.
+- *Uniform on a region* means a uniform draw over the whole region: Dirichlet(1,…,1) weights for the volatility simplices, rejection sampling for the AR triangle and for `arch`'s caps. *Log-uniform* draws are uniform in the logarithm of the parameter. The AR restrictions apply to random starts and final selection; the optimizer itself imposes no bounds on the AR coefficients.
 - Compared with the stationarity conditions in the README, `arch`'s feasible set is the same for GARCH. For GJR-GARCH, `arch` also caps $\alpha_i\le1$, although stationarity alone allows $\alpha_i<2$ when $\gamma_i$ is small. For EGARCH, `arch` requires $\beta_k\ge0$, under which $\sum\beta_k<1$ is the stationarity condition; $\omega$ is also bounded. The mixture bounds come from this repository's `MixNormal` class. $\alpha_i$ and $\gamma_j$ in EGARCH are unbounded in `arch`; the reported EGARCH estimates have $\max|\alpha_i|=0.6378$ and $\max|\gamma_j|=0.2049$, well inside the draw range $[-2,2]$.
 - Selection: for each combination the reported estimate has the highest log likelihood among *admissible* starts, which must pass five checks. (1) SLSQP reports success and `arch` returns convergence flag 0. (2) The first-order (KKT) conditions hold: the numerical gradient of the log likelihood, net of non-negative multipliers on the active bounds and constraints, is at most 0.005$\cdot T$ in absolute value. When a start that would become the best fails this check, SLSQP is restarted from its own solution up to 5 times, because SLSQP sometimes stops just short of a genuine maximum. Points on extremely steep ridges, where SLSQP reports success with gradients of $10^1$--$10^6$, do not move and stay rejected. (3) Volatility is stationary. (4) The AR roots lie inside the unit circle. (5) For the Gaussian mixture, the component variances satisfy $\min(\sigma_1^2,\sigma_2^2)/\max(\sigma_1^2,\sigma_2^2)\ge0.01$. This Hathaway-type restriction keeps the mixture likelihood bounded; without it the best fits place a component with variance $10^{-6}$ on one or two observations. If no start passes, the best converged start that satisfies the first-order conditions is reported and flagged in the CSV `selection_status` column. `best_loglik_hits` in the summary CSV counts the admissible starts that came within 0.01 of the reported log likelihood, and `params_at_arch_bound` lists parameters of the reported estimate that sit on an `arch` bound.
 - In 2 of 216 combinations, a converged fit that satisfies the first-order conditions but fails stationarity or the mixture rule has a higher log likelihood than the reported estimate (largest difference 2.5353). For these combinations the likelihood peaks on the stationarity boundary or at a degenerate mixture, and the reported estimate is the best admissible local maximum. The CSV column `best_inadmissible_loglikelihood` records the higher value.
@@ -65,6 +65,16 @@ For each model combination, the reported row uses the highest log-likelihood est
 | Gaussian mixture | ARX(1,1) | (1,1) | -181.2549 | ARX(1,1) | (1,1) | <span style="color:red">-184.4273</span> | ARX(1,1) | (1,1) | -178.7365 |
 
 **Table 3: Model selection by BIC: GARCH vs GJR vs EGARCH**
+
+| Distribution | GARCH Mean | GARCH Vol | GARCH BIC | GJR Mean | GJR Vol | GJR BIC | EGARCH Mean | EGARCH Vol | EGARCH BIC |
+|---|---|---|---:|---|---|---:|---|---|---:|
+| Normal | ARX(1,1) | (1,1) | -105.9446 | ARX(1,1) | (1,1) | -102.6268 | ARX(1,1) | (2,1) | -88.8407 |
+| Student's $t$ | ARX(1,1) | (1,1) | <span style="color:red">-149.7452</span> | ARX(1,1) | (1,1) | -148.0719 | ARX(1,1) | (1,1) | -140.3475 |
+| Gaussian mixture | ARX(1,1) | (1,1) | -140.3986 | ARX(1,1) | (1,1) | -139.0314 | ARX(1,1) | (1,1) | -133.3407 |
+
+Table 4 repeats the BIC selection over the ARX mean processes only; the Constant mean is excluded from the candidates. Because Table 3 selects no Constant-mean model, Table 4 coincides with Table 3.
+
+**Table 4: Model selection by BIC, excluding the Constant mean: GARCH vs GJR vs EGARCH**
 
 | Distribution | GARCH Mean | GARCH Vol | GARCH BIC | GJR Mean | GJR Vol | GJR BIC | EGARCH Mean | EGARCH Vol | EGARCH BIC |
 |---|---|---|---:|---|---|---:|---|---|---:|
@@ -314,7 +324,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0141 +0.4398\,\pi_t +0.5770\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0141 +0.4398\,\pi_t +0.5770\,SPF_t
 $$
 
 Volatility process:
@@ -353,7 +363,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0206 +0.4274\,\pi_t +0.5784\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0206 +0.4274\,\pi_t +0.5784\,SPF_t
 $$
 
 Volatility process:
@@ -405,7 +415,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0171 +0.4241\,\pi_t +0.6006\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0171 +0.4241\,\pi_t +0.6006\,SPF_t
 $$
 
 Volatility process:
@@ -454,7 +464,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0141 +0.4398\,\pi_t +0.5770\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0141 +0.4398\,\pi_t +0.5770\,SPF_t
 $$
 
 Volatility process:
@@ -493,7 +503,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0214 +0.4302\,\pi_t +0.5699\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0214 +0.4302\,\pi_t +0.5699\,SPF_t
 $$
 
 Volatility process:
@@ -538,7 +548,7 @@ Empirical path quantiles:
 Mean process:
 
 $$
-\hat{\pi}_{t+1} = 0.0175 +0.4290\,\pi_t +0.5919\,SPF_t + \mu_{t+1}
+\hat{\pi}_{t+1} = 0.0175 +0.4290\,\pi_t +0.5919\,SPF_t
 $$
 
 Volatility process:

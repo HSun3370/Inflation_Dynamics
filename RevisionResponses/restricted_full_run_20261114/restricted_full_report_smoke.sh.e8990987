@@ -1,0 +1,16 @@
+node:internal/deps/undici/undici:5829
+      return await WebAssembly.instantiate(mod, {
+                               ^
+
+RangeError: WebAssembly.instantiate(): Out of memory: Cannot allocate Wasm memory for new instance
+    at lazyllhttp (node:internal/deps/undici/undici:5829:32)
+
+Node.js v22.16.0
+Traceback (most recent call last):
+  File "/user/hs3370/Inflation_Dynamics/scripts/build_report.py", line 623, in <module>
+    main()
+  File "/user/hs3370/Inflation_Dynamics/scripts/build_report.py", line 588, in main
+    subprocess.run(['myst', 'build', '--typst'], cwd=STAGE, check=True)
+  File "/user/hs3370/.conda/envs/inflation_dynamics/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['myst', 'build', '--typst']' returned non-zero exit status 1.

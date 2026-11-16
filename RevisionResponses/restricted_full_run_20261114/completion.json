@@ -1,0 +1,59 @@
+{
+  "completed": "2026-11-15T20:58:43.211438",
+  "pdf_built": true,
+  "pdf_sha256": "f30f2afe10145ad66de4b973d25ecd7fd7be67dc00a127a51abfde86b711215e",
+  "searches": [
+    {
+      "frequency": "quarterly",
+      "specification": "SymmetricP_BEGE",
+      "saved_results": 2400,
+      "admissible_results": 2400,
+      "random_starts_per_mean": 10000,
+      "N": 230,
+      "sample": "1969Q2--2026Q3",
+      "reported_mean": "ARX(2,2)",
+      "loglik": -170.36221757175315,
+      "AIC": 368.7244351435063,
+      "BIC": 416.8575454684311
+    },
+    {
+      "frequency": "quarterly",
+      "specification": "PositiveOnlyP_BEGE",
+      "saved_results": 2400,
+      "admissible_results": 2399,
+      "random_starts_per_mean": 10000,
+      "N": 230,
+      "sample": "1969Q2--2026Q3",
+      "reported_mean": "ARX(2,2)",
+      "loglik": -171.38534981880906,
+      "AIC": 370.7706996376181,
+      "BIC": 418.9038099625429
+    },
+    {
+      "frequency": "monthly",
+      "specification": "SymmetricP_BEGE",
+      "saved_results": 2400,
+      "admissible_results": 2400,
+      "random_starts_per_mean": 10000,
+      "N": 692,
+      "sample": "1969M2--2026M9",
+      "reported_mean": "ARX(2,2)",
+      "loglik": 106.0132714001096,
+      "AIC": -184.0265428002192,
+      "BIC": -120.47233942157185
+    },
+    {
+      "frequency": "monthly",
+      "specification": "PositiveOnlyP_BEGE",
+      "saved_results": 2400,
+      "admissible_results": 2400,
+      "random_starts_per_mean": 10000,
+      "N": 692,
+      "sample": "1969M2--2026M9",
+      "reported_mean": "ARX(2,2)",
+      "loglik": 108.0674109903028,
+      "AIC": -188.1348219806056,
+      "BIC": -124.5806186019582
+    }
+  ]
+}

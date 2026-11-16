@@ -62,6 +62,26 @@ class DerivationTests(unittest.TestCase):
                     _, prefix, _ = enumerate_paths(density[:t+1],p,prior)
                     np.testing.assert_allclose(ref['R'][t],prefix[-1],atol=2e-12)
 
+    def test_arx22_block_split_preserves_filter_and_smoother(self):
+        spec=rs.ModelSpec(rs.mean_processes()[-1],'Normal',rs.SwitchingSpec(2,True,False))
+        data=synthetic_data(20)
+        model,_,_=rs.build_model(data,spec)
+        params=model.start_params.copy()
+        for i in range(2):
+            params[model.parameters[i,'exog']]=[.2+.1*i,.3-.1*i,.05+.01*i,.4,.15]
+        params[model.parameters['variance']]=[.2,.8]
+        densities,p,prior,means,variances=model_inputs(model,params)
+        x_s=np.column_stack([np.ones(len(data)),data[['Inflation_lag_1','Inflation_lag_2']].to_numpy()])
+        x_n=data[['SPF','SPF_lag_1']].to_numpy()
+        adjusted=data.Inflation.to_numpy()-x_n@np.array([.4,.15])
+        split=np.column_stack([adjusted-x_s@np.array([.2+.1*i,.3-.1*i,.05+.01*i]) for i in range(2)])
+        split_density=-.5*(np.log(2*np.pi*variances)+split**2/variances)
+        np.testing.assert_allclose(densities,split_density,atol=1e-13)
+        full=forward_backward(densities,p,prior)
+        partial=forward_backward(split_density,p,prior)
+        for key in ['Q','R','S','J']:
+            np.testing.assert_allclose(full[key],partial[key],atol=1e-13)
+
     def test_identical_densities_convey_no_regime_information(self):
         p=np.array([[.9,.1],[.2,.8]])
         prior=np.array([2/3,1/3])

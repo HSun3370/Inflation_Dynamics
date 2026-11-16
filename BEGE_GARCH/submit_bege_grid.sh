@@ -24,6 +24,8 @@ declare -A SUBMIT_SCRIPT=(
     [ConstantP_BEGE]=SimulationConstantP.sh
     [ConstantN_BEGE]=SimulationConstantN.sh
     [BEGE_EGARCH]=SimulationEGARCH.sh
+    [SymmetricP_BEGE]=submit.sh
+    [PositiveOnlyP_BEGE]=submit.sh
 )
 SPECS="${SPECS:-Constant_BEGE Symmetric_BEGE BadGood_BEGE InflationDeflation_BEGE Full_BEGE ConstantP_BEGE ConstantN_BEGE}"
 FREQUENCIES="${FREQUENCIES:-quarterly monthly}"

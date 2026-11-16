@@ -2181,6 +2181,7 @@ def BEGE_FullGJR_MLE(
     density_hyperu_method='scipy_approx',
     enforce_variance_bounds=False,
     start_n_jobs=None,
+    p_restriction=None,
 ):
     """
     BEGE with FULL GJR recursions (separate parameters for p_t and n_t).
@@ -2188,6 +2189,10 @@ def BEGE_FullGJR_MLE(
     Parameter order:
       [mean params] +
       [p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigma_p, sigma_n]
+
+    With p_restriction="symmetric_p", phi_p_minus=phi_p_plus; with
+    p_restriction="positive_p", phi_p_minus=0. Both use nine free
+    volatility coordinates, with the constrained coordinate omitted.
 
     Behavior in this version:
       • Stability is enforced for both shape processes:
@@ -2200,6 +2205,12 @@ def BEGE_FullGJR_MLE(
     import numpy as np
     from scipy.optimize import minimize
     from statsmodels.tools.numdiff import approx_hess
+
+    from BEGE_GARCH.full_restrictions import (
+        RESTRICTIONS, expand_volatility, parameter_names, sample_volatility,
+    )
+    if p_restriction is not None and p_restriction not in RESTRICTIONS:
+        raise ValueError(f"Unknown Full BEGE restriction: {p_restriction!r}")
 
     rng = np.random.default_rng(random_state)
     Y, X = _align_mean_sample(Y, X)
@@ -2263,6 +2274,11 @@ def BEGE_FullGJR_MLE(
     ]
     names_vol = ['p0', 'n0', 'rho_p', 'rho_n', 'phi_p⁺', 'phi_p⁻', 'phi_n⁺', 'phi_n⁻', 'σ₊', 'σ₋']
 
+    if p_restriction is not None:
+        # Optimize nine free coordinates; do not estimate the fixed/shared loading.
+        del bounds_vol[5]
+        names_vol = parameter_names(p_restriction)
+
     bounds_full = bounds_mean + bounds_vol
     names_full  = names_mean + names_vol
 
@@ -2273,6 +2289,8 @@ def BEGE_FullGJR_MLE(
     # ---------- nonlinear constraints for SLSQP ----------
     # helper to unpack volatility parameters from full theta
     def _unpack_vol(theta):
+        if p_restriction is not None:
+            return expand_volatility(theta[num_m:], p_restriction)
         p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, \
         phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
         return p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign
@@ -2313,7 +2331,7 @@ def BEGE_FullGJR_MLE(
     # ---------- objective (total NEG log-lik) ----------
     def _negloglik(theta):
         pm = theta[:num_m]
-        p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
+        p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
         if not _constraints_ok(
             p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus,
             phi_n_plus, phi_n_minus, sigp, sign,
@@ -2341,7 +2359,7 @@ def BEGE_FullGJR_MLE(
     # ---------- per-obs NEG loglik (vector) ----------
     def _ind_negloglik_vec(theta):
         pm = theta[:num_m]
-        p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = theta[num_m:]
+        p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus, phi_n_plus, phi_n_minus, sigp, sign = _unpack_vol(theta)
         if not _constraints_ok(
             p0, n0, rho_p, rho_n, phi_p_plus, phi_p_minus,
             phi_n_plus, phi_n_minus, sigp, sign,
@@ -2557,6 +2575,11 @@ def BEGE_FullGJR_MLE(
 
     # Usage: Replace the _sample_vol() function definition with:
     def _sample_vol():
+        if p_restriction is not None:
+            return sample_volatility(
+                rng, p_restriction, p0_bounds=p0n0_bounds, rho_bounds=rho_bounds,
+                phi_bounds=phi_bounds, sigma_bounds=sigma_bounds, floor_eps=floor_eps,
+            )
         return _sample_vol_full_stable(
             rng,
             p0_bounds=(p0_lo, p0_hi),
@@ -2647,7 +2670,7 @@ def BEGE_FullGJR_MLE(
 
     if print_summary:
         print("\n" + "-"*72)
-        print("BEGE (Full GJR: separate p_t and n_t) — hard overflow penalty")
+        print(f"BEGE Full GJR (p restriction: {p_restriction or 'none'})")
         print("-"*72)
         if compute_se:
             print(f"{'Parameter':<18}{'Estimate':>14}{'Std. Err.':>14}{'t-Stat':>14}")
@@ -3846,9 +3869,10 @@ def _bege_egarch_recursion_core(r, omega_p, beta_p, alpha_p, gamma_p,
     sigma_{t-1}^2 = sigma_p^2 p_{t-1} + sigma_n^2 n_{t-1}.
 
     Both series are computed jointly because z_{t-1} depends on both lagged
-    shape states. Pre-sample states are the parameter-implied unconditional
-    log-shape backcasts omega/(1-beta) under the sqrt(2/pi) centering
-    convention. Shape floor 1e-4 mirrors gjr_recursion.
+    shape states. Initial log-shape backcasts omega/(1-beta) set the shock
+    terms to zero. With non-Gaussian innovations, sqrt(2/pi) need not equal
+    E|z|, so these are not generally unconditional means.
+    Shape floor 1e-4 mirrors gjr_recursion.
     """
     n_obs = r.shape[0]
     p = np.empty(n_obs, dtype=np.float64)

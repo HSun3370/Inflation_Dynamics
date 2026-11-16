@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-11-14T23:25:33.611896",
+  "status": "estimation_running",
+  "report_job": "8990988",
+  "searches": [
+    {
+      "specification": "SymmetricP_BEGE",
+      "frequency": "quarterly",
+      "completed_draws": 132,
+      "expected_draws": 2400,
+      "converged_draws": 132
+    },
+    {
+      "specification": "SymmetricP_BEGE",
+      "frequency": "monthly",
+      "completed_draws": 22,
+      "expected_draws": 2400,
+      "converged_draws": 22
+    },
+    {
+      "specification": "PositiveOnlyP_BEGE",
+      "frequency": "quarterly",
+      "completed_draws": 114,
+      "expected_draws": 2400,
+      "converged_draws": 114
+    },
+    {
+      "specification": "PositiveOnlyP_BEGE",
+      "frequency": "monthly",
+      "completed_draws": 1,
+      "expected_draws": 2400,
+      "converged_draws": 1
+    }
+  ]
+}

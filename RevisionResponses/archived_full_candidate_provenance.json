@@ -1,0 +1,16 @@
+{
+  "review_date": "2026-11-14",
+  "source": "/scratch/hs3370/Inflation_Dynamics/BEGE_GARCH/ewma_bound_test/analysis/diagnostics_off_full.csv",
+  "mean": "ARX(2,2)",
+  "seed": 3,
+  "draw": 35,
+  "check": "bege_batch.add_selection_diagnostics on saved parameters, current quarterly sample, model_family=full; no optimization or SE calculation",
+  "loglik": -168.87700585250096,
+  "selection_eligible": true,
+  "sha256": {
+    "DataSummary/Aggregate_CPI_inflation_Quarterly.pkl": "9da770abca85dcab6855e5748ba6896df76ecc200f5d5604905ba367ba24b3fa",
+    "BEGE_GARCH/bege_batch.py": "a13869ddc079b27f926086fa9051a58ac04b74eb2a782d40fa5b4c76139af797",
+    "BEGE_GARCH/BEGE_GARCH.py": "0a0b5187b7f09a9ae2a8c3dabee12c6268ffe1dcd4b5d8daafab97bf775adf77",
+    "RevisionResponses/archived_full_candidate_check.csv": "d34a3c412a73b23a33166bcc2330476300b6a468d013097d9dfec3e09e595c5f"
+  }
+}

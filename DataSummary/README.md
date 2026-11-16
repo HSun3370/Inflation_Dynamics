@@ -7,6 +7,8 @@ This section provides a statistical summary of quarterly and monthly inflation a
 
 ## Data Sources and Construction
 
+The newly constructed quarterly and monthly data follow the construction and timing conventions in `DataSummary/Aggregate_CPI_inflation_20230513.xls`, the workbook first shared with me. Each update is checked against this reference over the overlapping sample. The updated vintage incorporates subsequent CPI revisions; the October 2025 interpolation is documented below.
+
 The workbook is built from two public sources:
 
 1. **CPIAUCSL** (FRED, St. Louis Fed): Consumer Price Index for All Urban Consumers: All Items in U.S. City Average, Index 1982--1984=100, Monthly, Seasonally Adjusted. <https://fred.stlouisfed.org/series/CPIAUCSL>
@@ -16,8 +18,8 @@ Construction rules:
 
 - **Quarterly price index**: the CPIAUCSL level in the *last month* of each quarter; quarterly inflation $\pi_t$ is its percent change.
 - **Monthly inflation**: percent change of monthly CPIAUCSL.
-- **SPF expected inflation** for quarter $t$: $(PGDP3/PGDP2 - 1)\times 100$ from the survey taken in quarter $t-1$, i.e. the median one-quarter-ahead deflator forecast over the median nowcast. The first target quarter is 1969Q1 (from the 1968Q4 survey).
-- **Monthly SPF expected inflation**: the quarterly value de-compounded geometrically, $\left((1+q/100)^{1/3}-1\right)\times 100$, held constant within the quarter. For example, the forecast made in the first quarter (by March) for the second quarter is used for April, May, and June. When a mean process has two SPF terms ($SPF_t$ and $SPF_{t-1}$, as in ARX(2,2)), April uses the forecast made by March and the one made by December. Because $SPF_{t-1}$ is the previous month's value, May and June use the forecast made by March for both terms. This is the method of the original data, `Aggregate_CPI_inflation_20230513.xls`: its monthly SPF series equals the geometric de-compounding of its quarterly SPF in every month from 1969M1 to 2022M12 (largest difference $2\times10^{-14}$), and our monthly SPF matches it exactly over that period.
+- **SPF expected inflation** for quarter $t$: $(PGDP3/PGDP2 - 1)\times 100$ from the survey taken in quarter $t-1$, where PGDP3 is the median one-quarter-ahead deflator-level forecast and PGDP2 is the median current-quarter deflator-level nowcast. This ratio defines $SPF_{t-1}$; the deflator forecast is a predictor of CPI inflation, not a direct CPI forecast. The first target quarter is 1969Q1 (from the 1968Q4 survey).
+- **Monthly SPF expected inflation**: the quarterly value de-compounded geometrically, $\left((1+q/100)^{1/3}-1\right)\times 100$, where $q$ is the quarterly forecast in percent, held constant within the target quarter. For example, the forecast made in the first quarter (by March) for the second quarter is used for April, May, and June. For an observation $\pi_t$, the two SPF terms in ARX(2,2) are $SPF_{t-1}$ and $SPF_{t-2}$: April uses the forecast made by March and the one made by December. Because $SPF_{t-2}$ is the preceding target month's forecast, May and June use the forecast made by March for both terms. This is the method of the original data, `Aggregate_CPI_inflation_20230513.xls`: its monthly SPF series equals the geometric de-compounding of its quarterly SPF in every month from 1969M1 to 2022M12 (largest difference $2\times10^{-14}$), and our monthly SPF matches it exactly over that period.
 - **Inflation shock**: realized inflation minus SPF expected inflation, at both frequencies.
 - **Unpublished CPI months** inside the sample are filled by geometric interpolation between the neighbouring published months. This is a data decision; see the box below.
 
@@ -37,7 +39,7 @@ $$
 P_{2025M10} = \sqrt{P_{2025M9}\,P_{2025M11}}.
 $$
 
-The published September-to-November price change is therefore split evenly: **monthly inflation in 2025M10 and 2025M11 is constructed, not observed**. The two months have identical inflation rates that compound exactly to the published two-month change. The interpolated level is an estimate, not a BLS figure; the value used in the current vintage is listed under [Current Vintage](#current-vintage).
+Here $P_m$ is the CPIAUCSL index level in month $m$. The published September-to-November price change is therefore split evenly: **monthly inflation in 2025M10 and 2025M11 is constructed, not observed**. The two months have identical inflation rates that compound exactly to the published two-month change. The interpolated level is an estimate, not a BLS figure; the value used in the current vintage is listed under [Current Vintage](#current-vintage).
 
 *Why:* without this fill, monthly inflation would be missing in 2025M10--2025M11 and its lags through 2026M1, so mean specifications with different lag lengths would drop different months and their likelihoods would not be comparable. With it, every monthly specification uses the same months.
 
@@ -107,8 +109,7 @@ Inflation data are available from 1947, but the professional forecast series beg
 
 To make log-likelihood values comparable across specifications, I use the same effective sample size for all mean models and all volatility models.[^effective-sample-correction]
  
-In ARX models, lagged regressors (for example, $SPF_{t-1}$) are not observed at the very beginning of the raw sample. Therefore, I start the estimation sample at the first date where both current forecast inflation ($SPF_t$), and one-lag forecast inflation ($SPF_{t-1}$)  are available.
-For the quarterly data, forecast inflation ($SPF_t$) is available from **1969Q1**, so requiring one lag ($SPF_{t-1}$) shifts the usable start to **1969Q2**. The trimmed estimation window runs from 1969Q2 to the last quarter with complete CPI data; its end date and size for the current vintage are listed under [Current Vintage](#current-vintage).
+For an observation $\pi_t$, ARX(2,2) requires $SPF_{t-1}$, the forecast assigned to that observation, and $SPF_{t-2}$, the forecast assigned to the preceding observation. Forecasts are available for target quarters starting in **1969Q1**. Requiring the preceding target quarter therefore sets the effective start to **1969Q2**. Inflation lags are already available. The trimmed estimation window runs to the last quarter with complete CPI data; its end date and size for the current vintage are listed under [Current Vintage](#current-vintage).
 This same trimmed sample is then used for all mean specifications, so the residual series has the same length across models.
  
 [^effective-sample-correction]: Earlier versions of the estimation code contained a sample-trimming mistake and therefore used different numbers of observations across model settings. For example, some GARCH runs used 208 observations, while some BEGE runs used 210 observations. This coding error has been corrected: all estimates reported on the 2023 vintage use the common **1969Q2--2022Q4** effective sample with **215 observations**. As a result, some of those log-likelihood, AIC, and BIC values differ from earlier archived numbers.
@@ -121,7 +122,7 @@ variance to equal a parameter-implied unconditional variance.
 
 
 ## Effective Sample Summary Statistics
-Summary statistics for the trimmed effective sample are reported below (generated by `data_summary.py`). Skewness and excess kurtosis are bias-corrected for sample size.
+Summary statistics for the trimmed effective sample are reported below (generated by `data_summary.py`). Skewness and excess kurtosis are bias-corrected for sample size. Std is the standard deviation, P5/P25/P75/P95 are percentiles, and AC($j$) is the autocorrelation at lag $j$. The final column is the SPF forecast error $\pi_t-SPF_{t-1}$, which equals $u_t$ only for the anchored Constant mean.
 
 % BEGIN auto:quarterly-summary
 
@@ -159,7 +160,7 @@ Summary statistics for the trimmed effective sample are reported below (generate
 
 ## Monthly Data
 
-The monthly counterpart to the quarterly estimation dataset is `Aggregate_CPI_inflation_Monthly.pkl`, built by `update_inflation_data.py` with the same trimming rule: the sample starts at the first month where both $SPF_t$ and $SPF_{t-1}$ are available. Monthly SPF is available from **1969M1**, so the trimmed monthly estimation window starts in **1969M2** and runs to the last month of CPI data (see [Current Vintage](#current-vintage)). The dataset carries the same columns as the quarterly pickle (`Inflation`, `Inflation_lag_1`, `Inflation_lag_2`, `SPF`, `SPF_lag_1`, `SPF_shock`); note that `SPF` and `SPF_lag_1` are the geometrically de-compounded quarterly forecasts and are therefore constant within each quarter.
+The monthly counterpart to the quarterly estimation dataset is `Aggregate_CPI_inflation_Monthly.pkl`, built by `update_inflation_data.py` with the same trimming rule: the sample starts at the first month where both $SPF_{t-1}$ and $SPF_{t-2}$ are available for an observation $\pi_t$. Monthly SPF is available from **1969M1**, so the trimmed monthly estimation window starts in **1969M2** and runs to the last month of CPI data (see [Current Vintage](#current-vintage)). The dataset carries the same columns as the quarterly pickle (`Inflation`, `Inflation_lag_1`, `Inflation_lag_2`, `SPF`, `SPF_lag_1`, `SPF_shock`); note that `SPF` and `SPF_lag_1` are the geometrically de-compounded quarterly forecasts with the current forecast constant within each target quarter and the lagged column shifted by one month.
 
 The monthly effective sample has no missing values because the unpublished October 2025 CPI is interpolated (see the data decision under [Data Sources and Construction](#data-sources-and-construction)). **Monthly inflation in 2025M10 and 2025M11 is therefore constructed rather than observed**, and these two months enter the lagged-inflation regressors through 2026M1.
 

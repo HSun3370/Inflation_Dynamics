@@ -1,0 +1,7 @@
+Positive-only-p boundary inference keys: ['se_message', 'se_method', 'se_hessian_ridge', 'se_used_pseudoinverse', 'se_used_opg_fallback', 'se_opg_ridge', 'se_used_opg_pseudoinverse', 'se_rough_parameters', 'se_c', 'se_rho_1', 'se_rho_2', 'se_phi_1', 'se_phi_2', 'se_p0', 'se_n0', 'se_rho_p', 'se_rho_n', 'se_phi_p_plus', 'se_phi_n_plus', 'se_phi_n_minus', 'se_sigma_p', 'se_sigma_n']
+{'se_message': 'sandwich', 'se_method': 'sandwich', 'se_hessian_ridge': 1e-08, 'se_used_pseudoinverse': False, 'se_used_opg_fallback': False, 'se_opg_ridge': nan, 'se_used_opg_pseudoinverse': False, 'se_rough_parameters': '', 'se_c': 0.01760463480512998, 'se_rho_1': 0.038404520802036615, 'se_rho_2': 0.04713912494106826, 'se_phi_1': 0.046658323879776475, 'se_phi_2': 0.04367051413754186, 'se_p0': 0.05590872313931137, 'se_n0': 0.021873367053846748, 'se_rho_p': 0.007847935911319754, 'se_rho_n': 0.10735010869907773, 'se_phi_p_plus': 0.03222797622300059, 'se_phi_n_plus': 0.21009416860672028, 'se_phi_n_minus': 0.09595528531367813, 'se_sigma_p': 0.008757377420682066, 'se_sigma_n': 0.037853170759279936}
+Wrote online appendix: /user/hs3370/Inflation_Dynamics/OnlineAppendix/BEGE_Density_Evaluation.md
+Prepared report sources: /user/hs3370/Inflation_Dynamics/_build/report-source
+Omitted implementation examples and operational instructions.
+building myst-cli session with API URL: https://api.mystmd.org
+🍡 Execution parallelism set to: 127

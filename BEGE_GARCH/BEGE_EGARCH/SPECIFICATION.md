@@ -13,7 +13,7 @@ u_t = \sigma_p \omega_{p,t} - \sigma_n \omega_{n,t},
 \omega_{n,t}\sim\tilde{\Gamma}(n_t,1),
 $$
 
-with centered gamma shocks, so the conditional variance is
+with conditionally independent centered gamma shocks, so the conditional variance is
 
 $$
 \sigma_t^2 = \sigma_p^2 p_t + \sigma_n^2 n_t .
@@ -59,15 +59,15 @@ $$
 $$
 
 with the intercept mapping
-$\omega_p = \omega_p^\sigma - 2(1-\beta_p)\ln\sigma_p$. The two parameterizations describe the same model; $\omega_p$ and
+$\omega_j = \omega_j^\sigma - 2(1-\beta_j)\ln\sigma_j$, for $j\in\{p,n\}$. The two parameterizations describe the same model; $\omega_p$ and
 $\sigma_p$ are separately identified because $\sigma_p$ also enters the BEGE
 density directly as the gamma scale, exactly as in the GJR-type BEGE models.
 
-Unlike the GJR-type recursions, the two shape processes are *coupled* through
+The two shape processes are *coupled* through
 $z_{t-1} = u_{t-1}/\sigma_{t-1}$, which depends on both lagged shapes; the
 recursion is therefore computed jointly.
 
-## Parameters, Bounds, and Stability
+## Parameters and Stability
 
 Parameter order in estimation output:
 
@@ -75,45 +75,15 @@ $$
 [\text{mean params}],\ \omega_p,\ \omega_n,\ \beta_p,\ \beta_n,\ \alpha_p,\ \alpha_n,\ \gamma_p,\ \gamma_n,\ \sigma_p,\ \sigma_n .
 $$
 
-| Parameter group | Bound |
-|---|---|
-| Log-shape intercepts $\omega_p,\omega_n$ | $[-5,5]$ |
-| Persistence $\beta_p,\beta_n$ | $[0,1)$ |
-| Magnitude loadings $\alpha_p,\alpha_n$ | $[0,2]$ |
-| Sign loadings $\gamma_p,\gamma_n$ | $[-2,2]$ |
-| Scale parameters $\sigma_p,\sigma_n$ | $[10^{-5},2]$ |
-
-The stability restriction for each log-shape process is the log-linear AR
-condition
-
-$$
-\beta_p < 1, \qquad \beta_n < 1 ,
-$$
-
-enforced during optimization (with the same $10^{-6}$ margin used by the
-GJR-type stability constraints) and re-checked at collection. The mean-process
-menu, mean-parameter bounds, mean-stationarity checks, density evaluator,
-random-search protocol, and selection rules are identical to the other BEGE specifications (see `BEGE_GARCH/README.md`).
-
-## Initialization and Numerical Guards
-
-- Pre-sample states use the parameter-implied unconditional log-shape
-  backcast $\ln p_1 = \omega_p/(1-\beta_p)$ and
-  $\ln n_1 = \omega_n/(1-\beta_n)$ (the shock terms have zero mean under the
-  $\sqrt{2/\pi}$ centering convention).
-- Shape paths are floored at $10^{-4}$, the same numerical floor used by
-  `gjr_recursion`.
-- Log shapes are capped at $50$ to avoid overflow.
-
-## Starting Values
-
-Volatility starts are sampled inside the bounds with the stability
-restriction satisfied: $\beta \sim U[0.2, 0.98]$, a target unconditional
-shape $\bar{s} = e^{U[\ln 0.05, \ln 5]}$ mapped to
-$\omega = (1-\beta)\ln\bar{s}$, $\alpha \sim U[0, 0.8]$,
-$\gamma \sim U[-0.5, 0.5]$, and $\sigma_p, \sigma_n \sim U[10^{-5}, 2]$. Mean
-starts use the same OLS-centered $\pm 2\,SE$ intervals as the other BEGE
-models.
+The persistence restriction $\beta_p<1$, $\beta_n<1$ is enforced during
+optimization, with the same margin $\delta=10^{-6}$ as the GJR-type stability
+constraints, and re-checked at collection. The parameter bounds, random-start
+draws, initial shape states, and numerical guards (shape floor and log-shape
+cap) are listed with those of the other BEGE specifications in the parameter
+table of [Estimation and Random Starts](../README.md#estimation-and-random-starts).
+The mean-process menu, mean-parameter bounds, mean-stationarity checks, density
+evaluator, random-search protocol, and selection rules are identical to the
+other BEGE specifications (see `BEGE_GARCH/README.md`).
 
 ## Estimation Scripts
 

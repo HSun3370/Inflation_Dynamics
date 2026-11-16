@@ -1,0 +1,62 @@
+# Report PDF: run python3 scripts/build_report.py (see PDF_BUILD.md).
+# See docs at: https://mystmd.org/guide/frontmatter
+version: 1
+project:
+  id: ad1db3c3-65ac-44e5-a7de-6b33fc29339f
+  title: Inflation Dynamics - Computational Notebook
+  description: This repository contains computational notebooks and resources related to the study of inflation dynamics in economics.
+  authors:
+    - Haoyang Sun
+  github: https://github.com/HSun3370/Inflation_Dynamics
+  toc:
+    - file: README.md
+    - file: DataSummary/README.md
+    - file: MeanProcess/README.md
+    - file: GARCH/README.md
+    - file: BEGE_GARCH/README.md
+  exports:
+    - format: pdf
+      template: lapreprint-typst
+      output: Inflation-Dynamics.pdf
+      kind: "Computation Notebook"   
+      open_access: false  
+      date: null
+      articles:
+        - file: README.md
+        - file: DataSummary/README.md
+        - file: MeanProcess/README.md
+        - file: MeanProcess/OLS_Results_Monthly.md
+        - file: GARCH/README.md
+        - file: GARCH/results_garch_distributions/garch_family_best_models.md
+        - file: GARCH/results_garch_distributions_monthly/garch_family_best_models.md
+        - file: RegimeSwitching/README.md
+        - file: RegimeSwitching/results/regime_switching_results.md
+        - file: RegimeSwitching/results/regime_switching_best_model.md
+        - file: RegimeSwitching/results_monthly/regime_switching_results.md
+        - file: RegimeSwitching/results_monthly/regime_switching_best_model.md
+        - file: BEGE_GARCH/README.md 
+        - file: BEGE_GARCH/Constant_BEGE/README.md
+        - file: BEGE_GARCH/Symmetric_BEGE/README.md
+        - file: BEGE_GARCH/BadGood_BEGE/README.md
+        - file: BEGE_GARCH/InflationDeflation_BEGE/README.md
+        - file: BEGE_GARCH/ConstantP_BEGE/README.md
+        - file: BEGE_GARCH/ConstantN_BEGE/README.md
+        - file: BEGE_GARCH/Full_BEGE/README.md
+        - file: BEGE_GARCH/SymmetricP_BEGE/README.md
+        - file: BEGE_GARCH/PositiveOnlyP_BEGE/README.md
+        - file: BEGE_GARCH/BEGE_EGARCH/SPECIFICATION.md
+        - file: BEGE_GARCH/BEGE_EGARCH/README.md
+        - file: BEGE_GARCH/Constant_BEGE/README_monthly.md
+        - file: BEGE_GARCH/Symmetric_BEGE/README_monthly.md
+        - file: BEGE_GARCH/BadGood_BEGE/README_monthly.md
+        - file: BEGE_GARCH/InflationDeflation_BEGE/README_monthly.md
+        - file: BEGE_GARCH/ConstantP_BEGE/README_monthly.md
+        - file: BEGE_GARCH/ConstantN_BEGE/README_monthly.md
+        - file: BEGE_GARCH/Full_BEGE/README_monthly.md
+        - file: BEGE_GARCH/SymmetricP_BEGE/README_monthly.md
+        - file: BEGE_GARCH/PositiveOnlyP_BEGE/README_monthly.md
+        - file: BEGE_GARCH/BEGE_EGARCH/README_monthly.md
+        - file: BEGE_GARCH/restricted_full_comparison.md
+        - file: BEGE_GARCH/BEGE_Density/BEGE_Density.md
+site:
+  template: book-theme

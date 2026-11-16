@@ -10,6 +10,10 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
+from BEGE_GARCH.full_restrictions import (
+    RESTRICTIONS, expand_row, expand_volatility, parameter_names,
+)
+
 
 MEAN_TYPES = ["constant", "ARX(1,0)", "ARX(1,1)", "ARX(2,0)", "ARX(2,1)", "ARX(2,2)"]
 MEAN_PARAM_NAMES = {
@@ -27,6 +31,16 @@ IMPLAUSIBLY_HIGH_LOGLIK_THRESHOLD = -150.0
 BEST_MODELS_PER_REPORT = 1
 TOP_MODELS_PER_MEAN = BEST_MODELS_PER_REPORT
 SE_REPORTING_ZERO_TOL = 0.5e-4
+# Rough standard errors for parameters whose sandwich SE is unavailable (estimate on a
+# bound, or not numerically identified): finite-difference step and the likelihood
+# drop that defines a one-standard-error half-width.
+ROUGH_SE_STEP = 1e-3
+ROUGH_SE_LR_DROP = 0.5
+ROUGH_SE_NOTE = (
+    "\u2020 Rough standard error. The estimate is on the boundary of its admissible range, or its "
+    "sandwich standard error is not numerically identified, so the usual normal approximation does "
+    "not apply. Method: {methods}."
+)
 PATH_QUANTILE_LEVELS = (("q05", 0.05), ("median", 0.50), ("q95", 0.95))
 PATH_QUANTILE_PREFIXES = (
     "selection_p_t",
@@ -91,6 +105,8 @@ PARAMETER_LABELS = {
 
 
 def model_param_names_for_family(model_family: str) -> list[str]:
+    if model_family in RESTRICTIONS:
+        return parameter_names(model_family)
     if model_family == "badgood":
         return ["p0", "n0", "rho_p", "rho_n", "phi_p", "phi_n", "sigma_p", "sigma_n"]
     if model_family == "id":
@@ -409,6 +425,13 @@ def format_value(val: float) -> str:
     return f"{val:.4f}"
 
 
+def format_se(val: float) -> str:
+    """Standard errors below display precision print as <0.0001 rather than 0.0000."""
+    if not pd.isna(val) and 0.0 <= float(val) < SE_REPORTING_ZERO_TOL:
+        return "<0.0001"
+    return format_value(val)
+
+
 def parameter_label(name: str) -> str:
     return PARAMETER_LABELS.get(name, f"`{name}`")
 
@@ -608,6 +631,14 @@ def _selection_metrics_for_row(
     from BEGE_GARCH.BEGE_GARCH import gjr_recursion
     from BEGE_GARCH.BEGE_GARCH import bege_implied_variance
     from BEGE_GARCH.BEGE_Density.BEGE_density import BEGE_log_density
+
+    if model_family in RESTRICTIONS:
+        metrics = _selection_metrics_for_row(
+            expand_row(row, model_family), model_family="full", specs_by_mean=specs_by_mean,
+        )
+        metrics["corrected_AIC"] -= 2.0
+        metrics["corrected_BIC"] -= np.log(len(specs_by_mean[row["mean_type"]]["Y"]))
+        return metrics
 
     residuals = _mean_residuals_from_row(row, specs_by_mean)
 
@@ -842,6 +873,9 @@ def _bounds_for_row(spec: dict, mean_type: str, model_family: str) -> list[tuple
             sigma_bounds,
             sigma_bounds,
         ]
+    elif model_family in RESTRICTIONS:
+        bounds_vol = [p0_bounds, p0_bounds, rho_bounds, rho_bounds,
+                      phi_bounds, phi_bounds, phi_bounds, sigma_bounds, sigma_bounds]
     elif model_family == "symmetric":
         bounds_vol = [p0_bounds, p0_bounds, rho_bounds, phi_bounds, phi_bounds, sigma_bounds, sigma_bounds]
     elif model_family == "full_egarch":
@@ -906,6 +940,9 @@ def _vol_paths_from_theta(
 
     num_m = len(MEAN_PARAM_NAMES[mean_type])
     vol = theta[num_m:]
+    if model_family in RESTRICTIONS:
+        vol = expand_volatility(vol, model_family)
+        model_family = "full"
 
     if model_family == "badgood":
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigma_p, sigma_n = vol
@@ -1007,6 +1044,9 @@ def _constraints_ok_for_theta(theta: np.ndarray, *, mean_type: str, model_family
     vol = np.asarray(theta[num_m:], dtype=float)
     if not np.all(np.isfinite(vol)):
         return False
+    if model_family in RESTRICTIONS:
+        vol = expand_volatility(vol, model_family)
+        model_family = "full"
 
     if model_family == "badgood":
         p0, n0, rho_p, rho_n, phi_p, phi_n, sigma_p, sigma_n = vol
@@ -1222,6 +1262,7 @@ def _standard_error_result(
     bounds: list[tuple[float | None, float | None]],
     hessian: np.ndarray,
     scores: np.ndarray,
+    negloglik: Callable[[np.ndarray], float],
 ) -> dict:
     hessian = _sym_matrix(hessian)
     hessian_inv, used_hessian_ridge, used_hessian_pseudo = _safe_inv_with_ridge(hessian)
@@ -1258,14 +1299,20 @@ def _standard_error_result(
             standard_errors = opg_se
             se_method = "OPG inverse fallback"
 
-    suppressed = active_bounds | (~np.isfinite(standard_errors)) | (standard_errors < SE_REPORTING_ZERO_TOL)
     standard_errors = standard_errors.astype(float)
-    standard_errors[suppressed] = np.nan
-    suppressed_names = [name for name, flag in zip(names, suppressed) if flag]
+    rough_methods: dict[str, str] = {}
+    for idx, name in enumerate(names):
+        if active_bounds[idx] or not np.isfinite(standard_errors[idx]) or standard_errors[idx] <= 0.0:
+            se, how = _rough_standard_error(
+                theta, idx, bounds, negloglik,
+                sandwich_se=float(standard_errors[idx]), at_bound=bool(active_bounds[idx]),
+            )
+            standard_errors[idx] = se
+            rough_methods[name] = how
 
     message = se_method
-    if suppressed_names:
-        message += "; boundary, numerically unidentified, or below-display-precision SE reported as NA"
+    if rough_methods:
+        message += "; rough SE for " + ", ".join(rough_methods)
 
     result = {
         "se_message": message,
@@ -1275,11 +1322,89 @@ def _standard_error_result(
         "se_used_opg_fallback": bool(used_opg_fallback),
         "se_opg_ridge": float(used_opg_ridge) if np.isfinite(used_opg_ridge) else np.nan,
         "se_used_opg_pseudoinverse": bool(used_opg_pseudo),
-        "se_suppressed_parameters": ",".join(suppressed_names),
+        "se_rough_parameters": ",".join(rough_methods),
     }
     for name, se in zip(names, standard_errors):
         result[f"se_{name}"] = float(se) if np.isfinite(se) else np.nan
+    for name, how in rough_methods.items():
+        result[f"se_method_{name}"] = how
     return result
+
+
+def _rough_standard_error(
+    theta: np.ndarray,
+    idx: int,
+    bounds: list[tuple[float | None, float | None]],
+    negloglik: Callable[[np.ndarray], float],
+    *,
+    sandwich_se: float,
+    at_bound: bool,
+    penalty: float = 1e12,
+) -> tuple[float, str]:
+    """Always-finite rough standard error for parameter ``idx``.
+
+    1. On a bound, keep the sandwich SE when the likelihood is finite just outside
+       the bound, so that the two-sided Hessian behind it is valid.
+    2. Otherwise use the curvature of the negative log likelihood in this
+       coordinate alone (one-sided, into the admissible range, on a bound),
+       holding the other parameters at their estimates.
+    3. Otherwise use the likelihood-ratio half-width: the smallest move into the
+       admissible range that raises the negative log likelihood by 0.5.
+    4. If the likelihood is flat over the whole range, report the range width.
+    """
+    theta = np.asarray(theta, dtype=float)
+    x0 = float(theta[idx])
+    lo, hi = bounds[idx]
+    lo = -np.inf if lo is None else float(lo)
+    hi = np.inf if hi is None else float(hi)
+    f0 = float(negloglik(theta))
+    h = ROUGH_SE_STEP * max(1.0, abs(x0))
+
+    def f_at(value: float) -> float:
+        trial = theta.copy()
+        trial[idx] = value
+        val = float(negloglik(trial))
+        return val if np.isfinite(val) and val < penalty else np.nan
+
+    if at_bound and np.isfinite(sandwich_se) and sandwich_se > 0.0:
+        outward = x0 - h if x0 - lo <= hi - x0 else x0 + h
+        if np.isfinite(f_at(outward)):
+            return sandwich_se, "sandwich SE with the likelihood extended across the bound"
+
+    if at_bound:
+        directions = [1.0] if x0 - lo <= hi - x0 else [-1.0]
+    else:
+        directions = [1.0, -1.0]
+
+    if len(directions) == 1:
+        d = directions[0]
+        f1, f2 = f_at(x0 + d * h), f_at(x0 + 2.0 * d * h)
+        curvature = (f2 - 2.0 * f1 + f0) / h**2
+    else:
+        curvature = (f_at(x0 + h) - 2.0 * f0 + f_at(x0 - h)) / h**2
+    if np.isfinite(curvature) and curvature > 0.0:
+        return 1.0 / np.sqrt(curvature), "curvature of the likelihood in this parameter, others held fixed"
+
+    widths, flat = [], []
+    for d in directions:
+        limit = (hi - x0) if d > 0 else (x0 - lo)
+        limit = limit if np.isfinite(limit) else 10.0 * max(1.0, abs(x0))
+        step = h
+        found = np.nan
+        while step <= limit:
+            val = f_at(x0 + d * step)
+            if not np.isfinite(val) or val - f0 >= ROUGH_SE_LR_DROP:
+                found = step
+                break
+            step *= 2.0
+        flat.append(not np.isfinite(found))
+        widths.append(found if np.isfinite(found) else limit)
+    width = float(np.mean(widths))
+    if not np.isfinite(width) or width <= 0.0:
+        width = float(hi - lo) if np.isfinite(hi - lo) else 1.0
+    if all(flat):
+        return width, "distance to the end of the admissible range (likelihood flat)"
+    return width, "likelihood-ratio half-width (log likelihood falls by 0.5)"
 
 
 def compute_standard_errors_for_row(
@@ -1314,6 +1439,7 @@ def compute_standard_errors_for_row(
         bounds=bounds,
         hessian=hessian,
         scores=scores,
+        negloglik=negloglik,
     )
 
 
@@ -1604,6 +1730,16 @@ def _mean_equation(row: dict) -> list[str]:
 
 
 def _volatility_equation(row: dict, model_family: str) -> list[str]:
+    if model_family in RESTRICTIONS:
+        lines = _volatility_equation(expand_row(row, model_family), "full")
+        sp = _math_param(row, "sigma_p")
+        loading = "phi_p" if model_family == "symmetric_p" else "phi_p_plus"
+        shock = r"u_{t-1}^2" if model_family == "symmetric_p" else r"(u_{t-1}^+)^2"
+        for i, line in enumerate(lines):
+            if line.startswith("p_t &="):
+                lines[i] = (rf"p_t &= {_math_param(row, 'p0')} + {_math_param(row, 'rho_p')}\,p_{{t-1}}"
+                            rf" + \frac{{{_math_param(row, loading)}}}{{2({sp})^2}}\,{shock},\\")
+        return lines
     sp = _math_param(row, "sigma_p")
     sn = _math_param(row, "sigma_n")
     lines = [
@@ -1682,12 +1818,17 @@ def _append_parameter_table(lines: list[str], row: dict, names: list[str]) -> No
             "|---|---:|---:|",
         ]
     )
+    rough = {name: row.get(f"se_method_{name}") for name in names
+             if isinstance(row.get(f"se_method_{name}"), str) and row.get(f"se_method_{name}")}
     for name in names:
         lines.append(
             f"| {parameter_label(name)} | {format_value(row.get(f'param_{name}'))} | "
-            f"{format_value(row.get(f'se_{name}'))} |"
+            f"{format_se(row.get(f'se_{name}'))}{chr(0x2020) if name in rough else ''} |"
         )
     lines.append("")
+    if rough:
+        methods = "; ".join(f"{parameter_label(name)}: {how}" for name, how in rough.items())
+        lines.extend([ROUGH_SE_NOTE.format(methods=methods), ""])
 
 
 def _append_top20_section(
@@ -1749,8 +1890,8 @@ def _append_path_quantile_table(lines: list[str], row: dict) -> None:
         (r"$p_t$", "selection_p_t"),
         (r"$n_t$", "selection_n_t"),
         (r"$\sigma_t^2$", "selection_cond_var"),
-        (r"$s_t^2$", "selection_cond_skewness"),
-        (r"$k_t^2$", "selection_cond_excess_kurtosis"),
+        (r"$\kappa_{3,t}$", "selection_cond_skewness"),
+        (r"$\kappa_{4,t}$", "selection_cond_excess_kurtosis"),
     ]
     if not any(f"{prefix}_median" in row for _, prefix in rows):
         return
@@ -1978,6 +2119,7 @@ def collect_results(
     title: str,
     model_param_names: list[str],
     model_family: str,
+    report_mean_types: list[str] | None = None,
 ) -> None:
     frequency = data_frequency()
     default_results_dir = script_dir / ("results" if frequency == "quarterly" else "results_monthly")
@@ -2023,7 +2165,10 @@ def collect_results(
         path_quantile_path,
         index=False,
     )
-    selected_best = best_overall(all_results_with_diagnostics, "loglik")
+    report_candidates = all_results_with_diagnostics
+    if report_mean_types is not None:
+        report_candidates = report_candidates.loc[report_candidates["mean_type"].isin(report_mean_types)]
+    selected_best = best_overall(report_candidates, "loglik")
     best_loglik_rows = []
     if not selected_best.empty:
         best_loglik_rows = add_standard_errors_for_rows(
@@ -2059,6 +2204,15 @@ def collect_results(
         best_loglik_row=best_loglik_rows[0] if best_loglik_rows else None,
         model_family=model_family,
     )
+    if report_mean_types is not None:
+        summary_path.write_text(
+            summary_path.read_text(encoding="utf-8").replace(
+                "This report shows only the single likelihood-best admissible estimate.",
+                "This report shows the single likelihood-best admissible estimate among "
+                + ", ".join("Constant" if mean == "constant" else mean for mean in report_mean_types)
+                + ". The CSV files retain the complete research search.",
+            ), encoding="utf-8",
+        )
     if results_dir.resolve() == default_results_dir.resolve():
         readme_path.write_text(
             readme_markdown_from_best_model(summary_path.read_text(encoding="utf-8")),

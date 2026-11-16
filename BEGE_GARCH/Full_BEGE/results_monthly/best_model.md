@@ -9,7 +9,7 @@
 
 # Full BEGE Best Model Summary (Monthly)
 
-Generated: `2026-11-11T21:34:20`
+Generated: `2026-11-14T16:30:46`
 Total estimations: `2400`
 Converged estimations: `2400`
 Eligible estimations for best-model selection: `2400`
@@ -44,8 +44,8 @@ Empirical path quantiles:
 | $p_t$ | 2.5474 | 3.1032 | 6.4142 |
 | $n_t$ | 0.1101 | 0.4960 | 3.3106 |
 | $\sigma_t^2$ | 0.0246 | 0.0411 | 0.1605 |
-| $s_t^2$ | -0.0281 | -0.0008 | 0.0026 |
-| $k_t^2$ | 0.0017 | 0.0041 | 0.0214 |
+| $\kappa_{3,t}$ | -0.0281 | -0.0008 | 0.0026 |
+| $\kappa_{4,t}$ | 0.0017 | 0.0041 | 0.0214 |
 
 Mean process:
 
@@ -83,8 +83,10 @@ Parameter table:
 | $\rho_p$ | 0.8587 | 0.0144 |
 | $\rho_n$ | 0.6236 | 0.0389 |
 | $\phi_p^+$ | 0.0908 | 0.0175 |
-| $\phi_p^-$ | 0.0000 | NA |
+| $\phi_p^-$ | 0.0000 | 0.0205† |
 | $\phi_n^+$ | 0.4771 | 0.0544 |
 | $\phi_n^-$ | 0.2729 | 0.0494 |
 | $\sigma_p$ | 0.0894 | 0.0092 |
 | $\sigma_n$ | 0.1762 | 0.0291 |
+
+† Rough standard error. The estimate is on the boundary of its admissible range, or its sandwich standard error is not numerically identified, so the usual normal approximation does not apply. Method: $\phi_p^-$: sandwich SE with the likelihood extended across the bound.

@@ -48,6 +48,8 @@ from statsmodels.tools.sm_exceptions import ConvergenceWarning, EstimationWarnin
 
 import MarkovRegression_t
 from joint_em import JointMeanMarkovRegression
+from ols_initialization import draw_ols_start, ols_reference
+from regime_moments import build_moment_section
 
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", category=EstimationWarning)
@@ -87,9 +89,9 @@ STABILITY_REPS = 20
 STABILITY_SCALE = 0.05
 STABILITY_LLF_TOL = 1e-4
 STABILITY_MAX_ROUNDS = 3
-# v3: jointly update shared and switching Gaussian mean coefficients in EM.
-# The likelihood, starting draws, optimization and acceptance rules are unchanged.
-METHODOLOGY_VERSION = "bekaert-identification-stability-v3-joint-em"
+# v4: all Gaussian starts use full-sample OLS +/- 2 HAC SE and Dirichlet(1) rows.
+# Retain the joint EM mean update and the existing optimization/acceptance rules.
+METHODOLOGY_VERSION = "bekaert-identification-stability-v4-ols-dirichlet"
 REGIME_COLORS = ["#d62728", "#2ca02c", "#1f77b4"]
 
 
@@ -534,6 +536,9 @@ def _result_checks(result: Any, spec: ModelSpec, mask: list[bool]) -> dict[str, 
 
 
 def _randomized_start_params(model: Any, rng: np.random.Generator) -> np.ndarray:
+    if isinstance(model, JointMeanMarkovRegression):
+        return draw_ols_start(model, rng)
+    # Preserve the optional Student-t initializer.
     params = np.asarray(model.start_params, dtype=float).copy()
     names = list(model.param_names)
 
@@ -592,7 +597,8 @@ def _fit_with_restarts(
         np.random.seed(seed)
         rng = np.random.default_rng(seed + 17)
         method = "lbfgs" if attempt % 2 else "bfgs"
-        start_params = None if attempt == 1 else _randomized_start_params(model, rng)
+        start_params = (None if attempt == 1 and spec.error_distribution != "Normal"
+                        else _randomized_start_params(model, rng))
 
         try:
             result = model.fit(
@@ -770,6 +776,8 @@ def search_model(df: pd.DataFrame, spec: ModelSpec, attempts: range) -> dict[str
     return {
         "model_label": label,
         "search_methodology": METHODOLOGY_VERSION,
+        "initialization_reference": (ols_reference(model).as_dict()
+                                     if spec.error_distribution == "Normal" else None),
         "attempts": (attempts.start, attempts.stop - 1),
         "n_attempts": len(attempts),
         "n_converged": n_converged,
@@ -905,46 +913,7 @@ def build_results_markdown(results_df: pd.DataFrame) -> str:
             "updated collection rules; verification of saved estimates checks their "
             "local stability only."
         )
-    return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view) + _unverified_markdown(results_df)
-
-
-def _unverified_markdown(results_df: pd.DataFrame) -> str:
-    """List the Normal specifications that have no verified estimate, with the reason."""
-    if "verification_methodology" not in results_df:
-        return ""
-    failed = results_df[
-        ~results_df["checks_passed"].astype(bool) & (results_df["error_distribution"] == "Normal")
-    ]
-    if failed.empty:
-        return ""
-    mean_order = {"Constant": 0, "ARX(1,1)": 1, "ARX(2,1)": 2, "ARX(2,2)": 3}
-    failed = failed.assign(_order=failed["mean_process"].map(mean_order).fillna(999)).sort_values(
-        ["_order", "k_regimes", "switching_ar", "switching_spf"]
-    )
-    reasons = {
-        "not_verified": "Not all perturbation refits returned",
-        "likelihood_not_reproducible": "Likelihood not reproduced by its parameters",
-        "ineligible_before_verification": "Failed the model checks",
-    }
-    rows = []
-    for _, r in failed.iterrows():
-        verified_batch = r["stability_status"] == "not_verified"
-        rows.append({
-            "Mean": r["mean_process"], "K": r["k_regimes"], "Sw.AR": r["switching_ar"],
-            "Sw.SPF": r["switching_spf"], "LogLik": f"{float(r['llf']):.4f}",
-            "Min $\\sigma^2$": f"{float(r['min_sigma2']):.2e}",
-            "Refits returned": (f"{int(r['stability_returns'])}/{int(r['stability_reps'])}"
-                                if verified_batch else "--"),
-            "Reason": reasons.get(r["stability_status"], str(r["stability_status"])),
-        })
-    return (
-        "\n\nThe following specifications have no verified estimate and are excluded from the "
-        "table above and from model selection. LogLik and the smallest regime variance "
-        "$\\min_k\\sigma_k^2$ refer to the rejected estimate. No variance floor is imposed, so the "
-        "Gaussian likelihood is unbounded as a regime variance approaches zero; an estimate with "
-        "$\\min_k\\sigma_k^2$ near zero is such a degenerate optimum.\n\n"
-        + _markdown_table(pd.DataFrame(rows))
-    )
+    return TYPST_PREAMBLE + "\n\n" + intro + "\n\n" + _markdown_table(view)
 
 
 def _fmt4(x: Any) -> str:
@@ -997,7 +966,7 @@ def _coefficient_symbol(col: str, switches: bool) -> str:
 
 def _mean_equation_markdown(best_row: pd.Series) -> str:
     if best_row["mean_process"] == "Constant":
-        return "$$\n\\pi_{t+1} = SPF_t + \\sigma_i W_{t+1},\\qquad Z_t=e_i.\n$$"
+        return "$$\n\\pi_{t+1} = SPF_t + \\sigma_i z_{t+1},\\qquad Z_t=e_i.\n$$"
 
     exog_cols = [c for c in str(best_row["exog_cols"]).split(",") if c]
     terms: list[str] = []
@@ -1011,7 +980,7 @@ def _mean_equation_markdown(best_row: pd.Series) -> str:
 
     rhs = " + ".join(terms)
     sigma = "\\sigma_i" if best_row["switching_distribution"] == "Y" else "\\sigma"
-    return "$$\n\\pi_{t+1} = " + rhs + " + " + sigma + " W_{t+1},\\qquad Z_t=e_i.\n$$"
+    return "$$\n\\pi_{t+1} = " + rhs + " + " + sigma + " z_{t+1},\\qquad Z_t=e_i.\n$$"
 
 
 def _parallel_mean_parameter_table(best_row: pd.Series, best_params: pd.DataFrame) -> pd.DataFrame:
@@ -1109,13 +1078,41 @@ def _switching_block_table(best_row: pd.Series) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _save_regime_plot(df: pd.DataFrame, best_row: pd.Series, best_result: Any, out_dir: Path) -> str:
-    probs = best_result.smoothed_marginal_probabilities.copy()
+def _smoothed_regime_path(df: pd.DataFrame, result: Any) -> pd.Series:
+    """Assign each observation date to the largest smoothed regime probability."""
+    probs = result.smoothed_marginal_probabilities.copy()
     if isinstance(probs, np.ndarray):
         probs = pd.DataFrame(probs, index=df.index)
+    if not probs.index.equals(df.index) or probs.shape != (len(df), result.model.k_regimes):
+        raise ValueError("Smoothed probabilities do not align with the inflation observations")
+    if not np.isfinite(probs.to_numpy()).all():
+        raise ValueError("Cannot classify dates with nonfinite smoothed probabilities")
+    return probs.idxmax(axis=1).astype(int).rename("regime")
 
-    regime_path = probs.idxmax(axis=1).astype(int)
-    inflation = df["Inflation"].astype(float).reindex(probs.index)
+
+def _regime_sample_mean_table(df: pd.DataFrame, result: Any, out_dir: Path) -> pd.DataFrame:
+    """Unweighted observed inflation means using the same classification as the plot."""
+    classified = pd.DataFrame({
+        "inflation": df["Inflation"].astype(float),
+        "regime": _smoothed_regime_path(df, result),
+    })
+    means = classified.groupby("regime")["inflation"].agg(
+        n_observations="count", mean_inflation="mean",
+    ).reindex(pd.Index(range(result.model.k_regimes), name="regime"))
+    means["n_observations"] = means["n_observations"].fillna(0).astype(int)
+    classified.to_csv(out_dir / "best_model_regime_classification.csv", index_label="date")
+    means.to_csv(out_dir / "best_model_regime_sample_means.csv")
+    table = means.reset_index().rename(columns={
+        "regime": "Regime", "n_observations": "Assigned dates", "mean_inflation": "Sample mean of $\\pi$",
+    })
+    table["Sample mean of $\\pi$"] = table["Sample mean of $\\pi$"].map(_fmt4)
+    return table
+
+
+def _save_regime_plot(df: pd.DataFrame, best_row: pd.Series, best_result: Any, out_dir: Path) -> str:
+    regime_path = _smoothed_regime_path(df, best_result)
+    inflation = df["Inflation"].astype(float)
+
     x_index = inflation.index.to_timestamp(how="end") if isinstance(inflation.index, pd.PeriodIndex) else inflation.index
 
     fig, ax = plt.subplots(figsize=(12, 5))
@@ -1171,7 +1168,7 @@ def _save_regime_plot(df: pd.DataFrame, best_row: pd.Series, best_result: Any, o
 def _conditional_variance_path(result: Any) -> np.ndarray:
     """Var(u_t | information through t-1) for u_t = pi_t - E_{t-1}[pi_t]: the
     predicted-probability mixture of the regime distributions,
-    sum_k xi_k (sigma_k^2 + m_k^2) - (sum_k xi_k m_k)^2."""
+    sum_k xi_k (sigma_k^2 + hat_pi_k^2) - (sum_k xi_k hat_pi_k)^2."""
     model = result.model
     params = np.asarray(result.params, dtype=float)
     means = np.asarray(model.predict_conditional(params), dtype=float)[:, 0, :]
@@ -1205,6 +1202,7 @@ def build_best_model_markdown(
     dist_regime_table = _parallel_distribution_parameter_table(best_row, dist_params)
     transition_matrix = _transition_matrix_table(best_result)
     plot_name = _save_regime_plot(df, best_row, best_result, out_dir)
+    regime_sample_means = _regime_sample_mean_table(df, best_result, out_dir)
     switching_parts, fixed_parts = _switching_parts(best_row)
 
     summary_table = pd.DataFrame(
@@ -1221,27 +1219,28 @@ def build_best_model_markdown(
     )
     switching_table = _switching_block_table(best_row)
 
+    if best_row["error_distribution"] == "Normal":
+        moment_section = build_moment_section(
+            best_result, df, out_dir, anchored=best_row["mean_process"] == "Constant")
+    else:
+        moment_section = "## Empirical Variance Path Quantiles\n\n" + _markdown_table(
+            _variance_quantile_table(best_result))
+
     lines = [
         "# Best Regime-Switching Model",
         "",
-        "Selected by AIC among the eligible estimates. Regimes are labeled by increasing innovation variance.",
+        "Selected by AIC among the eligible estimates. "
+        f"The model has $K={int(best_row['k_regimes'])}$ regimes, labeled by increasing innovation variance.",
         "",
         "Final-solution stability: " + str(best_row.get("stability_status", "not_checked")) + ".",
+        "",
+        f"Effective sample: {best_row['sample_start']}–{best_row['sample_end']} "
+        f"({int(best_row['nobs'])} observations).",
         "",
         "## Model Summary",
         _markdown_table(summary_table),
         "",
-        "## Empirical Path Quantiles",
-        "Quantiles over the effective sample of "
-        "$v_{t+1}=\\operatorname{Var}(u_{t+1}\\mid\\mathcal F_t)$, where "
-        "$u_{t+1}=\\pi_{t+1}-\\hat\\pi_{t+1}$. Using the regime probabilities "
-        "$Q_t$ before observing inflation and means $m_{i,t}=\\mathbb D_iX_t$:",
-        "",
-        "$$\nv_{t+1}=\\sum_i Q_{i,t}\\sigma_i^2"
-        "+\\sum_i Q_{i,t}(m_{i,t}-\\hat\\pi_{t+1})^2,"
-        "\\qquad\\hat\\pi_{t+1}=\\sum_i Q_{i,t}m_{i,t}.\n$$",
-        "",
-        _markdown_table(_variance_quantile_table(best_result)),
+        moment_section,
         "",
         "## Switching Blocks",
         _markdown_table(switching_table),
@@ -1250,7 +1249,7 @@ def build_best_model_markdown(
         _mean_equation_markdown(best_row),
         "",
         "Here $Z_t=e_i$ denotes regime $i$, which generates $\\pi_{t+1}$, and "
-        "$W_{t+1}$ is the standardized innovation with the distribution reported below.",
+        "$z_{t+1}$ is the standardized innovation with the distribution reported below.",
         "",
         "## Mean Parameter Values",
         _markdown_table(mean_regime_table),
@@ -1258,11 +1257,21 @@ def build_best_model_markdown(
         "## Distribution Parameters",
         _markdown_table(dist_regime_table),
         "",
+        "## Sample Mean Inflation by Regime",
+        _markdown_table(regime_sample_means),
+        "",
+        "**Note.** Each observation $\\pi_{t+1}$ is assigned to the regime "
+        "$i=\\arg\\max_j\\widetilde{Q}_{j,t}$, using the same smoothed classification as the plot. "
+        "The table reports the simple, unweighted average of observed inflation over the dates "
+        "assigned to each regime, in percent per quarter or month, without annualization. "
+        "These sample means illustrate average inflation within each classified regime; "
+        "they are not model-implied unconditional means.",
+        "",
         "## Transition Probability Matrix",
         _markdown_table(transition_matrix),
         "",
         "## Regime Classification Plot",
-        "Shading selects the largest component of $S_t=E(Z_t\\mid\\mathcal F_T)$ "
+        "Shading selects the largest component of $\\widetilde{Q}_t=E[Z_t\\mid\\mathcal{F}_T]$ "
         "and displays it at the date of $\\pi_{t+1}$. It uses the full sample.",
         "",
         f"![Inflation with Smoothed Regime Classifications]({plot_name})",
@@ -1766,6 +1775,16 @@ def collect_model_jobs(
     errors: list[dict[str, Any]] = []
     for model_id, spec in entries:
         _select_and_record(spec, by_model[model_id], results_rows, parameter_rows, attempt_rows, errors)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    references = {
+        model_id: {"model_label": model_label(spec),
+                   "reference": by_model[model_id][0].get("initialization_reference")}
+        for model_id, spec in entries if by_model[model_id]
+    }
+    (out_dir / "regime_switching_initialization.json").write_text(
+        json.dumps({"search_methodology": METHODOLOGY_VERSION, "models": references}, indent=2) + "\n",
+        encoding="utf-8",
+    )
     write_outputs(df, data_path, out_dir, results_rows, parameter_rows, attempt_rows, skipped, errors,
                   stability_reps=stability_reps)
 

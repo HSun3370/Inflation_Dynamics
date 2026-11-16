@@ -63,7 +63,7 @@ The reported estimate for a combination is the highest log likelihood among star
 
 - the optimizer converged (SLSQP success and `arch` convergence flag 0);
 - the first-order (KKT) conditions hold: the numerical gradient of the log likelihood, net of non-negative multipliers on the active bounds and constraints, is at most $0.005\,T$ in absolute value;
-- the volatility stationarity condition holds with a margin of $10^{-6}$;
+- the volatility stationarity condition holds with the numerical stationarity margin $\delta=10^{-6}$;
 - the inflation-lag AR roots lie inside the unit circle;
 - for the Gaussian mixture, the two component variances satisfy $\min(\sigma_1^2,\sigma_2^2)/\max(\sigma_1^2,\sigma_2^2)\ge 0.01$.
 
@@ -73,6 +73,8 @@ Standard errors are robust (sandwich) and are computed only for each combination
 $$
 \operatorname{Var}(\hat\gamma_i)=\operatorname{Var}(\hat\alpha_i)+\operatorname{Var}(\widehat{\gamma_i-\alpha_i})+2\operatorname{Cov}(\hat\alpha_i,\widehat{\gamma_i-\alpha_i}).
 $$
+
+For each distribution and volatility family, the results reports select the admissible model with the lowest AIC (Table 2) and the lowest BIC (Table 3) across all mean processes and orders. Table 4 repeats the BIC selection over the five ARX mean processes only, excluding the Constant mean.
 
 ### Running the search on the CBS Grid
 

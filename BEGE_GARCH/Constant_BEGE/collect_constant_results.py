@@ -20,6 +20,7 @@ from BEGE_GARCH.bege_batch import (
     MONTHLY_TYPST_STYLE,
     TOP_MODELS_PER_MEAN,
     _append_path_quantile_table,
+    _append_parameter_table as _shared_append_parameter_table,
     _signed_terms,
     _central_diff_scores,
     _empty_path_quantile_metrics,
@@ -287,6 +288,7 @@ def compute_standard_errors_for_row(row: pd.Series, *, spec: dict) -> dict:
         bounds=bounds,
         hessian=hessian,
         scores=scores,
+        negloglik=negloglik,
     )
 
 
@@ -485,13 +487,8 @@ def _constant_volatility_equation(row: dict) -> list[str]:
 
 
 def _append_parameter_table(lines: list[str], row: dict, names: list[str]) -> None:
-    lines.extend(["| Parameter | Estimate | Std. Error |", "|---|---:|---:|"])
-    for name in names:
-        lines.append(
-            f"| {parameter_label(name)} | {format_value(row.get(f'param_{name}'))} | "
-            f"{format_value(row.get(f'se_{name}'))} |"
-        )
-    lines.append("")
+    # Shared renderer: marks rough standard errors and prints their note.
+    _shared_append_parameter_table(lines, row, names)
 
 
 def _append_top20_section(lines: list[str], mean_type: str, rows: list[dict]) -> None:

@@ -77,6 +77,18 @@ submit_jobs() {
     fi
     RUN_DIR="${RUN_DIR:-${SCRATCH_ROOT}/RegimeSwitching/$(date +%Y%m%d_%H%M%S)}"
     mkdir -p "${RUN_DIR}"
+    # Freeze the estimator and dependencies so report edits cannot affect running jobs.
+    local code_dir="${RUN_DIR}/code"
+    mkdir -p "${code_dir}"
+    if [ ! -f "${code_dir}/estimate_regime_switching_models.py" ]; then
+        cp "${SCRIPT_DIR}/estimate_regime_switching_models.py" \
+           "${SCRIPT_DIR}/joint_em.py" "${SCRIPT_DIR}/ols_initialization.py" \
+           "${SCRIPT_DIR}/MarkovRegression_t.py" "${SCRIPT_DIR}/regime_moments.py" "${code_dir}/"
+        cp "${SCRIPT_DIR}/README.md" "${code_dir}/README.md"
+        sha256sum "${code_dir}"/*.py "${PROJECT_ROOT}/DataSummary/"Aggregate_CPI_inflation_{Quarterly,Monthly}.pkl \
+            > "${RUN_DIR}/input_sha256.txt"
+    fi
+    PY_SCRIPT="${code_dir}/estimate_regime_switching_models.py"
     ln -sfn "${RUN_DIR}" "${LATEST_LINK}"
     echo "Run directory: ${RUN_DIR} (linked from ${LATEST_LINK})"
     echo "Starts per specification: ${N_STARTS} in blocks of ${BLOCK}"
@@ -117,6 +129,7 @@ EOF
                 local job_id
                 job_id=$(grid_submit_batch "${logs}" "${job_script}" 1 "${GRID_MEM}")
                 job_ids+=("${job_id}")
+                printf '%s\t%s\t%s\n' "${freq}" "${block_name}" "${job_id}" >> "${RUN_DIR}/jobs.tsv"
             done
         done
         echo "${freq}: submitted ${#job_ids[@]} block jobs (logs in ${logs})"
@@ -138,6 +151,7 @@ EOF
             local hold collector_id
             hold=$(IFS=,; echo "${job_ids[*]}")
             collector_id=$(grid_submit_batch "${logs}" "${collector}" 1 "${COLLECT_MEM}" "${hold}")
+            printf '%s\tcollector\t%s\n' "${freq}" "${collector_id}" >> "${RUN_DIR}/jobs.tsv"
             echo "${freq}: collector job ${collector_id} writes $(results_dir "${freq}")"
         fi
     done
@@ -159,6 +173,9 @@ show_status() {
 
 collect_now() {
     RUN_DIR="${RUN_DIR:-$(readlink -f "${LATEST_LINK}")}"
+    if [ -f "${RUN_DIR}/code/estimate_regime_switching_models.py" ]; then
+        PY_SCRIPT="${RUN_DIR}/code/estimate_regime_switching_models.py"
+    fi
     local freq
     for freq in ${FREQS}; do
         (cd "${SCRIPT_DIR}" && grid_python_now "${COLLECT_MEM}" "${PY_SCRIPT}" --collect \

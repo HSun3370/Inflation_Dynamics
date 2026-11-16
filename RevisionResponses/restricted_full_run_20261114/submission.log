@@ -1,0 +1,76 @@
+=== SymmetricP_BEGE (quarterly)
+Jobs: 10
+Mean processes per job: 6
+Starts per seed job: 6000
+Starts per mean process: 10000
+Total optimizer starts: 60000
+Symmetric-p/full-n BEGE estimates nine free volatility parameters and unrestricted n_t dynamics.
+Submitted seed id 1: 8990937
+Submitted seed id 2: 8990938
+Submitted seed id 3: 8990939
+Submitted seed id 4: 8990940
+Submitted seed id 5: 8990941
+Submitted seed id 6: 8990942
+Submitted seed id 7: 8990943
+Submitted seed id 8: 8990944
+Submitted seed id 9: 8990945
+Submitted seed id 10: 8990946
+SGE logs: /scratch/hs3370/Inflation_Dynamics/BEGE_GARCH/SymmetricP_BEGE/output_quarterly_2026-10-20/job-outs/SymmetricP_BEGE_RandomSearch/
+Submitted collector job: 8990947
+=== PositiveOnlyP_BEGE (quarterly)
+Jobs: 10
+Mean processes per job: 6
+Starts per seed job: 6000
+Starts per mean process: 10000
+Total optimizer starts: 60000
+Positive-only-p/full-n BEGE estimates nine free volatility parameters and unrestricted n_t dynamics.
+Submitted seed id 1: 8990948
+Submitted seed id 2: 8990949
+Submitted seed id 3: 8990950
+Submitted seed id 4: 8990951
+Submitted seed id 5: 8990952
+Submitted seed id 6: 8990953
+Submitted seed id 7: 8990954
+Submitted seed id 8: 8990955
+Submitted seed id 9: 8990956
+Submitted seed id 10: 8990957
+SGE logs: /scratch/hs3370/Inflation_Dynamics/BEGE_GARCH/PositiveOnlyP_BEGE/output_quarterly_2026-10-20/job-outs/PositiveOnlyP_BEGE_RandomSearch/
+Submitted collector job: 8990958
+=== SymmetricP_BEGE (monthly)
+Jobs: 10
+Mean processes per job: 6
+Starts per seed job: 6000
+Starts per mean process: 10000
+Total optimizer starts: 60000
+Symmetric-p/full-n BEGE estimates nine free volatility parameters and unrestricted n_t dynamics.
+Submitted seed id 1: 8990959
+Submitted seed id 2: 8990960
+Submitted seed id 3: 8990961
+Submitted seed id 4: 8990962
+Submitted seed id 5: 8990963
+Submitted seed id 6: 8990964
+Submitted seed id 7: 8990965
+Submitted seed id 8: 8990966
+Submitted seed id 9: 8990967
+Submitted seed id 10: 8990968
+SGE logs: /scratch/hs3370/Inflation_Dynamics/BEGE_GARCH/SymmetricP_BEGE/output_monthly_2026-10-20/job-outs/SymmetricP_BEGE_RandomSearch/
+Submitted collector job: 8990969
+=== PositiveOnlyP_BEGE (monthly)
+Jobs: 10
+Mean processes per job: 6
+Starts per seed job: 6000
+Starts per mean process: 10000
+Total optimizer starts: 60000
+Positive-only-p/full-n BEGE estimates nine free volatility parameters and unrestricted n_t dynamics.
+Submitted seed id 1: 8990970
+Submitted seed id 2: 8990971
+Submitted seed id 3: 8990972
+Submitted seed id 4: 8990973
+Submitted seed id 5: 8990974
+Submitted seed id 6: 8990975
+Submitted seed id 7: 8990976
+Submitted seed id 8: 8990977
+Submitted seed id 9: 8990978
+Submitted seed id 10: 8990979
+SGE logs: /scratch/hs3370/Inflation_Dynamics/BEGE_GARCH/PositiveOnlyP_BEGE/output_monthly_2026-10-20/job-outs/PositiveOnlyP_BEGE_RandomSearch/
+Submitted collector job: 8990980

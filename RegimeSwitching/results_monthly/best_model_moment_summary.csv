@@ -1,0 +1,4 @@
+distribution,mean,variance,skewness,kurtosis
+Inflation: sample-averaged predictive mixture,0.3242282777120392,0.10568624999105053,0.47638927089163785,5.071488099030577
+Residual: sample-averaged predictive mixture,0.0,0.05691349826671913,0.00942229162150082,6.326625041474623
+Regime shock: stationary mixture,0.0,0.052549941698896284,0.0,6.824946957057641

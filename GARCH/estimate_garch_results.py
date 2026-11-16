@@ -1288,8 +1288,21 @@ def _best_row(df: pd.DataFrame, criterion: str) -> pd.Series | None:
     return df.loc[df[criterion].idxmin()]
 
 
-def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
+def build_family_panel_table(
+    summary_df: pd.DataFrame,
+    criterion: str,
+    exclude_means: Sequence[str] = (),
+    override_title: str | None = None,
+) -> str:
+    """Best model per distribution and volatility family by `criterion`.
+
+    `exclude_means` lists mean_spec names removed from the admissible pool before
+    selection; the red highlight then marks the minimum among the remaining models.
+    `override_title` replaces the default table title.
+    """
     pool = _candidate_pool(summary_df, criterion)
+    if exclude_means:
+        pool = pool[~pool["mean_spec"].isin(exclude_means)]
     fams = ["GARCH", "GJR-GARCH", "EGARCH"]
     best_rows: dict[tuple[str, str], pd.Series | None] = {}
     values: list[float] = []
@@ -1316,7 +1329,7 @@ def build_family_panel_table(summary_df: pd.DataFrame, criterion: str) -> str:
         c_eg = "EGARCH BIC"
 
     lines: list[str] = []
-    lines.append(title)
+    lines.append(title if override_title is None else override_title)
     lines.append("")
     lines.append(
         f"| Distribution | GARCH Mean | GARCH Vol | {c_g} | GJR Mean | GJR Vol | {c_gjr} | EGARCH Mean | EGARCH Vol | {c_eg} |"
@@ -1478,7 +1491,7 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     if m == "Constant_anchor":
         return (
             "$$\n"
-            "\\hat{\\pi}_{t+1} = SPF_t + \\mu_{t+1}\n"
+            "\\hat{\\pi}_{t+1} = SPF_t\n"
             "$$\n"
             "\nNo mean-process coefficients are estimated in this anchored specification."
         )
@@ -1493,14 +1506,14 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     if m == "ARX_1_0":
         return (
             "$$\n"
-            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t + \\mu_{{t+1}}\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t\n"
             "$$"
         )
 
     if m == "ARX_1_1":
         return (
             "$$\n"
-            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(spf)}\\,SPF_t + \\mu_{{t+1}}\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(spf)}\\,SPF_t\n"
             "$$"
         )
 
@@ -1508,14 +1521,14 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     if m == "ARX_2_0":
         return (
             "$$\n"
-            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} + \\mu_{{t+1}}\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}}\n"
             "$$"
         )
 
     if m == "ARX_2_1":
         return (
             "$$\n"
-            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} {s(spf)}\\,SPF_t + \\mu_{{t+1}}\n"
+            f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} {s(spf)}\\,SPF_t\n"
             "$$"
         )
 
@@ -1523,7 +1536,7 @@ def _mean_equation_markdown(best_row: pd.Series, psub: pd.DataFrame) -> str:
     return (
         "$$\n"
         f"\\hat{{\\pi}}_{{t+1}} = {c:.4f} {s(i1)}\\,\\pi_t {s(i2)}\\,\\pi_{{t-1}} "
-        f"{s(spf)}\\,SPF_t {s(spf1)}\\,SPF_{{t-1}} + \\mu_{{t+1}}\n"
+        f"{s(spf)}\\,SPF_t {s(spf1)}\\,SPF_{{t-1}}\n"
         "$$"
     )
 
@@ -1736,13 +1749,13 @@ def build_parameter_range_section(
         "and AR roots below $1-10^{-6}$ in modulus), so `arch` uses every random start as drawn.",
         "",
         "$\\bar v$ denotes the mean squared residual at `arch`'s mean starting values (OLS "
-        f"residuals for ARX means, $\\pi_t-SPF_t$ for the Constant mean): {vbar}.",
+        f"residuals for ARX means, $\\pi_t-SPF_{{t-1}}$ for the Constant mean): {vbar}.",
         "",
         "| Parameter | `arch` bound / constraint | Random-start draw |",
         "|---|---|---|",
         "| **Mean process** | | |",
-        "| $\\rho_1$ in ARX(1,·) | none | $U(-1,1)$ (AR stationarity) |",
-        "| $(\\rho_1,\\rho_2)$ in ARX(2,·) | none | uniform on the stationarity triangle "
+        "| $\\rho_1$ in ARX(1,·) | $\\lvert\\rho_1\\rvert<1-10^{-6}$ | $U(-1,1)$ (AR stationarity) |",
+        "| $(\\rho_1,\\rho_2)$ in ARX(2,·) | $\\rho_2>-1$, $\\rho_1+\\rho_2<1$, $\\rho_2-\\rho_1<1$; both roots of $r^2-\\rho_1r-\\rho_2=0$ satisfy $\\lvert r\\rvert<1-10^{-6}$ | uniform on the stationarity triangle "
         "$\\rho_2>-1$, $\\lvert\\rho_1\\rvert<1-\\rho_2$ |",
         "| $c$, $\\phi_1$, $\\phi_2$ | none | uniform on $\\hat b(\\rho)\\pm "
         f"{k:g}\\,\\widehat{{SE}}(\\rho)$, the OLS fit of $\\pi_t-\\rho_1\\pi_{{t-1}}-\\rho_2\\pi_{{t-2}}$ "
@@ -1777,7 +1790,7 @@ def build_parameter_range_section(
         "",
         "- *Uniform on a region* means a uniform draw over the whole region: Dirichlet(1,…,1) "
         "weights for the volatility simplices, rejection sampling for the AR triangle and for "
-        "`arch`'s caps. *Log-uniform* draws are uniform in the logarithm of the parameter.",
+        "`arch`'s caps. *Log-uniform* draws are uniform in the logarithm of the parameter. The AR restrictions apply to random starts and final selection; the optimizer itself imposes no bounds on the AR coefficients.",
         "- Compared with the stationarity conditions in the README, `arch`'s feasible set is the "
         "same for GARCH. For GJR-GARCH, `arch` also caps $\\alpha_i\\le1$, although stationarity "
         "alone allows $\\alpha_i<2$ when $\\gamma_i$ is small. For EGARCH, `arch` requires "
@@ -1868,6 +1881,28 @@ def build_markdown_report(
     lines.append(build_family_panel_table(summary_df, "aic"))
     lines.append("")
     lines.append(build_family_panel_table(summary_df, "bic"))
+    lines.append("")
+    bic_pool = _candidate_pool(summary_df, "bic")
+    constant_selected = any(
+        best is not None and best["mean_spec"] == "Constant_anchor"
+        for best in (
+            _best_row(bic_pool[(bic_pool["distribution"] == dist) & (bic_pool["vol_family"] == fam)], "bic")
+            for dist in DISTRIBUTION_ORDER
+            for fam in VOL_FAMILIES
+        )
+    )
+    lines.append(
+        "Table 4 repeats the BIC selection over the ARX mean processes only; "
+        "the Constant mean is excluded from the candidates."
+        + ("" if constant_selected else
+           " Because Table 3 selects no Constant-mean model, Table 4 coincides with Table 3.")
+    )
+    lines.append("")
+    lines.append(build_family_panel_table(
+        summary_df, "bic", exclude_means=("Constant_anchor",),
+        override_title="**Table 4: Model selection by BIC, excluding the Constant mean: "
+                       "GARCH vs GJR vs EGARCH**",
+    ))
     lines.append("")
     lines.append(build_all_model_results_table(summary_df))
     lines.append("")
